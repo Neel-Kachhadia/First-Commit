@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Razorpay Standard Checkout — KavachPay</title>
+  <meta name="description" content="Razorpay Standard Web Checkout Integration with Order Creation and HMAC-SHA256 Signature Verification">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Razorpay Standard Web Checkout Script -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    :root {
+      --bg-base: #090d16;
+      --bg-surface: #111726;
+      --bg-surface-elevated: #182238;
+      --bg-surface-glass: rgba(24, 34, 56, 0.75);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-accent: rgba(99, 102, 241, 0.4);
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-indigo: #6366f1;
+      --accent-blue: #38bdf8;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --shadow-glass: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 0 30px rgba(99, 102, 241, 0.15);
+      --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-primary);
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(56, 189, 248, 0.1) 0%, transparent 50%);
+    }
+
+    .container {
+      width: 100%;
+      max-width: 540px;
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid var(--border-accent);
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--accent-blue);
+      margin-bottom: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .header-badge .dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-emerald);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .card {
+      background: var(--bg-surface-glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 2.25rem;
+      box-shadow: var(--shadow-glass);
+      transition: var(--transition-smooth);
+    }
+
+    .card-header {
+      margin-bottom: 1.75rem;
+    }
+
+    .card-title {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.35rem;
+      background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .card-subtitle {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .section-label {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 0.65rem;
+      display: block;
+    }
+
+    /* Preset Amount Chips */
+    .amount-presets {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.6rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .amount-btn {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      padding: 0.65rem 0.25rem;
+      font-size: 0.92rem;
+      font-weight: 600;
+      font-family: 'Outfit', sans-serif;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      text-align: center;
+    }
+
+    .amount-btn:hover {
+      background: var(--bg-surface-elevated);
+      color: var(--text-primary);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .amount-btn.active {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--accent-indigo);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+    }
+
+    .input-group {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+
+    .input-prefix {
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+
+    .input-field {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 1rem 0.9rem 2.4rem;
+      color: var(--text-primary);
+      font-size: 1.2rem;
+      font-weight: 600;
+      font-family: 'Outfit', sans-serif;
+      transition: var(--transition-smooth);
+      outline: none;
+    }
+
+    .input-field:focus {
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    }
+
+    .paise-hint {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.4rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .summary-box {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 1.1rem;
+      margin-bottom: 1.75rem;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.9rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .summary-row:last-child {
+      margin-bottom: 0;
+      padding-top: 0.5rem;
+      border-top: 1px dashed var(--border-subtle);
+      font-weight: 600;
+      font-size: 1.05rem;
+    }
+
+    .summary-label {
+      color: var(--text-secondary);
+    }
+
+    .summary-val {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-primary);
+    }
+
+    .pay-btn {
+      width: 100%;
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      color: white;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 1rem 1.5rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+      font-family: 'Outfit', sans-serif;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      transition: var(--transition-smooth);
+      box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.5);
+    }
+
+    .pay-btn:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.7);
+      background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+    }
+
+    .pay-btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .pay-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Status Notifications */
+    .status-panel {
+      margin-top: 1.5rem;
+      border-radius: var(--radius-md);
+      padding: 1.25rem;
+      font-size: 0.9rem;
+      display: none;
+      animation: fadeIn 0.3s ease-in-out forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .status-panel.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+
+    .status-panel.error {
+      display: block;
+      background: rgba(244, 63, 94, 0.1);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fb7185;
+    }
+
+    .status-panel.warning {
+      display: block;
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fcd34d;
+    }
+
+    .status-panel.info {
+      display: block;
+      background: rgba(56, 189, 248, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #7dd3fc;
+    }
+
+    .status-title {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.4rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .receipt-details {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: var(--radius-sm);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      word-break: break-all;
+      color: var(--text-secondary);
+    }
+
+    .receipt-row {
+      margin-bottom: 0.4rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .receipt-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .receipt-label {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+    }
+
+    .receipt-value {
+      color: var(--text-primary);
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 1.5rem;
+    }
+
+    .footer-note code {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div style="text-align: center;">
+      <div class="header-badge">
+        <span class="dot"></span>
+        <span id="keyBadge">Razorpay Test Mode Active</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h1 class="card-title">Standard Web Checkout</h1>
+        <p class="card-subtitle">
+          Secure payment execution with server-side order creation & HMAC-SHA256 signature verification.
+        </p>
+      </div>
+
+      <label class="section-label">Select Amount (INR)</label>
+      <div class="amount-presets">
+        <button type="button" class="amount-btn" data-rupees="5">₹5</button>
+        <button type="button" class="amount-btn" data-rupees="50">₹50</button>
+        <button type="button" class="amount-btn active" data-rupees="100">₹100</button>
+        <button type="button" class="amount-btn" data-rupees="500">₹500</button>
+      </div>
+
+      <div class="input-group">
+        <span class="input-prefix">₹</span>
+        <input 
+          type="number" 
+          id="amountInput" 
+          class="input-field" 
+          value="100" 
+          min="1" 
+          step="any"
+          placeholder="Enter amount"
+        />
+        <div class="paise-hint">
+          <span>Minimum ₹1.00 (100 paise)</span>
+          <span id="paiseLabel">10,000 paise</span>
+        </div>
+      </div>
+
+      <div class="summary-box">
+        <div class="summary-row">
+          <span class="summary-label">Gateway</span>
+          <span class="summary-val">Razorpay Standard</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Mode</span>
+          <span class="summary-val" style="color: var(--accent-amber);">TEST_MODE</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Currency</span>
+          <span class="summary-val">INR (₹)</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Total Payable</span>
+          <span class="summary-val" id="summaryTotal" style="color: var(--accent-emerald);">₹100.00</span>
+        </div>
+      </div>
+
+      <button id="payButton" class="pay-btn" type="button">
+        <span id="payBtnIcon">💳</span>
+        <span id="payBtnText">Pay ₹100.00 with Razorpay</span>
+      </button>
+
+      <!-- Status Panel -->
+      <div id="statusPanel" class="status-panel">
+        <div id="statusTitle" class="status-title"></div>
+        <div id="statusMsg"></div>
+        <div id="receiptBox" class="receipt-details" style="display: none;"></div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      Backend: <code>POST /api/create-order</code> &bull; Verification: <code>POST /api/verify-payment</code>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      let activeKeyId = "";
+      const amountInput = document.getElementById("amountInput");
+      const paiseLabel = document.getElementById("paiseLabel");
+      const summaryTotal = document.getElementById("summaryTotal");
+      const payButton = document.getElementById("payButton");
+      const payBtnText = document.getElementById("payBtnText");
+      const payBtnIcon = document.getElementById("payBtnIcon");
+      const statusPanel = document.getElementById("statusPanel");
+      const statusTitle = document.getElementById("statusTitle");
+      const statusMsg = document.getElementById("statusMsg");
+      const receiptBox = document.getElementById("receiptBox");
+      const presetButtons = document.querySelectorAll(".amount-btn");
+      const keyBadge = document.getElementById("keyBadge");
+
+      // Fetch public configuration from backend
+      async function fetchConfig() {
+        try {
+          const res = await fetch("/api/config");
+          if (res.ok) {
+            const data = await res.json();
+            if (data.key_id) {
+              activeKeyId = data.key_id;
+              const masked = activeKeyId.length > 10 
+                ? activeKeyId.substring(0, 8) + "..." + activeKeyId.slice(-4)
+                : activeKeyId;
+              keyBadge.textContent = "Test Mode: " + masked;
+            }
+          }
+        } catch (e) {
+          console.warn("Could not prefetch Razorpay config", e);
+        }
+      }
+      fetchConfig();
+
+      function updateAmount(rupees) {
+        const parsed = parseFloat(rupees);
+        if (isNaN(parsed) || parsed <= 0) {
+          paiseLabel.textContent = "0 paise";
+          summaryTotal.textContent = "₹0.00";
+          payBtnText.textContent = "Enter a valid amount";
+          payButton.disabled = true;
+          return;
+        }
+
+        const paise = Math.round(parsed * 100);
+        paiseLabel.textContent = paise.toLocaleString() + " paise";
+        summaryTotal.textContent = "₹" + parsed.toFixed(2);
+        payBtnText.textContent = "Pay ₹" + parsed.toFixed(2) + " with Razorpay";
+        payButton.disabled = paise < 100;
+      }
+
+      // Presets click handler
+      presetButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          presetButtons.forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+          amountInput.value = btn.dataset.rupees;
+          updateAmount(btn.dataset.rupees);
+        });
+      });
+
+      // Amount manual input handler
+      amountInput.addEventListener("input", (e) => {
+        presetButtons.forEach(b => {
+          if (b.dataset.rupees === e.target.value) {
+            b.classList.add("active");
+          } else {
+            b.classList.remove("active");
+          }
+        });
+        updateAmount(e.target.value);
+      });
+
+      function setStatus(type, title, message, receiptDetails) {
+        statusPanel.className = "status-panel " + type;
+        statusTitle.textContent = title;
+        statusMsg.textContent = message;
+
+        if (receiptDetails) {
+          receiptBox.style.display = "block";
+          receiptBox.innerHTML = `
+            <div class="receipt-row">
+              <span class="receipt-label">Razorpay Order ID</span>
+              <span class="receipt-value">${receiptDetails.order_id || 'N/A'}</span>
+            </div>
+            <div class="receipt-row">
+              <span class="receipt-label">Razorpay Payment ID</span>
+              <span class="receipt-value">${receiptDetails.payment_id || 'N/A'}</span>
+            </div>
+            <div class="receipt-row">
+              <span class="receipt-label">Verification Status</span>
+              <span class="receipt-value" style="color: #10b981;">✓ HMAC-SHA256 Signature Verified</span>
+            </div>
+          `;
+        } else {
+          receiptBox.style.display = "none";
+          receiptBox.innerHTML = "";
+        }
+      }
+
+      function setLoading(isLoading) {
+        if (isLoading) {
+          payButton.disabled = true;
+          payBtnIcon.innerHTML = '<div class="spinner"></div>';
+          payBtnText.textContent = "Initializing checkout...";
+        } else {
+          payButton.disabled = false;
+          payBtnIcon.innerHTML = '💳';
+          updateAmount(amountInput.value);
+        }
+      }
+
+      // Main Checkout Flow
+      payButton.addEventListener("click", async () => {
+        const rupees = parseFloat(amountInput.value);
+        const paise = Math.round(rupees * 100);
+
+        if (isNaN(paise) || paise < 100) {
+          setStatus("error", "Invalid Amount", "Minimum transaction amount is 100 paise (₹1.00).");
+          return;
+        }
+
+        setLoading(true);
+        setStatus("info", "Creating Order", "Requesting order from backend /api/create-order...");
+
+        try {
+          // 1. BACKEND - Create Order
+          const orderResponse = await fetch("/api/create-order", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              amount: paise,
+              currency: "INR",
+              receipt: "rcpt_" + Date.now(),
+            }),
+          });
+
+          const orderData = await orderResponse.json();
+
+          if (!orderResponse.ok || !orderData.order_id) {
+            setLoading(false);
+            setStatus(
+              "error", 
+              "Order Creation Failed", 
+              orderData.message || orderData.error || "Could not initialize order with backend."
+            );
+            return;
+          }
+
+          const keyToUse = orderData.key_id || activeKeyId;
+
+          if (!keyToUse) {
+            setLoading(false);
+            setStatus("error", "Configuration Error", "Razorpay Key ID missing from server.");
+            return;
+          }
+
+          // 2. FRONTEND - Launch Razorpay Modal
+          setStatus("info", "Payment In Progress", "Please complete payment in the Razorpay modal.");
+
+          const options = {
+            key: keyToUse,
+            amount: orderData.amount,
+            currency: orderData.currency,
+            name: "KavachPay",
+            description: "Razorpay Standard Checkout Demo",
+            order_id: orderData.order_id,
+            handler: async function (response) {
+              // 3. BACKEND - Verify Payment Signature
+              setStatus("info", "Verifying Payment", "Sending HMAC-SHA256 signature to /api/verify-payment...");
+              setLoading(true);
+
+              try {
+                const verifyResponse = await fetch("/api/verify-payment", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                  }),
+                });
+
+                const verifyData = await verifyResponse.json();
+
+                if (verifyResponse.ok && verifyData.success) {
+                  setStatus(
+                    "success",
+                    "Payment Successful & Verified!",
+                    "Your payment has been completed and cryptographically verified by KavachPay backend.",
+                    {
+                      order_id: response.razorpay_order_id,
+                      payment_id: response.razorpay_payment_id,
+                    }
+                  );
+                } else {
+                  setStatus(
+                    "error",
+                    "Verification Failed",
+                    verifyData.message || "Payment signature mismatch. Payment not marked as paid."
+                  );
+                }
+              } catch (verifyErr) {
+                console.error("Verification network error:", verifyErr);
+                setStatus("error", "Network Error", "Could not contact verification endpoint.");
+              } finally {
+                setLoading(false);
+              }
+            },
+            modal: {
+              ondismiss: function () {
+                setLoading(false);
+                setStatus("warning", "Payment Cancelled", "The Razorpay checkout modal was closed before payment completed.");
+              },
+            },
+            prefill: {
+              name: "KavachPay Test User",
+              email: "test.user@kavachpay.dev",
+              contact: "9999999999",
+            },
+            theme: {
+              color: "#6366f1",
+            },
+          };
+
+          const rzpInstance = new window.Razorpay(options);
+
+          // Handle payment failure event
+          rzpInstance.on("payment.failed", function (failResponse) {
+            console.error("Payment failed:", failResponse.error);
+            setLoading(false);
+            setStatus(
+              "error",
+              "Payment Failed",
+              (failResponse.error && failResponse.error.description) 
+                ? failResponse.error.description 
+                : "Payment could not be processed by gateway."
+            );
+          });
+
+          rzpInstance.open();
+        } catch (err) {
+          console.error("Checkout launch error:", err);
+          setLoading(false);
+          setStatus("error", "System Error", err.message || "An unexpected error occurred.");
+        }
+      });
+
+      // Initial calculation
+      updateAmount(amountInput.value);
+    })();
+  </script>
+</body>
+</html>
