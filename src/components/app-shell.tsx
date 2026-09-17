@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 import {
   AlertDialog,
@@ -18,35 +18,39 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import {
-  GaugeCircle,
-  Bot,
-  Network,
-  ShieldCheck,
-  Receipt,
-  SlidersHorizontal,
   Menu,
   Moon,
   Sun,
   OctagonPause,
   Play,
   ChevronDown,
+  Bell,
+  Search,
 } from "lucide-react";
 import { KavachMark } from "@/components/kavach/logo";
+import {
+  AgentGlyph,
+  ApprovalGlyph,
+  AuthorityGlyph,
+  CommandGlyph,
+  DecisionGlyph,
+  MandateGlyph,
+} from "@/components/kavach/icons";
 import { useKavach } from "@/lib/kavach-store";
 import { useTheme } from "@/lib/theme";
 import { formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/", label: "Command center", icon: GaugeCircle, exact: true },
-  { to: "/agents", label: "Agents", icon: Bot, exact: false },
-  { to: "/authority", label: "Authority graph", icon: Network, exact: false },
-  { to: "/approvals", label: "Approvals", icon: ShieldCheck, exact: false },
-  { to: "/activity", label: "Activity", icon: Receipt, exact: false },
+  { to: "/", label: "Command Center", icon: CommandGlyph, exact: true },
+  { to: "/agents", label: "Agents", icon: AgentGlyph, exact: false },
+  { to: "/authority", label: "Authority", icon: AuthorityGlyph, exact: false },
+  { to: "/approvals", label: "Approvals", icon: ApprovalGlyph, exact: false },
+  { to: "/activity", label: "Decisions", icon: DecisionGlyph, exact: false },
   {
     to: "/rules",
-    label: "Spending rules",
-    icon: SlidersHorizontal,
+    label: "Mandates",
+    icon: MandateGlyph,
     exact: false,
   },
 ] as const;
@@ -63,7 +67,7 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
             to={item.to}
             onClick={onNavigate}
             activeOptions={{ exact: item.exact }}
-            className="group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground data-[status=active]:bg-primary/10 data-[status=active]:text-foreground data-[status=active]:before:absolute data-[status=active]:before:inset-y-2 data-[status=active]:before:left-0 data-[status=active]:before:w-0.5 data-[status=active]:before:rounded-full data-[status=active]:before:bg-primary"
+            className="nav-item group relative flex items-center gap-3 rounded-[5px] px-3 py-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[status=active]:text-foreground"
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -171,9 +175,8 @@ function Brand({ className }: { className?: string }) {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { frozen } = useKavach();
+  const { frozen, approvals } = useKavach();
   const [menuOpen, setMenuOpen] = useState(false);
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
     <div className="min-h-screen bg-background">
@@ -184,7 +187,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         Skip to content
       </a>
 
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-card lg:flex">
+      <aside className="shell-sidebar fixed inset-y-0 left-0 z-30 hidden w-[232px] flex-col border-r border-border bg-card lg:flex">
         <div className="flex h-16 items-center justify-between border-b border-border px-5">
           <Brand />
           <span className="rounded border border-success/25 bg-success/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-success">
@@ -216,8 +219,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="lg:pl-[232px]">
+        <header className="shell-topbar sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:px-6 lg:px-8">
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild>
@@ -243,17 +246,36 @@ export function AppShell({ children }: { children: ReactNode }) {
 
             <div className="min-w-0 flex-1">
               <Brand className="lg:hidden" />
-              <div className="hidden items-center gap-2 lg:flex">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                <p className="label-caps">
-                  {NAV.find((n) =>
-                    n.exact ? pathname === n.to : pathname.startsWith(n.to),
-                  )?.label ?? "Command center"}
-                </p>
-              </div>
+              <Link
+                to="/activity"
+                className="hidden h-9 max-w-md items-center gap-2 rounded-md border border-input bg-card px-3 text-xs text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground md:flex"
+                aria-label="Search transactions, mandates, authorities or agents"
+              >
+                <Search className="h-3.5 w-3.5" />
+                <span className="min-w-0 flex-1 truncate">
+                  Search ID, agent, merchant…
+                </span>
+                <kbd className="rounded border border-border px-1.5 py-0.5 font-mono text-[9px]">
+                  ⌘K
+                </kbd>
+              </Link>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
+              <span className="hidden items-center gap-1.5 rounded-md border border-success/20 bg-success/8 px-2 py-1 text-[10px] font-medium text-success sm:inline-flex">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" /> Sandbox
+              </span>
+              <Button variant="ghost" size="icon" className="relative" asChild>
+                <Link
+                  to="/approvals"
+                  aria-label={`${approvals.length} approval notifications`}
+                >
+                  <Bell className="h-4 w-4" />
+                  {approvals.length > 0 ? (
+                    <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-stepup" />
+                  ) : null}
+                </Link>
+              </Button>
               <ThemeToggle />
               <EmergencyStop />
             </div>
@@ -270,7 +292,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         <main
           id="main"
-          className="mx-auto max-w-[1440px] px-4 py-7 sm:px-6 lg:px-8 lg:py-8"
+          className="dashboard-main mx-auto max-w-[1440px] px-4 py-7 sm:px-6 lg:px-8 lg:py-8"
         >
           {children}
         </main>

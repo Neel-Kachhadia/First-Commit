@@ -100,18 +100,21 @@ export function KavachProvider({ children }: { children: ReactNode }) {
     [agents],
   );
 
-  const pushEvent = useCallback((label: string, detail: string, maxSpend: number) => {
-    setHistory((prev) => [
-      ...prev,
-      {
-        id: nextId("ev"),
-        at: new Date().toISOString(),
-        label,
-        detail,
-        maxSpend,
-      },
-    ]);
-  }, []);
+  const pushEvent = useCallback(
+    (label: string, detail: string, maxSpend: number) => {
+      setHistory((prev) => [
+        ...prev,
+        {
+          id: nextId("ev"),
+          at: new Date().toISOString(),
+          label,
+          detail,
+          maxSpend,
+        },
+      ]);
+    },
+    [],
+  );
 
   const getAgent = useCallback(
     (id: string) => agents.find((a) => a.id === id),
@@ -131,7 +134,10 @@ export function KavachProvider({ children }: { children: ReactNode }) {
             consumed >= agent.rule.monthlyLimit ? "exhausted" : agent.status;
           return { ...agent, consumed, status };
         });
-        snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
+        snapshot = next.reduce(
+          (sum, a) => sum + remainingAuthority(a, frozen),
+          0,
+        );
         return next;
       });
       setLedger((prev) =>
@@ -146,7 +152,8 @@ export function KavachProvider({ children }: { children: ReactNode }) {
         ),
       );
       setApprovals((prev) => prev.filter((a) => a.id !== id));
-      const agentName = agents.find((a) => a.id === request.agentId)?.name ?? "Agent";
+      const agentName =
+        agents.find((a) => a.id === request.agentId)?.name ?? "Agent";
       pushEvent(
         `${agentName} approved for ₹${request.amount.toLocaleString("en-IN")}`,
         `${request.merchant} — ${request.description}`,
@@ -172,7 +179,8 @@ export function KavachProvider({ children }: { children: ReactNode }) {
         ),
       );
       setApprovals((prev) => prev.filter((a) => a.id !== id));
-      const agentName = agents.find((a) => a.id === request.agentId)?.name ?? "Agent";
+      const agentName =
+        agents.find((a) => a.id === request.agentId)?.name ?? "Agent";
       pushEvent(
         `${agentName} denied for ₹${request.amount.toLocaleString("en-IN")}`,
         `${request.merchant} — ${request.description}`,
@@ -189,12 +197,19 @@ export function KavachProvider({ children }: { children: ReactNode }) {
         const next = prev.map((agent) =>
           agent.id === id ? { ...agent, status: "revoked" as const } : agent,
         );
-        snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
+        snapshot = next.reduce(
+          (sum, a) => sum + remainingAuthority(a, frozen),
+          0,
+        );
         return next;
       });
       setApprovals((prev) => prev.filter((a) => a.agentId !== id));
       const agentName = agents.find((a) => a.id === id)?.name ?? "Agent";
-      pushEvent(`${agentName} revoked`, "All remaining authority withdrawn.", snapshot);
+      pushEvent(
+        `${agentName} revoked`,
+        "All remaining authority withdrawn.",
+        snapshot,
+      );
     },
     [agents, frozen, pushEvent],
   );
@@ -209,11 +224,18 @@ export function KavachProvider({ children }: { children: ReactNode }) {
             agent.consumed >= agent.rule.monthlyLimit ? "exhausted" : "active";
           return { ...agent, status };
         });
-        snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
+        snapshot = next.reduce(
+          (sum, a) => sum + remainingAuthority(a, frozen),
+          0,
+        );
         return next;
       });
       const agentName = agents.find((a) => a.id === id)?.name ?? "Agent";
-      pushEvent(`${agentName} authority restored`, "Mandate reinstated.", snapshot);
+      pushEvent(
+        `${agentName} authority restored`,
+        "Mandate reinstated.",
+        snapshot,
+      );
     },
     [agents, frozen, pushEvent],
   );
@@ -229,6 +251,7 @@ export function KavachProvider({ children }: { children: ReactNode }) {
             id,
             name: input.name,
             mandateId: `MND-${4400 + prev.length + 80}-NEW`,
+            authorityId: `AUTH-${310 + prev.length}`,
             purpose: input.purpose,
             status: "active",
             consumed: 0,
@@ -236,12 +259,15 @@ export function KavachProvider({ children }: { children: ReactNode }) {
             rule: input.rule,
           },
         ];
-        snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
+        snapshot = next.reduce(
+          (sum, a) => sum + remainingAuthority(a, frozen),
+          0,
+        );
         return next;
       });
       pushEvent(
         `${input.name} mandate issued`,
-        `₹${input.rule.monthlyLimit.toLocaleString("en-IN")} monthly authority granted.`,
+        `₹${input.rule.monthlyLimit.toLocaleString("en-IN")} authority granted for ${input.rule.window.toLowerCase()}.`,
         snapshot,
       );
       return id;
@@ -249,11 +275,27 @@ export function KavachProvider({ children }: { children: ReactNode }) {
     [frozen, pushEvent],
   );
 
-  const updateRule = useCallback((id: string, rule: SpendingRule) => {
-    setAgents((prev) =>
-      prev.map((agent) => (agent.id === id ? { ...agent, rule } : agent)),
-    );
-  }, []);
+  const updateRule = useCallback(
+    (id: string, rule: SpendingRule) => {
+      const current = agents.find((agent) => agent.id === id);
+      if (!current) return;
+      const next = agents.map((agent) =>
+        agent.id === id ? { ...agent, rule } : agent,
+      );
+      setAgents(next);
+      const snapshot = next.reduce(
+        (sum, agent) => sum + remainingAuthority(agent, frozen),
+        0,
+      );
+      const delta = rule.monthlyLimit - current.rule.monthlyLimit;
+      pushEvent(
+        `${current.name} mandate updated`,
+        `${delta === 0 ? "Policy scope updated" : `Period authority ${delta > 0 ? "increased" : "reduced"} by ₹${Math.abs(delta).toLocaleString("en-IN")}`}.`,
+        snapshot,
+      );
+    },
+    [agents, frozen, pushEvent],
+  );
 
   const simulatePayment = useCallback(
     (input: SimulationInput): SimulationResult => {
@@ -268,7 +310,7 @@ export function KavachProvider({ children }: { children: ReactNode }) {
       }
       const remaining = remainingAuthority(agent, frozen);
       let status: SimulationResult["status"] = "allowed";
-      let reason = `Within the ${`₹${agent.rule.monthlyLimit.toLocaleString("en-IN")}`} monthly rule.`;
+      let reason = `Within the ${`₹${agent.rule.monthlyLimit.toLocaleString("en-IN")}`} ${agent.rule.window.toLowerCase()} rule.`;
 
       if (frozen) {
         status = "denied";
@@ -327,7 +369,10 @@ export function KavachProvider({ children }: { children: ReactNode }) {
                 : a.status) as Agent["status"],
             };
           });
-          snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
+          snapshot = next.reduce(
+            (sum, a) => sum + remainingAuthority(a, frozen),
+            0,
+          );
           return next;
         });
         pushEvent(
@@ -401,7 +446,9 @@ export function KavachProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <KavachContext.Provider value={value}>{children}</KavachContext.Provider>;
+  return (
+    <KavachContext.Provider value={value}>{children}</KavachContext.Provider>
+  );
 }
 
 export function useKavach() {

@@ -1,16 +1,24 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ArrowLeft } from "lucide-react";
 import {
-  ArrowLeft,
-  Bot,
-  History,
-  ShieldCheck,
-  SlidersHorizontal,
-} from "lucide-react";
+  AgentGlyph,
+  AuthorityGlyph,
+  DecisionGlyph,
+  MandateGlyph,
+} from "@/components/kavach/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,7 +37,12 @@ import {
   ledgerTone,
 } from "@/components/kavach/primitives";
 import { useKavach } from "@/lib/kavach-store";
-import { formatDate, formatDateTime, formatINR } from "@/lib/kavach-data";
+import {
+  CATEGORIES,
+  formatDate,
+  formatDateTime,
+  formatINR,
+} from "@/lib/kavach-data";
 
 export const Route = createFileRoute("/agents/$agentId")({
   head: () => ({
@@ -61,6 +74,7 @@ function AgentDetail() {
     restoreAgent,
     updateRule,
     frozen,
+    maxPossibleSpend,
   } = useKavach();
   const agent = getAgent(agentId);
 
@@ -68,6 +82,22 @@ function AgentDetail() {
   const [monthly, setMonthly] = useState("");
   const [perTxn, setPerTxn] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fullEditOpen, setFullEditOpen] = useState(false);
+  const [fullCategory, setFullCategory] = useState(
+    agent?.rule.category ?? "Groceries",
+  );
+  const [fullPeriod, setFullPeriod] = useState(
+    agent?.rule.window ?? "Calendar month",
+  );
+  const [fullMerchants, setFullMerchants] = useState(
+    agent?.rule.merchants.join(", ") ?? "",
+  );
+  const [fullExpiry, setFullExpiry] = useState(
+    agent?.rule.expiresOn ?? "2026-09-30",
+  );
+  const [fullDelegation, setFullDelegation] = useState(
+    agent?.rule.allowDelegation ?? false,
+  );
 
   if (!agent) {
     return (
@@ -89,6 +119,10 @@ function AgentDetail() {
     monthly === "" ? String(agent.rule.monthlyLimit) : monthly;
   const perTxnValue =
     perTxn === "" ? String(agent.rule.perTransactionCap) : perTxn;
+  const proposedLimit = Number(monthlyValue);
+  const exposureDelta = Number.isFinite(proposedLimit)
+    ? proposedLimit - agent.rule.monthlyLimit
+    : 0;
 
   const saveRule = (event: React.FormEvent) => {
     event.preventDefault();
@@ -99,12 +133,12 @@ function AgentDetail() {
       return;
     }
     if (p > m) {
-      setError("The per-transaction cap cannot exceed the monthly limit.");
+      setError("The automatic threshold cannot exceed the period authority.");
       return;
     }
     if (m < agent.consumed) {
       setError(
-        `The monthly limit cannot be below the ${formatINR(agent.consumed)} already spent.`,
+        `Period authority cannot be below the ${formatINR(agent.consumed)} already spent.`,
       );
       return;
     }
@@ -115,12 +149,12 @@ function AgentDetail() {
       perTransactionCap: p,
     });
     toast.success("Spending rule updated", {
-      description: `${agent.name} now holds ${formatINR(m)} of monthly authority.`,
+      description: `${agent.name} now holds ${formatINR(m)} for ${agent.rule.window.toLowerCase()}.`,
     });
   };
 
   return (
-    <div className="space-y-7">
+    <div className="agent-detail-page space-y-7">
       <div>
         <Link
           to="/agents"
@@ -137,7 +171,7 @@ function AgentDetail() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-md border border-border bg-muted/50 text-primary">
-                <Bot className="h-4 w-4" />
+                <AgentGlyph className="h-4 w-4" />
               </span>
               <h1 className="text-2xl font-semibold tracking-tight sm:text-[2rem]">
                 {agent.name}
@@ -175,9 +209,13 @@ function AgentDetail() {
         </div>
       </div>
 
-      <section className="grid gap-4 sm:grid-cols-3">
+      <section className="agent-detail-ribbon grid gap-4 sm:grid-cols-3">
         <Metric
-          label="Monthly authority"
+          label={
+            agent.rule.window === "Calendar week"
+              ? "Weekly authority"
+              : "Monthly authority"
+          }
           value={formatINR(agent.rule.monthlyLimit)}
           hint={agent.rule.window}
         />
@@ -200,9 +238,9 @@ function AgentDetail() {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,.8fr)] xl:items-start">
-        <section className="surface-card p-5 sm:p-6">
+        <section className="agent-mandate-panel surface-card p-5 sm:p-6">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-primary" />
+            <AuthorityGlyph className="h-4 w-4 text-primary" />
             <h2 className="text-base font-semibold">Enforced authority</h2>
           </div>
           <div className="mt-4 space-y-2">
@@ -227,6 +265,28 @@ function AgentDetail() {
               <dt className="label-caps">Reset window</dt>
               <dd className="mt-1 text-sm font-medium">{agent.rule.window}</dd>
             </div>
+            <div>
+              <dt className="label-caps">Automatic threshold</dt>
+              <dd className="amount mt-1 text-sm font-medium">
+                {formatINR(agent.rule.perTransactionCap)}
+              </dd>
+            </div>
+            <div>
+              <dt className="label-caps">Expiry</dt>
+              <dd className="mt-1 text-sm font-medium">
+                {agent.rule.expiresOn
+                  ? formatDate(agent.rule.expiresOn)
+                  : "No fixed expiry"}
+              </dd>
+            </div>
+            <div>
+              <dt className="label-caps">Delegation</dt>
+              <dd className="mt-1 text-sm font-medium">
+                {agent.rule.allowDelegation
+                  ? `Allowed · depth ${agent.rule.delegationDepth ?? 1}`
+                  : "Not allowed"}
+              </dd>
+            </div>
             <div className="sm:col-span-2">
               <dt className="label-caps">Approved merchants</dt>
               <dd className="mt-2 flex flex-wrap gap-2">
@@ -243,9 +303,9 @@ function AgentDetail() {
           </dl>
         </section>
 
-        <section className="surface-card p-5 sm:p-6">
+        <section className="agent-rule-panel surface-card p-5 sm:p-6">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-stepup" />
+            <MandateGlyph className="h-4 w-4 text-stepup" />
             <h2 className="text-base font-semibold">Adjust spending rule</h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -257,7 +317,7 @@ function AgentDetail() {
             noValidate
           >
             <div className="grid gap-1.5">
-              <Label htmlFor="monthly">Monthly limit (₹)</Label>
+              <Label htmlFor="monthly">Period authority (₹)</Label>
               <Input
                 id="monthly"
                 inputMode="numeric"
@@ -266,7 +326,7 @@ function AgentDetail() {
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="pertxn">Per-transaction cap (₹)</Label>
+              <Label htmlFor="pertxn">Automatic threshold (₹)</Label>
               <Input
                 id="pertxn"
                 inputMode="numeric"
@@ -282,17 +342,54 @@ function AgentDetail() {
                 {error}
               </p>
             ) : null}
+            {exposureDelta !== 0 ? (
+              <div className="grid gap-px overflow-hidden rounded-md border border-border bg-border text-xs sm:col-span-2 sm:grid-cols-3">
+                <div className="bg-card p-3">
+                  <p className="label-caps">Current</p>
+                  <p className="amount mt-2 font-medium">
+                    {formatINR(agent.rule.monthlyLimit)}
+                  </p>
+                </div>
+                <div className="bg-card p-3">
+                  <p className="label-caps">Proposed</p>
+                  <p className="amount mt-2 font-medium">
+                    {formatINR(proposedLimit)}
+                  </p>
+                </div>
+                <div className="bg-raised p-3">
+                  <p className="label-caps">Exposure impact</p>
+                  <p className="amount mt-2 font-medium">
+                    {exposureDelta > 0 ? "+" : ""}
+                    {formatINR(exposureDelta)}
+                  </p>
+                </div>
+                <p className="bg-muted/40 p-3 text-muted-foreground sm:col-span-3">
+                  Maximum reachable exposure changes from{" "}
+                  {formatINR(maxPossibleSpend)} to{" "}
+                  {formatINR(Math.max(0, maxPossibleSpend + exposureDelta))}.
+                </p>
+              </div>
+            ) : null}
             <div className="sm:col-span-2">
-              <Button type="submit">Save rule</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit">Apply change</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setFullEditOpen(true)}
+                >
+                  Edit full mandate
+                </Button>
+              </div>
             </div>
           </form>
         </section>
       </div>
 
-      <section className="surface-card overflow-hidden">
+      <section className="agent-history-panel surface-card overflow-hidden">
         <div className="flex items-center justify-between gap-4 border-b border-border p-5">
           <div className="flex items-center gap-2">
-            <History className="h-4 w-4 text-primary" />
+            <DecisionGlyph className="h-4 w-4 text-primary" />
             <h2 className="text-base font-semibold">Decision history</h2>
           </div>
           <span className="amount text-xs text-muted-foreground">
@@ -366,6 +463,106 @@ function AgentDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Sheet open={fullEditOpen} onOpenChange={setFullEditOpen}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+          <SheetHeader className="text-left">
+            <SheetTitle>Edit full mandate</SheetTitle>
+            <SheetDescription>
+              Change scope, period and delegation boundaries. The impact is
+              recorded in the authority timeline.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 grid gap-5">
+            <div className="grid gap-2">
+              <Label htmlFor="full-category">Policy scope</Label>
+              <select
+                id="full-category"
+                value={fullCategory}
+                onChange={(event) => setFullCategory(event.target.value)}
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                {CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="full-period">Budget period</Label>
+              <select
+                id="full-period"
+                value={fullPeriod}
+                onChange={(event) => setFullPeriod(event.target.value)}
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="Calendar month">Calendar month</option>
+                <option value="Calendar week">Calendar week</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="full-merchants">Approved merchants</Label>
+              <Input
+                id="full-merchants"
+                value={fullMerchants}
+                onChange={(event) => setFullMerchants(event.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="full-expiry">Expiry</Label>
+              <Input
+                id="full-expiry"
+                type="date"
+                value={fullExpiry}
+                onChange={(event) => setFullExpiry(event.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-md border border-border p-4">
+              <div>
+                <Label htmlFor="full-delegation">Allow child delegation</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Maximum depth remains one level.
+                </p>
+              </div>
+              <Switch
+                id="full-delegation"
+                checked={fullDelegation}
+                onCheckedChange={setFullDelegation}
+              />
+            </div>
+            <div className="rounded-md border border-border bg-muted/25 p-4 text-xs text-muted-foreground">
+              Current exposure remains {formatINR(maxPossibleSpend)}. This edit
+              changes policy scope, not the period authority amount.
+            </div>
+            <Button
+              onClick={() => {
+                const nextMerchants = fullMerchants
+                  .split(",")
+                  .map((merchant) => merchant.trim())
+                  .filter(Boolean);
+                if (nextMerchants.length === 0) {
+                  toast.error("Add at least one approved merchant.");
+                  return;
+                }
+                updateRule(agent.id, {
+                  ...agent.rule,
+                  category: fullCategory,
+                  window: fullPeriod,
+                  merchants: nextMerchants,
+                  expiresOn: fullExpiry,
+                  allowDelegation: fullDelegation,
+                  delegationDepth: fullDelegation ? 1 : 0,
+                });
+                setFullEditOpen(false);
+                toast.success("Full mandate updated");
+              }}
+            >
+              Apply mandate changes
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

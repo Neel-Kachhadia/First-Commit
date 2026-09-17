@@ -7,12 +7,16 @@ export interface SpendingRule {
   category: string;
   merchants: string[];
   window: string;
+  expiresOn?: string;
+  allowDelegation?: boolean;
+  delegationDepth?: number;
 }
 
 export interface Agent {
   id: string;
   name: string;
   mandateId: string;
+  authorityId?: string;
   purpose: string;
   status: AgentStatus;
   consumed: number;
@@ -52,6 +56,7 @@ export interface AuthorityEvent {
 
 export const CATEGORIES = [
   "Groceries",
+  "Pharmacy / Healthcare",
   "Travel",
   "Retail & apparel",
   "Food delivery",
@@ -63,6 +68,7 @@ export const seedAgents: Agent[] = [
     id: "grocery",
     name: "Grocery Agent",
     mandateId: "MND-4471-GRC",
+    authorityId: "AUTH-0302",
     purpose: "Weekly household restocking across approved grocery merchants.",
     status: "active",
     consumed: 1249,
@@ -73,13 +79,18 @@ export const seedAgents: Agent[] = [
       category: "Groceries",
       merchants: ["Blinkit", "BigBasket", "Zepto"],
       window: "Calendar month",
+      expiresOn: "2026-09-30",
+      allowDelegation: false,
+      delegationDepth: 0,
     },
   },
   {
     id: "travel",
     name: "Travel Agent",
     mandateId: "MND-4472-TRV",
-    purpose: "Books domestic flights and hotels within the approved travel authority.",
+    authorityId: "AUTH-0303",
+    purpose:
+      "Books domestic flights and hotels within the approved travel authority.",
     status: "active",
     consumed: 0,
     issuedOn: "2026-09-02",
@@ -89,12 +100,16 @@ export const seedAgents: Agent[] = [
       category: "Travel",
       merchants: ["MakeMyTrip", "IRCTC", "Indigo"],
       window: "Calendar month",
+      expiresOn: "2026-09-30",
+      allowDelegation: false,
+      delegationDepth: 0,
     },
   },
   {
     id: "shopping",
     name: "Shopping Agent",
     mandateId: "MND-4473-SHP",
+    authorityId: "AUTH-0304",
     purpose: "Replenishes apparel and household retail orders.",
     status: "exhausted",
     consumed: 2000,
@@ -105,12 +120,16 @@ export const seedAgents: Agent[] = [
       category: "Retail & apparel",
       merchants: ["Amazon", "Myntra", "Ajio"],
       window: "Calendar month",
+      expiresOn: "2026-09-30",
+      allowDelegation: false,
+      delegationDepth: 0,
     },
   },
   {
     id: "delivery",
     name: "Delivery Agent",
     mandateId: "MND-4474-DLV",
+    authorityId: "AUTH-0305",
     purpose: "Places food delivery orders on standing instructions.",
     status: "revoked",
     consumed: 0,
@@ -121,6 +140,9 @@ export const seedAgents: Agent[] = [
       category: "Food delivery",
       merchants: ["Swiggy", "Zomato"],
       window: "Calendar month",
+      expiresOn: "2026-09-30",
+      allowDelegation: false,
+      delegationDepth: 0,
     },
   },
 ];

@@ -1,10 +1,18 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ArrowRight, FileText, FlaskConical, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  FileCheck2,
+  FlaskConical,
+} from "lucide-react";
+import { ApprovalGlyph, MandateGlyph } from "@/components/kavach/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -15,152 +23,225 @@ import {
 } from "@/components/ui/select";
 import { PageHeader, StatusPill } from "@/components/kavach/primitives";
 import { useKavach } from "@/lib/kavach-store";
-import { CATEGORIES, formatINR } from "@/lib/kavach-data";
+import { CATEGORIES, formatINR, type LedgerStatus } from "@/lib/kavach-data";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/rules")({
   head: () => ({
     meta: [
-      { title: "Spending rules — KavachPay mandate builder" },
+      { title: "Mandate Studio — KavachPay" },
       {
         name: "description",
         content:
-          "Issue a new agent mandate with a monthly limit, per-transaction cap, category and approved merchants, then test it before you trust it.",
-      },
-      {
-        property: "og:title",
-        content: "Spending rules — KavachPay mandate builder",
-      },
-      {
-        property: "og:description",
-        content: "Issue a scoped agent mandate and test a payment against it.",
+          "Define, test, review and activate a scoped financial mandate.",
       },
     ],
   }),
   component: RulesPage,
 });
 
-interface Errors {
-  name?: string;
-  purpose?: string;
-  monthlyLimit?: string;
-  perTransactionCap?: string;
-  merchants?: string;
+const CATEGORY_PRESETS: Record<
+  string,
+  { purpose: string; merchants: string[] }
+> = {
+  Groceries: {
+    purpose: "Weekly household restocking from approved grocery merchants.",
+    merchants: ["Blinkit", "BigBasket", "Zepto"],
+  },
+  "Pharmacy / Healthcare": {
+    purpose: "Prescription refills from approved pharmacies.",
+    merchants: ["Apollo Pharmacy", "Tata 1mg", "PharmEasy"],
+  },
+  Travel: {
+    purpose: "Domestic flights and hotels inside the approved travel scope.",
+    merchants: ["MakeMyTrip", "IRCTC", "Indigo"],
+  },
+  "Retail & apparel": {
+    purpose: "Approved household and apparel replenishment.",
+    merchants: ["Amazon", "Myntra", "Ajio"],
+  },
+  "Food delivery": {
+    purpose: "Meal orders from approved delivery providers.",
+    merchants: ["Swiggy", "Zomato"],
+  },
+  Utilities: {
+    purpose: "Recurring household utility payments.",
+    merchants: ["BESCOM", "Airtel", "Jio"],
+  },
+};
+
+type Draft = {
+  name: string;
+  purpose: string;
+  category: string;
+  period: string;
+  limit: string;
+  cap: string;
+  merchants: string;
+  expiresOn: string;
+  allowDelegation: boolean;
+  delegationDepth: string;
+};
+type TestResult = {
+  label: string;
+  amount: number;
+  merchant: string;
+  status: LedgerStatus;
+  reason: string;
+};
+
+const initialDraft: Draft = {
+  name: "Pharmacy Agent",
+  purpose: CATEGORY_PRESETS["Pharmacy / Healthcare"]!.purpose,
+  category: "Pharmacy / Healthcare",
+  period: "Calendar month",
+  limit: "3000",
+  cap: "1000",
+  merchants: CATEGORY_PRESETS["Pharmacy / Healthcare"]!.merchants.join(", "),
+  expiresOn: "2026-09-30",
+  allowDelegation: false,
+  delegationDepth: "0",
+};
+
+function evaluateDraft(
+  draft: Draft,
+  merchant: string,
+  amount: number,
+): TestResult {
+  const approved = draft.merchants
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  const limit = Number(draft.limit);
+  const cap = Number(draft.cap);
+  if (!approved.includes(merchant.trim().toLowerCase()))
+    return {
+      label: "Merchant outside scope",
+      merchant,
+      amount,
+      status: "denied",
+      reason: `${merchant} is not in the current draft's approved merchant set.`,
+    };
+  if (amount > limit)
+    return {
+      label: "Authority exceeded",
+      merchant,
+      amount,
+      status: "denied",
+      reason: `Exceeds the ${formatINR(limit)} ${draft.period.toLowerCase()} authority.`,
+    };
+  if (amount > cap)
+    return {
+      label: "Step-up required",
+      merchant,
+      amount,
+      status: "pending",
+      reason: `Above the ${formatINR(cap)} automatic threshold; a one-time approval is required.`,
+    };
+  return {
+    label: "Allowed automatically",
+    merchant,
+    amount,
+    status: "allowed",
+    reason: `Matches ${draft.category}, approved merchant scope, period budget and automatic threshold.`,
+  };
 }
 
 function RulesPage() {
-  const { agents, createAgent, simulatePayment } = useKavach();
+  const { createAgent } = useKavach();
   const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [draft, setDraft] = useState<Draft>(initialDraft);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [tested, setTested] = useState(false);
+  const [tests, setTests] = useState<TestResult[]>([]);
+  const [customMerchant, setCustomMerchant] = useState("Apollo Pharmacy");
+  const [customAmount, setCustomAmount] = useState("750");
 
-  const [name, setName] = useState("");
-  const [purpose, setPurpose] = useState("");
-  const [category, setCategory] = useState<string>(CATEGORIES[0]);
-  const [monthlyLimit, setMonthlyLimit] = useState("");
-  const [perTransactionCap, setPerTransactionCap] = useState("");
-  const [merchants, setMerchants] = useState("");
-  const [errors, setErrors] = useState<Errors>({});
-
-  const [simAgent, setSimAgent] = useState(agents[0]?.id ?? "");
-  const [simMerchant, setSimMerchant] = useState("");
-  const [simDescription, setSimDescription] = useState("");
-  const [simAmount, setSimAmount] = useState("");
-  const [simErrors, setSimErrors] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<{
-    tone: "allowed" | "stepup" | "denied";
-    label: string;
-    reason: string;
-    amount: number;
-    agentName: string;
-  } | null>(null);
-
-  const submitMandate = (event: React.FormEvent) => {
-    event.preventDefault();
-    const next: Errors = {};
-    const m = Number(monthlyLimit);
-    const p = Number(perTransactionCap);
-    const merchantList = merchants
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    if (name.trim().length < 3)
-      next.name = "Give the agent a name of at least 3 characters.";
-    if (purpose.trim().length < 10)
-      next.purpose =
-        "Describe what this agent is allowed to do (10 characters or more).";
-    if (!monthlyLimit.trim() || !Number.isFinite(m) || m <= 0)
-      next.monthlyLimit = "Enter a monthly limit greater than zero.";
-    if (!perTransactionCap.trim() || !Number.isFinite(p) || p <= 0)
-      next.perTransactionCap = "Enter a per-transaction cap greater than zero.";
-    else if (Number.isFinite(m) && m > 0 && p > m)
-      next.perTransactionCap = "The cap cannot exceed the monthly limit.";
+  const merchantList = useMemo(
+    () =>
+      draft.merchants
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    [draft.merchants],
+  );
+  const update = <K extends keyof Draft>(key: K, value: Draft[K]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+    setTested(false);
+    setTests([]);
+  };
+  const validate = () => {
+    const next: Record<string, string> = {};
+    const limit = Number(draft.limit);
+    const cap = Number(draft.cap);
+    if (draft.name.trim().length < 3) next["name"] = "Enter an agent name.";
+    if (draft.purpose.trim().length < 10)
+      next["purpose"] = "Describe the intended purpose.";
+    if (!Number.isFinite(limit) || limit <= 0)
+      next["limit"] = "Enter a valid period authority.";
+    if (!Number.isFinite(cap) || cap <= 0 || cap > limit)
+      next["cap"] = "Threshold must be positive and no higher than authority.";
     if (merchantList.length === 0)
-      next.merchants = "List at least one approved merchant.";
-
+      next["merchants"] = "Add at least one approved merchant.";
+    if (!draft.expiresOn) next["expiresOn"] = "Choose an expiry date.";
     setErrors(next);
-    if (Object.keys(next).length > 0) return;
-
+    return Object.keys(next).length === 0;
+  };
+  const goToTest = () => {
+    if (validate()) setStep(2);
+  };
+  const runSuite = () => {
+    const approvedMerchant = merchantList[0] ?? "Approved merchant";
+    const cap = Number(draft.cap);
+    const limit = Number(draft.limit);
+    setTests([
+      evaluateDraft(
+        draft,
+        approvedMerchant,
+        Math.max(1, Math.floor(cap * 0.75)),
+      ),
+      evaluateDraft(
+        draft,
+        approvedMerchant,
+        Math.min(limit, cap + Math.max(100, Math.floor(cap * 0.4))),
+      ),
+      evaluateDraft(
+        draft,
+        "Unapproved Merchant",
+        Math.max(1, Math.floor(cap * 0.5)),
+      ),
+    ]);
+    setTested(true);
+  };
+  const activate = () => {
     const id = createAgent({
-      name: name.trim(),
-      purpose: purpose.trim(),
+      name: draft.name.trim(),
+      purpose: draft.purpose.trim(),
       rule: {
-        monthlyLimit: m,
-        perTransactionCap: p,
-        category,
+        monthlyLimit: Number(draft.limit),
+        perTransactionCap: Number(draft.cap),
+        category: draft.category,
         merchants: merchantList,
-        window: "Calendar month",
+        window: draft.period,
+        expiresOn: draft.expiresOn,
+        allowDelegation: draft.allowDelegation,
+        delegationDepth: draft.allowDelegation
+          ? Number(draft.delegationDepth)
+          : 0,
       },
     });
-    toast.success("Mandate issued", {
-      description: `${name.trim()} holds ${formatINR(m)} of monthly authority.`,
+    toast.success("Mandate activated", {
+      description: `${draft.name} now holds ${formatINR(Number(draft.limit))} per ${draft.period.toLowerCase()}.`,
     });
     navigate({ to: "/agents/$agentId", params: { agentId: id } });
   };
 
-  const runSimulation = (event: React.FormEvent) => {
-    event.preventDefault();
-    const next: Record<string, string> = {};
-    const amount = Number(simAmount);
-    if (!simAgent) next["agent"] = "Choose an agent.";
-    if (simMerchant.trim().length < 2)
-      next["merchant"] = "Enter the merchant name.";
-    if (!simAmount.trim() || !Number.isFinite(amount) || amount <= 0)
-      next["amount"] = "Enter an amount greater than zero.";
-    setSimErrors(next);
-    if (Object.keys(next).length > 0) return;
-
-    const outcome = simulatePayment({
-      agentId: simAgent,
-      merchant: simMerchant.trim(),
-      description: simDescription.trim() || "Agent-initiated payment",
-      amount,
-    });
-    setResult({
-      tone:
-        outcome.status === "allowed"
-          ? "allowed"
-          : outcome.status === "pending"
-            ? "stepup"
-            : "denied",
-      label:
-        outcome.status === "allowed"
-          ? "Allowed"
-          : outcome.status === "pending"
-            ? "Needs approval"
-            : "Denied",
-      reason: outcome.reason,
-      amount: outcome.amount,
-      agentName: outcome.agentName,
-    });
-    setSimMerchant("");
-    setSimDescription("");
-    setSimAmount("");
-  };
-
   return (
-    <div className="space-y-7">
+    <div className="mandates-page space-y-7">
       <PageHeader
-        title="Mandate studio"
-        description="Turn a spending intent into a structured financial contract, then test it against the same policy engine agents use."
+        title="Mandate Studio"
+        description="Define financial intent, prove the boundaries against the current draft, then review the exact policy artifact before activation."
         actions={
           <Button variant="outline" asChild>
             <Link to="/agents">
@@ -170,252 +251,456 @@ function RulesPage() {
         }
       />
 
-      <section className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3">
-        <div className="bg-card p-4">
-          <p className="label-caps">01 · Define</p>
-          <p className="mt-2 text-sm font-medium">Scope financial intent</p>
-        </div>
-        <div className="bg-card p-4">
-          <p className="label-caps">02 · Confirm</p>
-          <p className="mt-2 text-sm font-medium">Review hard boundaries</p>
-        </div>
-        <div className="bg-card p-4">
-          <p className="label-caps">03 · Test</p>
-          <p className="mt-2 text-sm font-medium">Evaluate a payment</p>
-        </div>
-      </section>
+      <ol className="mandate-rail mandate-stepper grid overflow-hidden border-y border-border sm:grid-cols-3 sm:gap-px">
+        {[
+          { n: 1, title: "Define", detail: "Scope financial intent" },
+          { n: 2, title: "Test", detail: "Evaluate this draft" },
+          { n: 3, title: "Review & activate", detail: "Confirm exact policy" },
+        ].map((item) => (
+          <li
+            key={item.n}
+            className={cn(
+              "border-b border-border bg-card p-4 last:border-b-0 sm:border-b-0",
+              step === item.n && "bg-raised",
+              step > item.n && "text-success",
+            )}
+            aria-current={step === item.n ? "step" : undefined}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "grid h-6 w-6 place-items-center rounded-full border border-border font-mono text-[10px]",
+                  step === item.n &&
+                    "border-foreground bg-foreground text-background",
+                )}
+              >
+                {step > item.n ? <Check className="h-3 w-3" /> : `0${item.n}`}
+              </span>
+              <p className="text-xs font-semibold uppercase tracking-[0.06em]">
+                {item.title}
+              </p>
+            </div>
+            <p className="mt-2 pl-8 text-xs text-muted-foreground">
+              {item.detail}
+            </p>
+          </li>
+        ))}
+      </ol>
 
-      <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+      {step === 1 ? (
         <section className="surface-card overflow-hidden">
           <div className="border-b border-border p-5 sm:p-6">
             <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold">Issue a mandate</h2>
+              <FileCheck2 className="h-4 w-4 text-primary" />
+              <h2 className="text-base font-semibold">
+                01 / Define the mandate
+              </h2>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              The agent can only spend inside these boundaries.
+              Every field below becomes an enforceable policy boundary.
             </p>
           </div>
           <form
             className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"
-            onSubmit={submitMandate}
+            onSubmit={(event) => {
+              event.preventDefault();
+              goToTest();
+            }}
             noValidate
           >
-            <div className="grid gap-1.5">
-              <Label htmlFor="agent-name">Agent name</Label>
+            <Field label="Agent name" id="agent-name" error={errors["name"]}>
               <Input
                 id="agent-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Pharmacy Agent"
+                value={draft.name}
+                onChange={(e) => update("name", e.target.value)}
               />
-              {errors.name ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {errors.name}
-                </p>
-              ) : null}
-            </div>
-
+            </Field>
             <div className="grid gap-1.5">
               <Label htmlFor="agent-category">Category</Label>
-              <Select value={category} onValueChange={setCategory}>
+              <Select
+                value={draft.category}
+                onValueChange={(value) => {
+                  const preset =
+                    CATEGORY_PRESETS[value] ?? CATEGORY_PRESETS["Groceries"]!;
+                  setDraft((current) => ({
+                    ...current,
+                    category: value,
+                    purpose: preset.purpose,
+                    merchants: preset.merchants.join(", "),
+                  }));
+                  setTested(false);
+                  setTests([]);
+                }}
+              >
                 <SelectTrigger id="agent-category">
-                  <SelectValue placeholder="Select a category" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORIES.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
+                  {CATEGORIES.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="grid gap-1.5 sm:col-span-2">
-              <Label htmlFor="agent-purpose">Purpose</Label>
+            <Field
+              label="Purpose"
+              id="agent-purpose"
+              error={errors["purpose"]}
+              className="sm:col-span-2"
+            >
               <Textarea
                 id="agent-purpose"
-                value={purpose}
-                onChange={(e) => setPurpose(e.target.value)}
-                placeholder="Reorders prescription refills from approved pharmacies."
                 rows={3}
+                value={draft.purpose}
+                onChange={(e) => update("purpose", e.target.value)}
               />
-              {errors.purpose ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {errors.purpose}
-                </p>
-              ) : null}
-            </div>
-
+            </Field>
             <div className="grid gap-1.5">
-              <Label htmlFor="agent-monthly">Monthly limit (₹)</Label>
-              <Input
-                id="agent-monthly"
-                inputMode="numeric"
-                value={monthlyLimit}
-                onChange={(e) => setMonthlyLimit(e.target.value)}
-                placeholder="3000"
-              />
-              {errors.monthlyLimit ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {errors.monthlyLimit}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="grid gap-1.5">
-              <Label htmlFor="agent-cap">Per-transaction cap (₹)</Label>
-              <Input
-                id="agent-cap"
-                inputMode="numeric"
-                value={perTransactionCap}
-                onChange={(e) => setPerTransactionCap(e.target.value)}
-                placeholder="1000"
-              />
-              {errors.perTransactionCap ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {errors.perTransactionCap}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="grid gap-1.5 sm:col-span-2">
-              <Label htmlFor="agent-merchants">Approved merchants</Label>
-              <Input
-                id="agent-merchants"
-                value={merchants}
-                onChange={(e) => setMerchants(e.target.value)}
-                placeholder="Apollo, Tata 1mg, PharmEasy"
-              />
-              <p className="text-xs text-muted-foreground">
-                Separate names with a comma.
-              </p>
-              {errors.merchants ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {errors.merchants}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="sm:col-span-2">
-              <div className="mb-4 flex items-start gap-2 rounded-md border border-success/20 bg-success/8 p-3">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  The structured contract—not natural-language text—is the
-                  enforced source of truth.
-                </p>
-              </div>
-              <Button type="submit" className="w-full">
-                Confirm and activate mandate
-              </Button>
-            </div>
-          </form>
-        </section>
-
-        <section className="surface-card overflow-hidden">
-          <div className="border-b border-border p-5 sm:p-6">
-            <div className="flex items-center gap-2">
-              <FlaskConical className="h-4 w-4 text-stepup" />
-              <h2 className="text-base font-semibold">Policy simulator</h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Run a payment through the rules exactly as a live agent would. The
-              result is recorded in activity.
-            </p>
-          </div>
-          <form
-            className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"
-            onSubmit={runSimulation}
-            noValidate
-          >
-            <div className="grid gap-1.5">
-              <Label htmlFor="sim-agent">Agent</Label>
-              <Select value={simAgent} onValueChange={setSimAgent}>
-                <SelectTrigger id="sim-agent">
-                  <SelectValue placeholder="Select an agent" />
+              <Label htmlFor="period">Budget period</Label>
+              <Select
+                value={draft.period}
+                onValueChange={(value) => update("period", value)}
+              >
+                <SelectTrigger id="period">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {agents.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="Calendar month">Calendar month</SelectItem>
+                  <SelectItem value="Calendar week">Calendar week</SelectItem>
                 </SelectContent>
               </Select>
-              {simErrors["agent"] ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {simErrors["agent"]}
-                </p>
-              ) : null}
             </div>
-
-            <div className="grid gap-1.5">
-              <Label htmlFor="sim-merchant">Merchant</Label>
+            <Field
+              label="Period authority (₹)"
+              id="limit"
+              error={errors["limit"]}
+            >
               <Input
-                id="sim-merchant"
-                value={simMerchant}
-                onChange={(e) => setSimMerchant(e.target.value)}
-                placeholder="Blinkit"
-              />
-              {simErrors["merchant"] ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {simErrors["merchant"]}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="grid gap-1.5">
-              <Label htmlFor="sim-description">Description</Label>
-              <Input
-                id="sim-description"
-                value={simDescription}
-                onChange={(e) => setSimDescription(e.target.value)}
-                placeholder="Weekly grocery basket"
-              />
-            </div>
-
-            <div className="grid gap-1.5">
-              <Label htmlFor="sim-amount">Amount (₹)</Label>
-              <Input
-                id="sim-amount"
+                id="limit"
                 inputMode="numeric"
-                value={simAmount}
-                onChange={(e) => setSimAmount(e.target.value)}
-                placeholder="1200"
+                value={draft.limit}
+                onChange={(e) => update("limit", e.target.value)}
               />
-              {simErrors["amount"] ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {simErrors["amount"]}
+            </Field>
+            <Field
+              label="Automatic threshold (₹)"
+              id="cap"
+              error={errors["cap"]}
+            >
+              <Input
+                id="cap"
+                inputMode="numeric"
+                value={draft.cap}
+                onChange={(e) => update("cap", e.target.value)}
+              />
+            </Field>
+            <Field label="Expiry" id="expiry" error={errors["expiresOn"]}>
+              <Input
+                id="expiry"
+                type="date"
+                value={draft.expiresOn}
+                onChange={(e) => update("expiresOn", e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Approved merchants"
+              id="merchants"
+              error={errors["merchants"]}
+              className="sm:col-span-2"
+            >
+              <Input
+                id="merchants"
+                value={draft.merchants}
+                onChange={(e) => update("merchants", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Category presets keep purpose and merchant scope consistent.
+                Separate custom names with commas.
+              </p>
+            </Field>
+            <div className="flex items-center justify-between gap-4 rounded-md border border-border p-4 sm:col-span-2">
+              <div>
+                <Label htmlFor="delegation">Allow child delegation</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Permit this agent to derive narrower authority.
                 </p>
-              ) : null}
+              </div>
+              <Switch
+                id="delegation"
+                checked={draft.allowDelegation}
+                onCheckedChange={(value) => update("allowDelegation", value)}
+              />
             </div>
-
-            <div className="sm:col-span-2">
-              <Button type="submit" variant="secondary" className="w-full">
-                Evaluate intent
+            {draft.allowDelegation ? (
+              <Field
+                label="Maximum delegation depth"
+                id="depth"
+                className="sm:col-span-2"
+              >
+                <Input
+                  id="depth"
+                  inputMode="numeric"
+                  min="1"
+                  max="3"
+                  value={draft.delegationDepth}
+                  onChange={(e) => update("delegationDepth", e.target.value)}
+                />
+              </Field>
+            ) : null}
+            <div className="flex justify-end border-t border-border pt-5 sm:col-span-2">
+              <Button type="submit">
+                Continue to test <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </form>
+        </section>
+      ) : null}
 
-          {result ? (
-            <div className="mt-6 rounded-lg border border-border bg-muted/40 p-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <StatusPill tone={result.tone} label={result.label} />
-                <span className="amount text-sm font-medium">
-                  {formatINR(result.amount)}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  · {result.agentName}
-                </span>
+      {step === 2 ? (
+        <section className="grid gap-4 xl:grid-cols-[.85fr_1.15fr]">
+          <div className="surface-card p-5 sm:p-6">
+            <div className="flex items-center gap-2">
+              <FlaskConical className="h-4 w-4 text-stepup" />
+              <h2 className="text-base font-semibold">
+                02 / Test current draft
+              </h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Tests are isolated; no live transaction or budget state is
+              changed.
+            </p>
+            <dl className="mt-5 space-y-3 rounded-md border border-border bg-muted/25 p-4 text-xs">
+              <SummaryRow label="Agent" value={draft.name} />
+              <SummaryRow label="Scope" value={draft.category} />
+              <SummaryRow
+                label="Authority"
+                value={`${formatINR(Number(draft.limit))} / ${draft.period.toLowerCase()}`}
+              />
+              <SummaryRow
+                label="Threshold"
+                value={formatINR(Number(draft.cap))}
+              />
+              <SummaryRow label="Merchants" value={merchantList.join(" · ")} />
+            </dl>
+            <Button className="mt-5 w-full" onClick={runSuite}>
+              Run allow / step-up / deny suite
+            </Button>
+            <div className="mt-6 border-t border-border pt-5">
+              <p className="text-sm font-medium">Custom hypothetical</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <Input
+                  aria-label="Custom merchant"
+                  value={customMerchant}
+                  onChange={(e) => setCustomMerchant(e.target.value)}
+                  placeholder="Merchant"
+                />
+                <Input
+                  aria-label="Custom amount"
+                  inputMode="numeric"
+                  value={customAmount}
+                  onChange={(e) => setCustomAmount(e.target.value)}
+                  placeholder="Amount"
+                />
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {result.reason}
+              <Button
+                variant="outline"
+                className="mt-3 w-full"
+                onClick={() => {
+                  const amount = Number(customAmount);
+                  if (Number.isFinite(amount) && amount > 0) {
+                    setTests((current) => [
+                      ...current,
+                      evaluateDraft(draft, customMerchant, amount),
+                    ]);
+                    setTested(true);
+                  }
+                }}
+              >
+                Evaluate custom intent
+              </Button>
+            </div>
+          </div>
+          <div className="surface-card overflow-hidden">
+            <div className="border-b border-border p-5">
+              <h2 className="text-base font-semibold">
+                Evidence from this draft
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Each result cites the exact boundary that produced it.
               </p>
             </div>
-          ) : null}
+            {tests.length ? (
+              <ul className="divide-y divide-border">
+                {tests.map((result, index) => {
+                  const tone =
+                    result.status === "allowed"
+                      ? "allowed"
+                      : result.status === "pending"
+                        ? "stepup"
+                        : "denied";
+                  return (
+                    <li key={`${result.label}-${index}`} className="p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <StatusPill
+                            tone={tone}
+                            label={
+                              result.status === "pending"
+                                ? "Needs approval"
+                                : result.status
+                            }
+                          />
+                          <p className="mt-3 text-sm font-medium">
+                            {result.label}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {result.merchant}
+                          </p>
+                        </div>
+                        <p className="amount text-lg font-medium">
+                          {formatINR(result.amount)}
+                        </p>
+                      </div>
+                      <p className="mt-3 rounded-md border border-border bg-muted/20 p-3 text-xs leading-relaxed text-muted-foreground">
+                        {result.reason}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="grid min-h-64 place-items-center p-8 text-center">
+                <div>
+                  <FlaskConical className="mx-auto h-6 w-6 text-muted-foreground" />
+                  <p className="mt-3 text-sm font-medium">
+                    No stale assumptions
+                  </p>
+                  <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                    Run the suite to evaluate the exact draft shown at left.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap justify-between gap-3 xl:col-span-2">
+            <Button variant="outline" onClick={() => setStep(1)}>
+              <ArrowLeft className="h-4 w-4" /> Back to define
+            </Button>
+            <Button disabled={!tested} onClick={() => setStep(3)}>
+              Review mandate <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
         </section>
-      </div>
+      ) : null}
+
+      {step === 3 ? (
+        <section className="mx-auto max-w-3xl surface-card overflow-hidden">
+          <div className="border-b border-border bg-raised p-6">
+            <p className="label-caps">03 / Review & activate</p>
+            <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em]">
+              {draft.name}
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {draft.purpose}
+            </p>
+          </div>
+          <div className="p-6">
+            <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2">
+              <ReviewItem
+                label="Period authority"
+                value={`${formatINR(Number(draft.limit))} / ${draft.period.toLowerCase()}`}
+              />
+              <ReviewItem
+                label="Automatic threshold"
+                value={formatINR(Number(draft.cap))}
+              />
+              <ReviewItem label="Scope" value={draft.category} />
+              <ReviewItem
+                label="Expires"
+                value={new Date(
+                  `${draft.expiresOn}T00:00:00`,
+                ).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              />
+              <ReviewItem
+                label="Approved merchants"
+                value={merchantList.join(" · ")}
+              />
+              <ReviewItem
+                label="Delegation"
+                value={
+                  draft.allowDelegation
+                    ? `Allowed · depth ${draft.delegationDepth}`
+                    : "Not allowed"
+                }
+              />
+            </div>
+            <div className="mt-5 flex items-start gap-2 rounded-md border border-success/20 bg-success/8 p-4">
+              <MandateGlyph className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                The test suite passed against this exact policy version.
+                Activation creates live authority; it does not retroactively
+                approve any payment.
+              </p>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-border pt-5">
+              <Button variant="outline" onClick={() => setStep(2)}>
+                <ArrowLeft className="h-4 w-4" /> Back to test
+              </Button>
+              <Button onClick={activate}>
+                Activate mandate <ApprovalGlyph className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  id,
+  error,
+  className,
+  children,
+}: {
+  label: string;
+  id: string;
+  error?: string | undefined;
+  className?: string | undefined;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("grid gap-1.5", className)}>
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="max-w-[65%] text-right font-medium">{value}</dd>
+    </div>
+  );
+}
+function ReviewItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-card p-4">
+      <p className="label-caps">{label}</p>
+      <p className="mt-2 text-sm font-medium">{value}</p>
     </div>
   );
 }

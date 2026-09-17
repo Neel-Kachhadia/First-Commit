@@ -1,12 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  Bot,
-  CircleDollarSign,
-  Plus,
-  ShieldCheck,
-  Store,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AuthorityBar,
@@ -17,6 +10,13 @@ import {
 import { AnimatedList, CountUpValue } from "@/components/ui/motion-primitives";
 import { useKavach } from "@/lib/kavach-store";
 import { formatINR } from "@/lib/kavach-data";
+import {
+  AgentGlyph,
+  AuthorityGlyph,
+  MandateGlyph,
+  MandatePlusGlyph,
+  MerchantGlyph,
+} from "@/components/kavach/icons";
 
 export const Route = createFileRoute("/agents/")({
   head: () => ({
@@ -40,24 +40,24 @@ function AgentsPage() {
     .size;
 
   return (
-    <div className="space-y-7">
+    <div className="agents-page space-y-7">
       <PageHeader
         title="Agent authority"
         description="Every connected agent, the mandate it inherited, and the exact amount it can still move."
         actions={
           <Button asChild>
             <Link to="/rules">
-              <Plus className="h-4 w-4" /> Issue mandate
+              <MandatePlusGlyph className="h-4 w-4" /> Issue mandate
             </Link>
           </Button>
         }
       />
 
-      <section className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3">
+      <section className="agents-ribbon metric-cluster grid overflow-hidden border-y border-border sm:grid-cols-3">
         <div className="bg-card p-5">
           <div className="flex items-center justify-between">
             <p className="label-caps">Active agents</p>
-            <Bot className="h-4 w-4 text-success" />
+            <AgentGlyph className="h-4 w-4 text-success" />
           </div>
           <p className="amount mt-3 text-2xl font-medium">
             <CountUpValue value={live} />
@@ -69,7 +69,7 @@ function AgentsPage() {
         <div className="bg-card p-5">
           <div className="flex items-center justify-between">
             <p className="label-caps">Reachable authority</p>
-            <CircleDollarSign className="h-4 w-4 text-primary" />
+            <AuthorityGlyph className="h-4 w-4 text-primary" />
           </div>
           <p className="amount mt-3 text-2xl font-medium">
             <CountUpValue value={reachable} format={formatINR} />
@@ -81,7 +81,7 @@ function AgentsPage() {
         <div className="bg-card p-5">
           <div className="flex items-center justify-between">
             <p className="label-caps">Approved merchants</p>
-            <Store className="h-4 w-4 text-stepup" />
+            <MerchantGlyph className="h-4 w-4 text-stepup" />
           </div>
           <p className="amount mt-3 text-2xl font-medium">
             <CountUpValue value={merchants} />
@@ -92,11 +92,11 @@ function AgentsPage() {
         </div>
       </section>
 
-      <section className="surface-card overflow-hidden">
+      <section className="mandate-registry surface-card overflow-hidden">
         <div className="flex items-start justify-between gap-4 border-b border-border p-5">
           <div>
             <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-primary" />
+              <MandateGlyph className="h-4 w-4 text-primary" />
               <h2 className="text-base font-semibold">Mandate registry</h2>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -117,11 +117,15 @@ function AgentsPage() {
                 key={agent.id}
                 to="/agents/$agentId"
                 params={{ agentId: agent.id }}
-                className="agent-row group grid gap-4 border-b border-border p-5 last:border-b-0 md:grid-cols-[minmax(210px,1.2fr)_minmax(170px,1fr)_minmax(150px,.8fr)_auto] md:items-center"
+                className="agent-row group grid gap-4 border-b border-border p-5 last:border-b-0 lg:grid-cols-[minmax(210px,1.2fr)_minmax(170px,1fr)_minmax(150px,.8fr)_auto] lg:items-center"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border bg-muted/50 text-muted-foreground group-hover:border-primary/30 group-hover:text-primary">
-                    <Bot className="h-4 w-4" />
+                  <span className="grid h-10 w-10 shrink-0 place-items-center border border-border bg-muted/35 text-[10px] font-semibold text-muted-foreground group-hover:border-primary/30 group-hover:text-primary">
+                    {agent.name
+                      .split(" ")
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2)}
                   </span>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

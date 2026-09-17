@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 type Tone = "active" | "allowed" | "stepup" | "denied" | "neutral";
 
 const toneStyles: Record<Tone, string> = {
-  active: "border-primary/35 text-primary bg-primary/10",
+  active: "border-success/35 text-success bg-success/8",
   allowed: "border-success/35 text-success bg-success/10",
   stepup: "border-stepup/40 text-stepup bg-stepup/10",
   denied: "border-destructive/40 text-destructive bg-destructive/10",
@@ -12,7 +12,7 @@ const toneStyles: Record<Tone, string> = {
 };
 
 const dotStyles: Record<Tone, string> = {
-  active: "bg-primary",
+  active: "bg-success",
   allowed: "bg-success",
   stepup: "bg-stepup",
   denied: "bg-destructive",
@@ -31,13 +31,17 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
+        "status-chip inline-flex items-center gap-1.5 rounded-[5px] border px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.045em] whitespace-nowrap",
         toneStyles[tone],
         className,
       )}
     >
       <span
-        className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotStyles[tone])}
+        className={cn(
+          "h-1.5 w-1.5 shrink-0 rounded-full",
+          dotStyles[tone],
+          tone === "active" && "status-live-dot",
+        )}
       />
       {label}
     </span>
@@ -78,16 +82,13 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="grid gap-5 border-b border-border pb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+    <header className="page-heading relative grid gap-4 border-b border-border pb-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
       <div className="min-w-0">
-        <div className="mb-3 flex items-center gap-2 text-[11px] font-medium text-success">
-          <span className="h-1.5 w-1.5 rounded-full bg-success" />
-          Live workspace
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-[2rem]">
+        <p className="mb-1.5 text-xs font-medium text-destructive">KavachPay control plane</p>
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.035em] sm:text-[2rem]">
           {title}
         </h1>
-        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
           {description}
         </p>
       </div>
@@ -111,13 +112,13 @@ export function AuthorityBar({
     limit > 0 ? Math.min(100, Math.round((consumed / limit) * 100)) : 0;
   return (
     <div
-      className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+      className="h-1.5 w-full overflow-hidden rounded-sm bg-muted"
       role="img"
       aria-label={`${pct}% of authority consumed`}
     >
       <div
         className={cn(
-          "h-full rounded-full transition-[width] duration-500 ease-out",
+          "authority-fill h-full rounded-sm transition-[width] duration-500 ease-out",
           muted ? "bg-muted-foreground/50" : "bg-primary",
         )}
         style={{ width: `${pct}%` }}
@@ -144,7 +145,7 @@ export function Metric({
     stepup: "text-stepup",
   }[tone];
   return (
-    <div className="surface-card metric-card min-h-32 p-5">
+    <div className="metric-instrument min-h-32 p-5">
       <p className="label-caps">{label}</p>
       <p
         className={cn(

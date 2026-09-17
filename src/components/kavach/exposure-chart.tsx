@@ -142,17 +142,17 @@ export function ExposureChart({
               <linearGradient id="exposure-fill" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="0%"
-                  stopColor="var(--color-primary)"
+                  stopColor="var(--color-destructive)"
                   stopOpacity={0.32}
                 />
                 <stop
                   offset="65%"
-                  stopColor="var(--color-primary)"
+                  stopColor="var(--color-destructive)"
                   stopOpacity={0.08}
                 />
                 <stop
                   offset="100%"
-                  stopColor="var(--color-primary)"
+                  stopColor="var(--color-destructive)"
                   stopOpacity={0}
                 />
               </linearGradient>
@@ -182,7 +182,7 @@ export function ExposureChart({
             <Tooltip
               content={<ExposureTooltip />}
               cursor={{
-                stroke: "var(--color-primary)",
+                stroke: "var(--color-destructive)",
                 strokeWidth: 1,
                 strokeDasharray: "4 4",
               }}
@@ -191,18 +191,18 @@ export function ExposureChart({
             <Area
               type="monotone"
               dataKey="exposure"
-              stroke="var(--color-primary)"
+              stroke="var(--color-destructive)"
               strokeWidth={2.25}
               fill="url(#exposure-fill)"
               dot={{
                 r: 3.5,
                 fill: "var(--color-card)",
-                stroke: "var(--color-primary)",
+                stroke: "var(--color-destructive)",
                 strokeWidth: 2,
               }}
               activeDot={{
                 r: 6,
-                fill: "var(--color-primary)",
+                fill: "var(--color-destructive)",
                 stroke: "var(--color-card)",
                 strokeWidth: 3,
               }}
