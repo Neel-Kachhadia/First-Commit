@@ -10,6 +10,10 @@
 import type { Request, Response } from "express";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import { IntentService } from "../services/intent-service.js";
+import { paymentService } from "../payments/payment-service.js";
+
+const intentService = new IntentService();
 
 function getRazorpayClient(): Razorpay {
   const keyId = process.env.RAZORPAY_KEY_ID?.trim();
@@ -77,11 +81,53 @@ export function verifySignature(
  * Minimum amount: 100 paise (₹1.00)
  *
  * Return:
+/**
+ * POST /api/create-order
+ *
+ * Creates a Razorpay order through the complete KavachPay flow:
+ *
+ *   Client
+ *      ↓
+ *   KavachPay Intent
+ *      ↓
+ *   Authority Engine
+ *      ↓
+ *   Atomic Reservation
+ *      ↓
+ *   PaymentService
+ *      ↓
+ *   Razorpay Order
+ *
+ * Request body:
  * {
- *   order_id: string,
- *   amount: number,
- *   currency: string,
- *   key_id: string
+ *   amount: number,              // paise
+ *   currency?: string,            // default INR
+ *   grantId: string,              // KavachPay grant governing payment
+ *   userId?: string,              // default u_demo
+ *   merchant?: {
+ *     merchantId: string,
+ *     name: string,
+ *     category: string
+ *   },
+ *   description?: string,
+ *   idempotencyKey?: string,
+ *   intentId?: string,
+ *   receipt?: string
+ * }
+ *
+ * Example:
+ * {
+ *   "amount": 10000,
+ *   "currency": "INR",
+ *   "grantId": "g_123",
+ *   "userId": "u_demo",
+ *   "merchant": {
+ *     "merchantId": "blinkit",
+ *     "name": "Blinkit",
+ *     "category": "GROCERY"
+ *   },
+ *   "description": "Grocery purchase",
+ *   "idempotencyKey": "checkout_demo_001"
  * }
  */
 export async function createOrderHandler(
@@ -89,14 +135,39 @@ export async function createOrderHandler(
   res: Response
 ): Promise<void> {
   try {
-    const { amount, currency = "INR", receipt } = req.body || {};
+    const {
+      amount,
+      currency = "INR",
+      grantId,
+      userId = "u_demo",
+      merchant,
+      description,
+      idempotencyKey,
+      intentId,
+      receipt,
+    } = req.body || {};
 
-    // Validate amount
-    if (typeof amount !== "number" || isNaN(amount)) {
+    // ------------------------------------------------------------
+    // 1. Validate amount
+    //
+    // Checkout API receives paise.
+    // KavachPay IntentService expects rupees.
+    // ------------------------------------------------------------
+
+    if (typeof amount !== "number" || !Number.isFinite(amount)) {
       res.status(400).json({
         success: false,
         error: "Invalid amount",
         message: "amount must be a valid number in paise",
+      });
+      return;
+    }
+
+    if (!Number.isInteger(amount)) {
+      res.status(400).json({
+        success: false,
+        error: "Invalid amount",
+        message: "amount must be an integer number of paise",
       });
       return;
     }
@@ -110,53 +181,277 @@ export async function createOrderHandler(
       return;
     }
 
-    let razorpay: Razorpay;
-    try {
-      razorpay = getRazorpayClient();
-    } catch (err) {
-      res.status(401).json({
+    // ------------------------------------------------------------
+    // 2. Validate grantId
+    //
+    // This is intentionally required.
+    //
+    // A checkout must be governed by an existing KavachPay grant.
+    // We must NOT silently create an ungoverned payment.
+    // ------------------------------------------------------------
+
+    if (typeof grantId !== "string" || !grantId.trim()) {
+      res.status(400).json({
         success: false,
-        error: "Authentication failed",
-        message: err instanceof Error ? err.message : "Razorpay credentials missing",
+        error: "grantId is required",
+        message:
+          "A KavachPay grant must be supplied to authorize this payment.",
       });
       return;
     }
 
-    const orderReceipt = receipt || `rcpt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    // ------------------------------------------------------------
+    // 3. Validate userId
+    // ------------------------------------------------------------
 
-    const order = await razorpay.orders.create({
-      amount: Math.round(amount),
+    if (typeof userId !== "string" || !userId.trim()) {
+      res.status(400).json({
+        success: false,
+        error: "Invalid userId",
+      });
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // 4. Validate merchant
+    // ------------------------------------------------------------
+
+    if (!merchant || typeof merchant !== "object") {
+      res.status(400).json({
+        success: false,
+        error: "Merchant information is required",
+        message:
+          "merchant must contain merchantId, name and category.",
+      });
+      return;
+    }
+
+    if (
+      typeof merchant.merchantId !== "string" ||
+      !merchant.merchantId.trim()
+    ) {
+      res.status(400).json({
+        success: false,
+        error: "Invalid merchant.merchantId",
+      });
+      return;
+    }
+
+    if (
+      typeof merchant.name !== "string" ||
+      !merchant.name.trim()
+    ) {
+      res.status(400).json({
+        success: false,
+        error: "Invalid merchant.name",
+      });
+      return;
+    }
+
+    if (
+      typeof merchant.category !== "string" ||
+      !merchant.category.trim()
+    ) {
+      res.status(400).json({
+        success: false,
+        error: "Invalid merchant.category",
+      });
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // 5. Idempotency key
+    //
+    // Prefer the client's key.
+    //
+    // For the demo checkout, generate one if omitted.
+    // ------------------------------------------------------------
+
+    const checkoutIdempotencyKey =
+      typeof idempotencyKey === "string" &&
+      idempotencyKey.trim()
+        ? idempotencyKey.trim()
+        : `checkout_${Date.now()}_${Math.random()
+            .toString(36)
+            .substring(2, 10)}`;
+
+    // ------------------------------------------------------------
+    // 6. Convert paise → rupees
+    // ------------------------------------------------------------
+
+    const amountInRupees = amount / 100;
+
+    // ------------------------------------------------------------
+    // 7. Create KavachPay Intent
+    // ------------------------------------------------------------
+
+    const intentInput = {
+      ...(intentId ? { intentId } : {}),
+      userId,
+      grantId,
+      amount: amountInRupees,
       currency,
-      receipt: orderReceipt,
-      notes: {
-        integration: "razorpay_standard_checkout",
+      merchant: {
+        merchantId: merchant.merchantId.trim(),
+        name: merchant.name.trim(),
+        category: merchant.category.trim(),
       },
-    });
+      ...(description ? { description } : {}),
+      idempotencyKey: checkoutIdempotencyKey,
+    };
+
+    console.log(
+      `[CheckoutHandler] Creating KavachPay intent ` +
+        `for ₹${amountInRupees} ` +
+        `(grant=${grantId}, merchant=${merchant.name})`
+    );
+
+    const intentResult = await intentService.createIntent(
+      intentInput
+    );
+
+    const decision = intentResult.decision.decision;
+
+    console.log(
+      `[CheckoutHandler] Intent ${intentResult.intent.intentId} ` +
+        `decision=${decision}`
+    );
+
+    // ------------------------------------------------------------
+    // 8. DENY
+    //
+    // No Razorpay order should ever be created.
+    // ------------------------------------------------------------
+
+    if (decision === "DENY") {
+      res.status(403).json({
+        success: false,
+        error: "Payment denied by KavachPay",
+        intentId: intentResult.intent.intentId,
+        intent: intentResult.intent,
+        decision: intentResult.decision,
+      });
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // 9. STEP-UP
+    //
+    // Do NOT execute Razorpay yet.
+    //
+    // Frontend should call:
+    //
+    // POST /v0/intents/:id/approve
+    //
+    // after the human approves the transaction.
+    // ------------------------------------------------------------
+
+    if (decision === "STEP_UP") {
+      res.status(202).json({
+        success: true,
+        requiresStepUp: true,
+        intentId: intentResult.intent.intentId,
+        intent: intentResult.intent,
+        decision: intentResult.decision,
+        message:
+          "Additional approval is required before payment execution.",
+      });
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // 10. ALLOW must result in RESERVED
+    //
+    // IntentService is responsible for the atomic reservation.
+    // PaymentService refuses anything that isn't RESERVED.
+    // ------------------------------------------------------------
+
+    if (intentResult.intent.status !== "RESERVED") {
+      console.error(
+        `[CheckoutHandler] Intent ${intentResult.intent.intentId} ` +
+          `was allowed but is not RESERVED. ` +
+          `status=${intentResult.intent.status}`
+      );
+
+      res.status(409).json({
+        success: false,
+        error: "Intent is not ready for payment execution",
+        intentId: intentResult.intent.intentId,
+        intent: intentResult.intent,
+        decision: intentResult.decision,
+      });
+      return;
+    }
+
+    // ------------------------------------------------------------
+    // 11. Execute through PaymentService
+    //
+    // PaymentService → RazorpayAdapter
+    //
+    // RazorpayAdapter creates:
+    //
+    // notes: {
+    //   intentId,
+    //   kavachpay: "true"
+    // }
+    //
+    // This is the critical link that was missing before.
+    // ------------------------------------------------------------
+
+    console.log(
+      `[CheckoutHandler] Executing KavachPay intent ` +
+        `${intentResult.intent.intentId} through PaymentService`
+    );
+
+    const payment = await paymentService.execute(
+      intentResult.intent.intentId
+    );
+
+    // ------------------------------------------------------------
+    // 12. Return a FLAT response
+    //
+    // Keeps compatibility with the existing React Razorpay
+    // Standard Checkout frontend.
+    // ------------------------------------------------------------
 
     res.status(200).json({
-      order_id: order.id,
-      amount: order.amount,
-      currency: order.currency,
+      success: true,
+
+      // Existing Razorpay frontend fields
+      order_id: payment.razorpayOrderId,
+      amount,
+      currency,
       key_id: process.env.RAZORPAY_KEY_ID,
+
+      // KavachPay information
+      intentId: intentResult.intent.intentId,
+      grantId,
+      decision: intentResult.decision.decision,
+
+      intent: intentResult.intent,
+      decisionReceipt: intentResult.decision,
+
+      payment: {
+        razorpayOrderId: payment.razorpayOrderId,
+        razorpayPaymentId: payment.razorpayPaymentId,
+      },
+
+      ...(receipt ? { receipt } : {}),
     });
-  } catch (error: any) {
-    console.error("[CheckoutHandler] Error creating Razorpay order:", error);
+  } catch (error) {
+    console.error(
+      "[CheckoutHandler] Error creating KavachPay-governed order:",
+      error
+    );
 
-    // Auth failures from Razorpay API
-    if (error?.statusCode === 401 || error?.status === 401) {
-      res.status(401).json({
-        success: false,
-        error: "Razorpay authentication failed",
-        message: error?.error?.description || error.message || "Unauthorized",
-      });
-      return;
-    }
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to create KavachPay payment";
 
-    // General Razorpay API / Server errors
-    res.status(500).json({
+    res.status(400).json({
       success: false,
-      error: "Failed to create order",
-      message: error?.error?.description || error?.message || "Razorpay API error",
+      error: message,
     });
   }
 }

@@ -9,19 +9,36 @@ import {
   verifySignature,
 } from "./checkout-handler.js";
 
-const mockOrdersCreate = vi.fn();
+// Hoist mock functions so they are available inside vi.mock() factories
+const { mockOrdersCreate, mockCreateIntent, mockPaymentExecute } = vi.hoisted(() => ({
+  mockOrdersCreate: vi.fn(),
+  mockCreateIntent: vi.fn(),
+  mockPaymentExecute: vi.fn(),
+}));
 
-// Mock Razorpay SDK
+// Mock Razorpay SDK (still needed for verifyPaymentHandler)
 vi.mock("razorpay", () => {
   return {
     default: class MockRazorpay {
-      orders = {
-        create: mockOrdersCreate,
-      };
+      orders = { create: mockOrdersCreate };
       constructor(public options: any) {}
     },
   };
 });
+
+// Mock IntentService
+vi.mock("../services/intent-service.js", () => ({
+  IntentService: class {
+    createIntent = mockCreateIntent;
+  },
+}));
+
+// Mock PaymentService singleton
+vi.mock("../payments/payment-service.js", () => ({
+  paymentService: {
+    execute: mockPaymentExecute,
+  },
+}));
 
 function mockResponse(): Response {
   const res: any = {};
@@ -38,11 +55,35 @@ function mockResponse(): Response {
 }
 
 function mockRequest(body: any = {}, headers: any = {}): Request {
-  return {
-    body,
-    headers,
-  } as Request;
+  return { body, headers } as Request;
 }
+
+// Minimal valid create-order body
+const VALID_BODY = {
+  amount: 10000,
+  currency: "INR",
+  grantId: "g_test_grant",
+  userId: "u_demo",
+  merchant: {
+    merchantId: "blinkit",
+    name: "Blinkit",
+    category: "GROCERY",
+  },
+  description: "Demo purchase",
+  idempotencyKey: "idem_test_001",
+};
+
+// Shared intent result for the ALLOW path
+const ALLOW_INTENT_RESULT = {
+  intent: {
+    intentId: "i_test_intent",
+    status: "RESERVED",
+    amount: 100,
+    currency: "INR",
+  },
+  decision: { decision: "ALLOW", reserved: true },
+  replayed: false,
+};
 
 describe("Checkout Handler", () => {
   const originalEnv = process.env;
@@ -83,62 +124,108 @@ describe("Checkout Handler", () => {
       expect((res as any).jsonData.error).toBe("Amount too low");
     });
 
-    it("successfully creates an order and returns order_id, amount, currency", async () => {
-      const req = mockRequest({
-        amount: 50000,
-        currency: "INR",
-        receipt: "rcpt_12345",
-      });
+    it("rejects missing grantId with 400", async () => {
+      const req = mockRequest({ ...VALID_BODY, grantId: undefined });
       const res = mockResponse();
 
-      const mockOrder = {
-        id: "order_mock123",
-        amount: 50000,
-        currency: "INR",
-        receipt: "rcpt_12345",
-        status: "created",
-      };
+      await createOrderHandler(req, res);
 
-      // Mock orders.create
-      mockOrdersCreate.mockResolvedValue(mockOrder);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect((res as any).jsonData.error).toBe("grantId is required");
+    });
+
+    it("rejects missing merchant with 400", async () => {
+      const req = mockRequest({ ...VALID_BODY, merchant: undefined });
+      const res = mockResponse();
+
+      await createOrderHandler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect((res as any).jsonData.error).toBe("Merchant information is required");
+    });
+
+    it("returns 403 when KavachPay denies the intent", async () => {
+      mockCreateIntent.mockResolvedValue({
+        intent: { intentId: "i_denied", status: "DENIED", amount: 100, currency: "INR" },
+        decision: { decision: "DENY", reasonCode: "CAPACITY_EXCEEDED" },
+        replayed: false,
+      });
+
+      const req = mockRequest(VALID_BODY);
+      const res = mockResponse();
+
+      await createOrderHandler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect((res as any).jsonData.error).toBe("Payment denied by KavachPay");
+      // Razorpay must never be reached after DENY
+      expect(mockPaymentExecute).not.toHaveBeenCalled();
+    });
+
+    it("returns 202 when KavachPay requires step-up approval", async () => {
+      mockCreateIntent.mockResolvedValue({
+        intent: { intentId: "i_stepup", status: "STEP_UP_REQUIRED", amount: 100, currency: "INR" },
+        decision: { decision: "STEP_UP" },
+        replayed: false,
+      });
+
+      const req = mockRequest(VALID_BODY);
+      const res = mockResponse();
+
+      await createOrderHandler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(202);
+      expect((res as any).jsonData.requiresStepUp).toBe(true);
+      // Razorpay must never be reached before step-up is approved
+      expect(mockPaymentExecute).not.toHaveBeenCalled();
+    });
+
+    it("successfully creates a KavachPay-governed order and returns flat response", async () => {
+      mockCreateIntent.mockResolvedValue(ALLOW_INTENT_RESULT);
+      mockPaymentExecute.mockResolvedValue({
+        success: true,
+        razorpayOrderId: "order_kpay123",
+        razorpayPaymentId: undefined,
+      });
+
+      const req = mockRequest(VALID_BODY);
+      const res = mockResponse();
 
       await createOrderHandler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect((res as any).jsonData).toEqual({
-        order_id: "order_mock123",
-        amount: 50000,
-        currency: "INR",
-        key_id: TEST_KEY_ID,
+
+      const data = (res as any).jsonData;
+      expect(data.success).toBe(true);
+      // Frontend-compatible flat fields
+      expect(data.order_id).toBe("order_kpay123");
+      expect(data.amount).toBe(10000);
+      expect(data.currency).toBe("INR");
+      expect(data.key_id).toBe(TEST_KEY_ID);
+      // KavachPay fields
+      expect(data.intentId).toBe("i_test_intent");
+      expect(data.grantId).toBe("g_test_grant");
+      expect(data.decision).toBe("ALLOW");
+      // PaymentService called with correct intent ID
+      expect(mockPaymentExecute).toHaveBeenCalledWith("i_test_intent");
+    });
+
+    it("converts paise to rupees before calling IntentService", async () => {
+      mockCreateIntent.mockResolvedValue(ALLOW_INTENT_RESULT);
+      mockPaymentExecute.mockResolvedValue({
+        success: true,
+        razorpayOrderId: "order_kpay456",
       });
-    });
 
-    it("returns 401 when Razorpay authentication fails", async () => {
-      const req = mockRequest({ amount: 50000 });
+      const req = mockRequest({ ...VALID_BODY, amount: 10000 }); // ₹100 in paise
       const res = mockResponse();
-
-      const authError = new Error("Authentication failed");
-      (authError as any).statusCode = 401;
-      mockOrdersCreate.mockRejectedValue(authError);
 
       await createOrderHandler(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect((res as any).jsonData.error).toBe("Razorpay authentication failed");
-    });
-
-    it("returns 500 when Razorpay API throws general error", async () => {
-      const req = mockRequest({ amount: 50000 });
-      const res = mockResponse();
-
-      const apiError = new Error("Razorpay internal error");
-      (apiError as any).statusCode = 500;
-      mockOrdersCreate.mockRejectedValue(apiError);
-
-      await createOrderHandler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect((res as any).jsonData.error).toBe("Failed to create order");
+      // IntentService should receive 100 (rupees), not 10000 (paise)
+      expect(mockCreateIntent).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 100 })
+      );
     });
   });
 

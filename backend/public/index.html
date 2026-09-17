@@ -604,6 +604,17 @@
               amount: paise,
               currency: "INR",
               receipt: "rcpt_" + Date.now(),
+
+              // KavachPay governance fields
+              grantId: "g_782d95c6-cb08-43f2-897a-4cbd9e80db9b",
+              userId: "u_8c826013-3799-4f8d-8a23-9d02c55edf64",
+              merchant: {
+                merchantId: "Blinkit",
+                name: "Blinkit",
+                category: "GROCERY",
+              },
+              description: "KavachPay demo grocery payment",
+              idempotencyKey: "checkout_" + Date.now(),
             }),
           });
 

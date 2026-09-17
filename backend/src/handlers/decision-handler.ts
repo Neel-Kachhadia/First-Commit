@@ -21,12 +21,7 @@ export async function getDecisionsHandler(
     res.status(200).json({
       success: true,
       intentId,
-      decisions: decisions.map(d => ({
-        decisionId: d.decisionId,
-        decision: d.decision,
-        reasonCode: d.reasonCode,
-        receiptHash: d.receiptHash,
-      })),
+      decisions: decisions
     });
   } catch (error) {
     console.error("getDecisionsHandler error:", error);

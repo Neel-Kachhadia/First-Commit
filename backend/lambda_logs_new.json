@@ -1,0 +1,20 @@
+{
+    "events": [
+        {
+            "logStreamName": "2026/09/17/[$LATEST]30bf9a05e61f44dfb946040368b95a73",
+            "timestamp": 1789655441600,
+            "message": "INIT_START Runtime Version: nodejs:24.mainline.v55\tRuntime Version ARN: arn:aws:lambda:ap-south-1::runtime:3f2695d917b249350567df30dd784ee6b9547bbdb635b4c188153c39b5347c8b\n",
+            "ingestionTime": 1789655449185,
+            "eventId": "39910649996285402031651845868143996757814472629341913088"
+        },
+        {
+            "logStreamName": "2026/09/17/[$LATEST]fa3b8eb224594930a6a232ca2222b25c",
+            "timestamp": 1789655441856,
+            "message": "INIT_START Runtime Version: nodejs:24.mainline.v55\tRuntime Version ARN: arn:aws:lambda:ap-south-1::runtime:3f2695d917b249350567df30dd784ee6b9547bbdb635b4c188153c39b5347c8b\n",
+            "ingestionTime": 1789655442554,
+            "eventId": "39910650001994392802475685384360266518431244963477323776"
+        },
+        {
+            "logStreamName": "2026/09/17/[$LATEST]30bf9a05e61f44dfb946040368b95a73",
+            "timestamp": 1789655442162,
+            "message": 
