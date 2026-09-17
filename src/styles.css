@@ -1,0 +1,178 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * KavachPay design system.
+ * Palette is fixed: Kavach black, warm ivory/paper, oxide authority red,
+ * restrained green and brass. No blue/purple/cyan/neon or SaaS gradients.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 3px);
+  --radius-md: calc(var(--radius) - 1px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "IBM Plex Serif", ui-serif, Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-raised: var(--raised);
+  --color-raised-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-paper-foreground: var(--paper-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-stepup: var(--stepup);
+  --color-stepup-foreground: var(--stepup-foreground);
+  --color-brass: var(--brass);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0.5rem;
+
+  --background: #f3ede1;
+  --foreground: #151512;
+  --card: #f8f4ea;
+  --card-foreground: #151512;
+  --raised: #f8f4ea;
+  --paper: #e9dfc9;
+  --paper-foreground: #171714;
+  --popover: #f8f4ea;
+  --popover-foreground: #151512;
+  --primary: #a54535;
+  --primary-foreground: #f8f4ea;
+  --secondary: #e9dfc9;
+  --secondary-foreground: #151512;
+  --muted: #e9dfc9;
+  --muted-foreground: #68645b;
+  --accent: #e9dfc9;
+  --accent-foreground: #151512;
+  --destructive: #d9564b;
+  --destructive-foreground: #f8f4ea;
+  --success: #3e8066;
+  --success-foreground: #f8f4ea;
+  --stepup: #b58a45;
+  --stepup-foreground: #151512;
+  --brass: #a88a5b;
+  --border: rgba(21, 21, 18, 0.14);
+  --input: rgba(21, 21, 18, 0.14);
+  --ring: #a54535;
+}
+
+.dark {
+  --background: #090b0a;
+  --foreground: #f1ead8;
+  --card: #111512;
+  --card-foreground: #f1ead8;
+  --raised: #181c18;
+  --paper: #e9dfc9;
+  --paper-foreground: #171714;
+  --popover: #181c18;
+  --popover-foreground: #f1ead8;
+  --primary: #b34c3b;
+  --primary-foreground: #f1ead8;
+  --secondary: #181c18;
+  --secondary-foreground: #f1ead8;
+  --muted: #181c18;
+  --muted-foreground: #aaa496;
+  --accent: #181c18;
+  --accent-foreground: #f1ead8;
+  --destructive: #d9564b;
+  --destructive-foreground: #f1ead8;
+  --success: #62a889;
+  --success-foreground: #090b0a;
+  --stepup: #c39a54;
+  --stepup-foreground: #090b0a;
+  --brass: #a88a5b;
+  --border: rgba(241, 234, 216, 0.13);
+  --input: rgba(241, 234, 216, 0.13);
+  --ring: #b34c3b;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Tabular figures for every monetary value in the product. */
+@utility amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@utility label-caps {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+@utility surface-card {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
