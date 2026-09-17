@@ -159,6 +159,8 @@ export class GrantService {
       createdAt: now,
 
       updatedAt: now,
+
+      evidence: input.evidence,
     };
 
     /*

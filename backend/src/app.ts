@@ -17,6 +17,14 @@ import {
 } from "./handlers/grant-handler.js";
 
 import {
+  createAp2MandateHandler,
+} from "./handlers/ap2-handler.js";
+
+import {
+  extractMandateHandler,
+} from "./handlers/bedrock-handler.js";
+
+import {
   getExposureHandler,
 } from "./handlers/exposure-handler.js";
 
@@ -79,6 +87,17 @@ app.post("/api/verify-payment", verifyPaymentHandler);
 /*
  * ── KavachPay Control Plane API ──────────────────────────────────────────────
  */
+
+app.post(
+  "/v0/mandates/extract",
+  extractMandateHandler
+);
+
+app.post(
+  "/v0/ap2/mandates",
+  createAp2MandateHandler
+);
+
 app.post(
   "/v0/grants",
   createGrantHandler

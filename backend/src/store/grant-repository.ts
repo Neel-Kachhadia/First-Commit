@@ -41,6 +41,12 @@ export interface Grant {
 
   status: GrantStatus;
 
+  evidence?: {
+    sourceProtocol?: string;
+    mandateRef?: string;
+    signedBy?: string;
+  };
+
   createdAt: string;
   updatedAt: string;
 }
