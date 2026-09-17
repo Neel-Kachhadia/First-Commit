@@ -14,6 +14,14 @@ import {
   webhookHandler,
 } from "./handlers/webhook-handler.js";
 
+import path from "path";
+
+import {
+  createOrderHandler,
+  verifyPaymentHandler,
+  getCheckoutConfigHandler,
+} from "./handlers/checkout-handler.js";
+
 dotenv.config();
 
 const app = express();
@@ -39,6 +47,9 @@ app.post(
 app.use(cors());
 app.use(express.json());
 
+// Serve static frontend assets for checkout demo
+app.use(express.static(path.resolve(process.cwd(), "public")));
+
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
@@ -48,6 +59,16 @@ app.get("/health", (_req, res) => {
   });
 });
 
+/*
+ * ── Razorpay Standard Web Checkout API ───────────────────────────────────────
+ */
+app.get("/api/config", getCheckoutConfigHandler);
+app.post("/api/create-order", createOrderHandler);
+app.post("/api/verify-payment", verifyPaymentHandler);
+
+/*
+ * ── KavachPay Control Plane API ──────────────────────────────────────────────
+ */
 app.post(
   "/v0/grants",
   createGrantHandler
