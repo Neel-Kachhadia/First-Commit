@@ -64,9 +64,9 @@ export class RazorpayAdapter {
   private readonly webhookSecret: string;
 
   constructor() {
-    const keyId = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+    const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET?.trim();
 
     if (!keyId || !keySecret || !webhookSecret) {
       throw new Error(

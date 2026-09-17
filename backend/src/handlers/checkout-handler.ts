@@ -12,8 +12,8 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 
 function getRazorpayClient(): Razorpay {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  const keyId = process.env.RAZORPAY_KEY_ID?.trim();
+  const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
 
   if (!keyId || !keySecret) {
     throw new Error("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be configured");
