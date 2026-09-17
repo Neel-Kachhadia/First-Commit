@@ -1,0 +1,644 @@
+{
+  "desktop-1440x900": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "reducedMotion": "no-preference",
+    "states": [
+      {
+        "id": "step-up",
+        "scrollY": 9000,
+        "active": "false",
+        "visible": [
+          {
+            "id": "step-up",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "revocation",
+        "scrollY": 11970,
+        "active": "false",
+        "visible": [
+          {
+            "id": "revocation",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "split-defense",
+        "scrollY": 15030,
+        "active": "false",
+        "visible": [
+          {
+            "id": "split-defense",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "concurrency",
+        "scrollY": 18090,
+        "active": "false",
+        "visible": [
+          {
+            "id": "concurrency",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "causal-replay",
+        "scrollY": 21510,
+        "active": "false",
+        "visible": [
+          {
+            "id": "causal-replay",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      }
+    ],
+    "refresh": {
+      "target": 21699,
+      "before": 21699,
+      "after": 0
+    },
+    "doc": {
+      "scrollWidth": 1440,
+      "innerWidth": 1440,
+      "canvas": 1,
+      "scene": [
+        "prologue"
+      ]
+    },
+    "consoleEvents": [
+      "warning: THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+      "warning: THREE.WebGLShadowMap: PCFSoftShadowMap has been removed. Using PCFShadowMap instead.",
+      "warning: [.WebGL-0xb403a97800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "warning: [.WebGL-0xb403a97800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "warning: [.WebGL-0xb403a97800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "warning: [.WebGL-0xb403a97800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+      "warning: THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+      "warning: THREE.WebGLShadowMap: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+    ],
+    "failed": []
+  },
+  "mobile-430x932": {
+    "viewport": {
+      "width": 430,
+      "height": 932
+    },
+    "reducedMotion": "no-preference",
+    "states": [
+      {
+        "id": "step-up",
+        "scrollY": 9320,
+        "active": "false",
+        "visible": [
+          {
+            "id": "step-up",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "revocation",
+        "scrollY": 12396,
+        "active": "false",
+        "visible": [
+          {
+            "id": "revocation",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "split-defense",
+        "scrollY": 15564,
+        "active": "false",
+        "visible": [
+          {
+            "id": "split-defense",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "concurrency",
+        "scrollY": 18733,
+        "active": "false",
+        "visible": [
+          {
+            "id": "concurrency",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "causal-replay",
+        "scrollY": 22275,
+        "active": "false",
+        "visible": [
+          {
+            "id": "causal-replay",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      }
+    ],
+    "refresh": {
+      "target": 22470,
+      "before": 22470,
+      "after": 0
+    },
+    "doc": {
+      "scrollWidth": 430,
+      "innerWidth": 430,
+      "canvas": 0,
+      "scene": [
+        "prologue"
+      ]
+    },
+    "consoleEvents": [],
+    "failed": []
+  },
+  "mobile-390x844": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "reducedMotion": "no-preference",
+    "states": [
+      {
+        "id": "step-up",
+        "scrollY": 8440,
+        "active": "false",
+        "visible": [
+          {
+            "id": "step-up",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "revocation",
+        "scrollY": 11225,
+        "active": "false",
+        "visible": [
+          {
+            "id": "revocation",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "split-defense",
+        "scrollY": 14095,
+        "active": "false",
+        "visible": [
+          {
+            "id": "split-defense",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "concurrency",
+        "scrollY": 16964,
+        "active": "false",
+        "visible": [
+          {
+            "id": "concurrency",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "causal-replay",
+        "scrollY": 20172,
+        "active": "false",
+        "visible": [
+          {
+            "id": "causal-replay",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      }
+    ],
+    "refresh": {
+      "target": 20349,
+      "before": 20349,
+      "after": 0
+    },
+    "doc": {
+      "scrollWidth": 390,
+      "innerWidth": 390,
+      "canvas": 0,
+      "scene": [
+        "prologue"
+      ]
+    },
+    "consoleEvents": [],
+    "failed": []
+  },
+  "landscape-932x430": {
+    "viewport": {
+      "width": 932,
+      "height": 430
+    },
+    "reducedMotion": "no-preference",
+    "states": [
+      {
+        "id": "step-up",
+        "scrollY": 4300,
+        "active": "false",
+        "visible": [
+          {
+            "id": "step-up",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "revocation",
+        "scrollY": 5719,
+        "active": "false",
+        "visible": [
+          {
+            "id": "revocation",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "split-defense",
+        "scrollY": 7181,
+        "active": "false",
+        "visible": [
+          {
+            "id": "split-defense",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "concurrency",
+        "scrollY": 8643,
+        "active": "false",
+        "visible": [
+          {
+            "id": "concurrency",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "causal-replay",
+        "scrollY": 10277,
+        "active": "false",
+        "visible": [
+          {
+            "id": "causal-replay",
+            "aria": "false",
+            "pe": "auto"
+          }
+        ]
+      }
+    ],
+    "refresh": {
+      "target": 10367,
+      "before": 10367,
+      "after": 0
+    },
+    "doc": {
+      "scrollWidth": 932,
+      "innerWidth": 932,
+      "canvas": 1,
+      "scene": [
+        "prologue"
+      ]
+    },
+    "consoleEvents": [
+      "warning: THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+      "warning: THREE.WebGLShadowMap: PCFSoftShadowMap has been removed. Using PCFShadowMap instead.",
+      "warning: THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+      "warning: THREE.WebGLShadowMap: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+    ],
+    "failed": []
+  },
+  "reduced-390x844": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "reducedMotion": "reduce",
+    "states": [
+      {
+        "id": "step-up",
+        "scrollY": 8440,
+        "active": null,
+        "visible": [
+          {
+            "id": "prologue",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "mandate",
+            "aria": "false",
+            "pe": "auto"
+          },
+          {
+            "id": "decisions",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "delegation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "step-up",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "revocation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "split-defense",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "concurrency",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "causal-replay",
+            "aria": null,
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "revocation",
+        "scrollY": 11225,
+        "active": null,
+        "visible": [
+          {
+            "id": "prologue",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "mandate",
+            "aria": "false",
+            "pe": "auto"
+          },
+          {
+            "id": "decisions",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "delegation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "step-up",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "revocation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "split-defense",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "concurrency",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "causal-replay",
+            "aria": null,
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "split-defense",
+        "scrollY": 14095,
+        "active": null,
+        "visible": [
+          {
+            "id": "prologue",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "mandate",
+            "aria": "false",
+            "pe": "auto"
+          },
+          {
+            "id": "decisions",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "delegation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "step-up",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "revocation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "split-defense",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "concurrency",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "causal-replay",
+            "aria": null,
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "concurrency",
+        "scrollY": 16964,
+        "active": null,
+        "visible": [
+          {
+            "id": "prologue",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "mandate",
+            "aria": "false",
+            "pe": "auto"
+          },
+          {
+            "id": "decisions",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "delegation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "step-up",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "revocation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "split-defense",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "concurrency",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "causal-replay",
+            "aria": null,
+            "pe": "auto"
+          }
+        ]
+      },
+      {
+        "id": "causal-replay",
+        "scrollY": 20172,
+        "active": null,
+        "visible": [
+          {
+            "id": "prologue",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "mandate",
+            "aria": "false",
+            "pe": "auto"
+          },
+          {
+            "id": "decisions",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "delegation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "step-up",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "revocation",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "split-defense",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "concurrency",
+            "aria": null,
+            "pe": "auto"
+          },
+          {
+            "id": "causal-replay",
+            "aria": null,
+            "pe": "auto"
+          }
+        ]
+      }
+    ],
+    "refresh": {
+      "target": 20349,
+      "before": 20349,
+      "after": 0
+    },
+    "doc": {
+      "scrollWidth": 390,
+      "innerWidth": 390,
+      "canvas": 0,
+      "scene": [
+        "prologue",
+        "mandate",
+        "decisions",
+        "delegation",
+        "step-up",
+        "revocation",
+        "split-defense",
+        "concurrency",
+        "causal-replay"
+      ]
+    },
+    "consoleEvents": [],
+    "failed": []
+  }
+}

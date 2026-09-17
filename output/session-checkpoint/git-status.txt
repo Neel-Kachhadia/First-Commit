@@ -1,0 +1,52 @@
+ M debug.log
+ M output/playwright/test-results/.last-run.json
+ M src/app/globals.css
+ M src/components/documents/AuthorityRegisterRecord.tsx
+ M src/components/experience/CausalReplay/CausalReplayScene.module.css
+ M src/components/experience/CausalReplay/CausalReplayScene.tsx
+ M src/components/experience/Concurrency/ConcurrencyScene.module.css
+ M src/components/experience/Concurrency/ConcurrencyScene.tsx
+ M src/components/experience/DebugStageHUD.tsx
+ M src/components/experience/Decisions/DecisionsScene.module.css
+ M src/components/experience/Decisions/DecisionsScene.tsx
+ M src/components/experience/Delegation/DelegationScene.module.css
+ M src/components/experience/Delegation/DelegationScene.tsx
+ M src/components/experience/KavachExperience.module.css
+ M src/components/experience/KavachExperience.tsx
+ M src/components/experience/Mandate/MandateScene.module.css
+ M src/components/experience/Mandate/MandateScene.tsx
+ M src/components/experience/Opening/OpeningScene.module.css
+ M src/components/experience/Opening/OpeningScene.tsx
+ M src/components/experience/Revocation/RevocationScene.module.css
+ M src/components/experience/Revocation/RevocationScene.tsx
+ M src/components/experience/SplitDefense/SplitDefenseScene.module.css
+ M src/components/experience/SplitDefense/SplitDefenseScene.tsx
+ M src/components/experience/StepUp/StepUpScene.module.css
+ M src/components/experience/StepUp/StepUpScene.tsx
+ M src/components/webgl/CausalReplayRibbon.tsx
+ M src/components/webgl/ExperienceCanvas.module.css
+ M src/components/webgl/ExperienceCanvas.tsx
+ M src/components/webgl/MandatePhysicalStage.tsx
+ M src/lib/experience/demo-state.ts
+ M src/lib/experience/progress-bus.ts
+ M src/lib/experience/store.ts
+ M tests/visual/boundary-hardening.spec.ts
+ M tests/visual/helpers/ownership.ts
+ M tests/visual/helpers/scene-checkpoints.ts
+ M tests/visual/pipeline-motion-audit.spec.ts
+ M tests/visual/reduced-motion.spec.ts
+ M tests/visual/revocation-video.spec.ts
+ M tests/visual/scene-ownership.spec.ts
+ M tests/visual/stage-a-master-frames.spec.ts
+ M tests/visual/stage-a-step-a.spec.ts
+ M tests/visual/stage-a-step-c.spec.ts
+ M tests/visual/stage-a-video-gate.spec.ts
+?? output/final-audit/
+?? output/playwright/test-results/revocation-review-Scene-05-80244-drawal-history-preservation-1366x768/
+?? "output/playwright/test-results/step-up-review-Scene-04-\342\200\224--007f9-tic-clearance-reverse-scrub-1366x768/"
+?? output/session-checkpoint/
+?? src/components/experience/GlobalNavbar.module.css
+?? src/components/experience/GlobalNavbar.tsx
+?? src/lib/experience/causal-replay.ts
+?? src/lib/experience/scene-registry.ts
+?? tests/visual/global-navbar.spec.ts

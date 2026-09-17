@@ -1,0 +1,246 @@
+.section {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+  visibility: hidden;
+  z-index: 7;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.5rem 2.2rem;
+  box-sizing: border-box;
+  background: transparent;
+  visibility: hidden;
+}
+
+/* ========================================================================== */
+/* TOP AREA: Scene-owned chapter header */
+/* ========================================================================== */
+.topArea {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 20;
+}
+
+/* Institutional Scene Header */
+.sceneHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(235, 225, 201, 0.3);
+  padding-bottom: 0.5rem;
+  font-family: var(--font-mono), monospace;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.sceneIndex {
+  font-family: var(--font-mono), monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--kp-ivory);
+}
+
+.headerDivider {
+  color: rgba(235, 225, 201, 0.4);
+}
+
+.headerTitle {
+  font-family: var(--font-admin), sans-serif;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: var(--kp-ivory);
+}
+
+.headerRight {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: rgba(235, 225, 201, 0.75);
+}
+
+/* ========================================================================== */
+/* MAIN ARENA: Authority Register Station */
+/* ========================================================================== */
+.arena {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.8rem 0;
+  overflow: hidden;
+}
+
+.registerStation {
+  position: relative;
+  width: min(88vw, 980px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Top Station Registration Bar */
+.stationBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(235, 225, 201, 0.35);
+  padding-bottom: 0.4rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: rgba(235, 225, 201, 0.85);
+}
+
+.barDatumNotice {
+  color: rgba(235, 225, 201, 0.7);
+}
+
+.barRecallStatus {
+  color: var(--kp-ivory);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+/* Calipers / Datum Alignment Lines */
+.datumCaliperLeft,
+.datumCaliperRight {
+  position: absolute;
+  top: 1.8rem;
+  bottom: 1.8rem;
+  width: 1px;
+  background: rgba(235, 225, 201, 0.25);
+  pointer-events: none;
+}
+.datumCaliperLeft { left: -12px; }
+.datumCaliperRight { right: -12px; }
+
+/* The 4-Record Stack */
+.recordStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  position: relative;
+}
+
+/* Recall Aperture Highlight Bracket */
+.recallApertureBracket {
+  position: absolute;
+  left: -8px;
+  top: -4px;
+  width: calc(100% + 16px);
+  height: calc(25% + 4px);
+  border: 1.5px dashed rgba(235, 225, 201, 0.4);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Bottom Station Clearance Bracket */
+.stationFooterBracket {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(235, 225, 201, 0.35);
+  padding-top: 0.4rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  color: rgba(235, 225, 201, 0.65);
+}
+
+/* ========================================================================== */
+/* FOOTER BAR */
+/* ========================================================================== */
+.sceneFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(235, 225, 201, 0.3);
+  padding-top: 0.5rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: rgba(235, 225, 201, 0.6);
+}
+
+.footerBrand {
+  font-weight: 700;
+  color: var(--kp-ivory);
+}
+
+/* ========================================================================== */
+/* RESPONSIVE LAYOUT */
+/* ========================================================================== */
+@media (max-width: 48rem) {
+  .stage {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .sceneHeader {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 0.25rem;
+  }
+
+  .headerTitle {
+    font-size: 1.15rem;
+  }
+
+  .headerRight {
+    font-size: 0.55rem;
+  }
+
+  .registerStation {
+    width: 100%;
+    gap: 0.35rem;
+  }
+
+  .stationBar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    padding-bottom: 0.2rem;
+    font-size: 0.55rem;
+  }
+
+  .stationFooterBracket {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    padding-top: 0.2rem;
+    font-size: 0.52rem;
+  }
+
+  .recordStack {
+    gap: 0.35rem;
+  }
+
+  .sceneFooter {
+    padding-top: 0.3rem;
+    font-size: 0.55rem;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+}

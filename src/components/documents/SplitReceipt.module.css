@@ -1,0 +1,384 @@
+.receipt {
+  --receipt-bg: var(--kp-paper-light, #f4ecd8);
+  --receipt-ink: var(--kp-ink, #15130e);
+  --receipt-border: rgba(21, 19, 14, 0.16);
+  --receipt-red: var(--kp-red, #a92a24);
+  position: relative;
+  background-color: var(--receipt-bg);
+  background-image:
+    linear-gradient(rgba(244, 236, 216, 0.2), rgba(244, 236, 216, 0.2)),
+    image-set(
+      url("/assets/kavachpay/materials/paper-thin-receipt-900.webp") 1x,
+      url("/assets/kavachpay/materials/paper-thin-receipt-1600.webp") 2x
+    );
+  background-size: cover;
+  background-position: center;
+  color: var(--receipt-ink);
+  filter: contrast(1.03) saturate(0.88);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.52),
+    0 4px 10px rgba(0, 0, 0, 0.28);
+  width: clamp(230px, 18.5vw, 290px);
+  padding: 1.1rem 1.25rem 1rem;
+  border-left: 1px solid var(--receipt-border);
+  border-right: 1px solid var(--receipt-border);
+  isolation: isolate;
+  user-select: none;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+/* Micro-serration top and bottom edge */
+.receipt::before,
+.receipt::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background-size: 8px 6px;
+  pointer-events: none;
+}
+
+.receipt::before {
+  top: -6px;
+  background-image: radial-gradient(circle at 4px 6px, transparent 4px, var(--receipt-bg) 4.5px);
+}
+
+.receipt::after {
+  bottom: -6px;
+  background-image: radial-gradient(circle at 4px 0, transparent 4px, var(--receipt-bg) 4.5px);
+}
+
+.receiptBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  position: relative;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border-bottom: 1px dashed var(--receipt-border);
+  padding-bottom: 0.5rem;
+}
+
+.brandRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.wordmark {
+  font-family: var(--font-display, serif);
+  font-size: 1.15rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--receipt-ink);
+  line-height: 1;
+}
+
+.txId {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(21, 19, 14, 0.75);
+}
+
+.serialRow {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  color: rgba(21, 19, 14, 0.5);
+  text-transform: uppercase;
+}
+
+/* Merchant Block */
+.merchantBlock {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem 0.45rem;
+  background: rgba(21, 19, 14, 0.03);
+  border-left: 2px solid transparent;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.merchantName {
+  font-family: var(--font-admin, sans-serif);
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--receipt-ink);
+  line-height: 1.15;
+}
+
+.location {
+  font-family: var(--font-admin, sans-serif);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(21, 19, 14, 0.65);
+}
+
+/* Amount Section */
+.amountSection {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--receipt-border);
+  border-bottom: 1px solid var(--receipt-border);
+}
+
+.amountWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+}
+
+.currency {
+  font-family: var(--font-display, serif);
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--receipt-ink);
+}
+
+.amountVal {
+  font-family: var(--font-display, serif);
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  color: var(--receipt-ink);
+}
+
+.timeTag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05rem;
+}
+
+.timeLabel {
+  font-family: var(--font-admin, sans-serif);
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(21, 19, 14, 0.5);
+}
+
+.timeVal {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--receipt-ink);
+  background: rgba(21, 19, 14, 0.05);
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px;
+}
+
+/* Threshold Notice */
+.thresholdNotice {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.3rem;
+  background: rgba(21, 19, 14, 0.04);
+  border: 1px dashed rgba(21, 19, 14, 0.15);
+}
+
+.thresholdDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: var(--receipt-ink);
+  opacity: 0.6;
+}
+
+.thresholdText {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: rgba(21, 19, 14, 0.75);
+}
+
+/* Metadata Rows */
+.metaRow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.3rem 0.45rem;
+  background: rgba(21, 19, 14, 0.02);
+  border-left: 2px solid transparent;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.metaLabel {
+  font-family: var(--font-admin, sans-serif);
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: rgba(21, 19, 14, 0.55);
+}
+
+.metaValue {
+  font-family: var(--font-admin, sans-serif);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--receipt-ink);
+}
+
+/* Alignment datum active state */
+.registerTarget {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -2px;
+  width: 2px;
+  background: transparent;
+  pointer-events: none;
+}
+
+:global([data-correlation-active="true"]) .merchantBlock,
+:global([data-correlation-active="true"]) .metaRow {
+  background: rgba(169, 42, 36, 0.06);
+  border-left-color: var(--receipt-red);
+}
+
+:global([data-correlation-active="true"]) .registerTarget {
+  background: var(--receipt-red);
+}
+
+/* Stamp slot */
+.stampSlot {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 0.5rem;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Footer */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px dashed var(--receipt-border);
+  padding-top: 0.45rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.55rem;
+  color: rgba(21, 19, 14, 0.6);
+  letter-spacing: 0.08em;
+}
+
+.mandateBadge {
+  font-weight: 600;
+}
+
+.authCheck {
+  font-weight: 700;
+  color: rgba(21, 19, 14, 0.45);
+}
+
+/* Responsive adjustments */
+@media (max-width: 48rem) {
+  .receipt {
+    width: 100%;
+    max-width: 270px;
+    padding: 0.35rem 0.65rem 0.3rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  }
+
+  .receiptBody {
+    gap: 0.18rem;
+  }
+
+  .header {
+    padding-bottom: 0.15rem;
+    gap: 0.1rem;
+  }
+
+  .wordmark {
+    font-size: 0.75rem;
+  }
+
+  .txId {
+    font-size: 0.52rem;
+  }
+
+  .serialRow {
+    font-size: 0.44rem;
+  }
+
+  .merchantBlock {
+    padding: 0.12rem 0.3rem;
+    gap: 0.04rem;
+  }
+
+  .merchantName {
+    font-size: 0.72rem;
+  }
+
+  .location {
+    font-size: 0.5rem;
+  }
+
+  .amountSection {
+    padding: 0.12rem 0;
+  }
+
+  .currency {
+    font-size: 0.95rem;
+  }
+
+  .amountVal {
+    font-size: 1.25rem;
+  }
+
+  .timeLabel {
+    font-size: 0.44rem;
+  }
+
+  .timeVal {
+    font-size: 0.68rem;
+  }
+
+  .thresholdRow {
+    padding: 0.1rem 0.3rem;
+  }
+
+  .thresholdText {
+    font-size: 0.48rem;
+  }
+
+  .metaSection {
+    gap: 0.12rem;
+  }
+
+  .metaRow {
+    padding: 0.1rem 0.3rem;
+  }
+
+  .metaLabel {
+    font-size: 0.44rem;
+  }
+
+  .metaValue {
+    font-size: 0.56rem;
+  }
+
+  .footer {
+    padding-top: 0.15rem;
+    font-size: 0.46rem;
+  }
+}
