@@ -1,0 +1,108 @@
+import { useState } from "react";
+import { formatINR } from "@/lib/kavach-data";
+import { cn } from "@/lib/utils";
+
+type Segment = "remaining" | "spent" | null;
+
+export function AuthorityRing({
+  total,
+  remaining,
+  frozen,
+}: {
+  total: number;
+  remaining: number;
+  frozen?: boolean;
+}) {
+  const [active, setActive] = useState<Segment>(null);
+  const safeTotal = Math.max(total, 1);
+  const live = frozen ? 0 : Math.max(0, Math.min(remaining, total));
+  const spent = Math.max(0, total - live);
+  const remainingPct = Math.round((live / safeTotal) * 100);
+  const radius = 68;
+  const circumference = 2 * Math.PI * radius;
+  const remainingLength = (live / safeTotal) * circumference;
+  const spentLength = (spent / safeTotal) * circumference;
+  const shown = active === "spent" ? spent : live;
+  const shownPct = active === "spent" ? 100 - remainingPct : remainingPct;
+
+  return (
+    <div className="authority-ring-panel">
+      <div
+        className="authority-ring relative grid place-items-center"
+        onMouseLeave={() => setActive(null)}
+      >
+        <svg viewBox="0 0 176 176" className="h-full w-full -rotate-90">
+          <circle
+            cx="88"
+            cy="88"
+            r={radius}
+            className="authority-ring-track"
+            strokeWidth="13"
+            fill="none"
+          />
+          <circle
+            cx="88"
+            cy="88"
+            r={radius}
+            className={cn(
+              "authority-ring-segment authority-ring-spent",
+              active === "spent" && "is-active",
+              active === "remaining" && "is-muted",
+            )}
+            strokeWidth="13"
+            fill="none"
+            strokeDasharray={`${spentLength} ${circumference - spentLength}`}
+            strokeDashoffset={0}
+            onMouseEnter={() => setActive("spent")}
+          />
+          <circle
+            cx="88"
+            cy="88"
+            r={radius}
+            className={cn(
+              "authority-ring-segment authority-ring-remaining",
+              active === "remaining" && "is-active",
+              active === "spent" && "is-muted",
+            )}
+            strokeWidth="13"
+            fill="none"
+            strokeDasharray={`${remainingLength} ${circumference - remainingLength}`}
+            strokeDashoffset={-spentLength}
+            onMouseEnter={() => setActive("remaining")}
+          />
+        </svg>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+          <span className="amount text-[1.65rem] font-medium leading-none">
+            {shownPct}%
+          </span>
+          <span className="mt-2 font-mono text-[9px] uppercase tracking-[0.09em] text-muted-foreground">
+            {active === "spent" ? "Consumed" : frozen ? "Suspended" : "Reachable"}
+          </span>
+        </div>
+      </div>
+      <div className="authority-ring-legend grid grid-cols-2 gap-px overflow-hidden border border-border bg-border text-[9px]">
+        <button
+          type="button"
+          onMouseEnter={() => setActive("remaining")}
+          onFocus={() => setActive("remaining")}
+          className="bg-card px-2.5 py-2 text-left transition-colors hover:bg-raised focus:bg-raised"
+        >
+          <span className="block text-muted-foreground">Still reachable</span>
+          <span className="amount mt-0.5 block font-medium">{formatINR(live)}</span>
+        </button>
+        <button
+          type="button"
+          onMouseEnter={() => setActive("spent")}
+          onFocus={() => setActive("spent")}
+          className="bg-card px-2.5 py-2 text-left transition-colors hover:bg-raised focus:bg-raised"
+        >
+          <span className="block text-muted-foreground">Consumed</span>
+          <span className="amount mt-0.5 block font-medium">{formatINR(spent)}</span>
+        </button>
+      </div>
+      <p className="sr-only">
+        {formatINR(live)} remains reachable, {formatINR(spent)} has been consumed.
+      </p>
+    </div>
+  );
+}

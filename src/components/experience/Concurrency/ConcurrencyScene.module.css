@@ -1,0 +1,613 @@
+.concurrencySection {
+  --kp-bg: #09090b;
+  --kp-paper: #f4ecd8;
+  --kp-paper-deep: #ebdaba;
+  --kp-ink: #15130e;
+  --kp-red: #a92a24;
+  --kp-red-dark: #7d1f1a;
+  --kp-green: #265c42;
+  --kp-rule: rgba(244, 236, 216, 0.14);
+  --kp-rule-subtle: rgba(244, 236, 216, 0.08);
+
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--kp-bg);
+  color: var(--kp-paper);
+  overflow: hidden;
+  z-index: 9;
+  visibility: hidden;
+  pointer-events: none;
+  contain: layout style paint;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(1rem, 2.4vw, 2rem) clamp(1.2rem, 3.8vw, 3.5rem);
+  box-sizing: border-box;
+}
+
+/* Scene Editorial Header */
+.sceneHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-top: 0.5rem;
+  z-index: 20;
+}
+
+.headerIndexWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+
+.sceneIndex {
+  font-family: var(--font-display, serif);
+  font-size: clamp(1.6rem, 2.4vw, 2.4rem);
+  font-weight: 400;
+  color: var(--kp-paper);
+  line-height: 1;
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sceneTitle {
+  font-family: var(--font-sans, sans-serif);
+  font-size: clamp(0.85rem, 1.15vw, 1.15rem);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--kp-paper);
+  margin: 0;
+}
+
+.sceneMicrocopy {
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(0.58rem, 0.72vw, 0.7rem);
+  letter-spacing: 0.12em;
+  color: rgba(244, 236, 216, 0.55);
+}
+
+.headerMeta {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: rgba(244, 236, 216, 0.5);
+  text-align: right;
+  border-left: 1px solid var(--kp-rule);
+  padding-left: 0.8rem;
+}
+
+/* Main Arena */
+.arena {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  perspective: 1200px;
+}
+
+/* Central Budget Register Station matching Panel 07 */
+.ledgerStation {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+}
+
+.balanceRegister {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 0.4rem 1.8rem;
+  border: 1px solid var(--kp-rule);
+  background: rgba(18, 18, 22, 0.85);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.balanceNumeralWrap {
+  position: relative;
+  height: clamp(3.2rem, 5.2vw, 5.4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-width: 220px;
+}
+
+.balanceNumeral {
+  font-family: var(--font-display, serif);
+  font-size: clamp(3rem, 5.2vw, 5.4rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--kp-paper);
+}
+
+.numeralInitial {
+  position: absolute;
+  color: var(--kp-paper);
+}
+
+.numeralFinal {
+  position: absolute;
+  color: var(--kp-red);
+  opacity: 0;
+  transform: translateY(15px);
+}
+
+.balanceLabel {
+  font-family: var(--font-sans, sans-serif);
+  font-size: clamp(0.72rem, 0.92vw, 0.95rem);
+  font-weight: 800;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: rgba(244, 236, 216, 0.8);
+  margin-top: 0.15rem;
+}
+
+/* Physical Spendable Authority Stock Coupon */
+.authorityStock {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.28rem 0.8rem;
+  margin-top: 0.4rem;
+  background: var(--kp-paper);
+  color: var(--kp-ink);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  border: 1px dashed rgba(21, 19, 14, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.stockBadge {
+  background: var(--kp-ink);
+  color: var(--kp-paper);
+  padding: 0.1rem 0.35rem;
+  font-size: 0.52rem;
+}
+
+.stockAmount {
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+}
+
+/* Central Commit Datum Registration Axis */
+.commitDatumAxis {
+  position: absolute;
+  top: 15%;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 12;
+}
+
+.datumLine {
+  position: absolute;
+  inset: 0;
+  border-left: 2px dashed rgba(244, 236, 216, 0.35);
+}
+
+.datumAperture {
+  position: absolute;
+  top: 48%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--kp-rule);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(9, 9, 11, 0.9);
+}
+
+.datumTick {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kp-red);
+}
+
+.datumLabelTop,
+.datumLabelBottom {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.54rem;
+  letter-spacing: 0.14em;
+  color: rgba(244, 236, 216, 0.45);
+  white-space: nowrap;
+  background: var(--kp-bg);
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--kp-rule-subtle);
+}
+
+.datumLabelBottom {
+  color: var(--kp-red);
+  font-weight: 700;
+}
+
+/* Slips Stage (Left & Right Flanks) */
+.slipsContainer {
+  position: relative;
+  width: 100%;
+  height: 380px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+}
+
+.slipLane {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform, opacity;
+}
+
+.slipLaneLeft {
+  left: 50%;
+  margin-left: -380px;
+}
+
+.slipLaneRight {
+  right: 50%;
+  margin-right: -380px;
+}
+
+/* Directional Alignment Indicators */
+.laneIndicatorLeft,
+.laneIndicatorRight {
+  position: absolute;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: rgba(244, 236, 216, 0.4);
+  pointer-events: none;
+}
+
+.laneIndicatorLeft {
+  right: -32px;
+}
+
+.laneIndicatorRight {
+  left: -32px;
+}
+
+/* Administrative Hero Stamps */
+.stampReserved {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.4rem;
+  border: 3px solid var(--kp-red);
+  color: var(--kp-red);
+  background: rgba(169, 42, 36, 0.08);
+  transform: rotate(-3.5deg);
+  box-shadow: 0 4px 14px rgba(169, 42, 36, 0.3);
+}
+
+.stampReservedText {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 1.45rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  line-height: 1;
+}
+
+.stampReservedRef {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  margin-top: 0.2rem;
+}
+
+.stampUnavailable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1.2rem;
+  border: 2px solid var(--kp-red);
+  color: var(--kp-red);
+  background: rgba(169, 42, 36, 0.06);
+  transform: rotate(2.2deg);
+}
+
+.stampUnavailableText {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  line-height: 1;
+}
+
+.stampUnavailableCross {
+  font-size: 2.2rem;
+  font-weight: 900;
+  line-height: 0.8;
+  margin-bottom: 0.1rem;
+}
+
+.stampUnavailableRef {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.48rem;
+  letter-spacing: 0.08em;
+  margin-top: 0.2rem;
+}
+
+/* Terminal Conservation Ledger Plate */
+.terminalLedger {
+  width: 100%;
+  max-width: 820px;
+  margin-top: 1rem;
+  border: 1px solid var(--kp-rule);
+  background: rgba(14, 14, 17, 0.95);
+  padding: 0.75rem 1.2rem;
+  box-sizing: border-box;
+  z-index: 20;
+}
+
+.ledgerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px dashed var(--kp-rule);
+  padding-bottom: 0.4rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+}
+
+.ledgerTitle {
+  font-weight: 700;
+  color: var(--kp-paper);
+}
+
+.ledgerRef {
+  color: rgba(244, 236, 216, 0.5);
+}
+
+.ledgerGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.8rem;
+  margin: 0.6rem 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.65rem;
+}
+
+.ledgerCell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.cellLabel {
+  color: rgba(244, 236, 216, 0.5);
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+}
+
+.cellValue {
+  font-weight: 700;
+  color: var(--kp-paper);
+  font-size: 0.85rem;
+}
+
+.cellValueCommitted {
+  color: var(--kp-paper);
+}
+
+.cellValueRemaining {
+  color: var(--kp-red);
+}
+
+.cellValueRejected {
+  color: rgba(244, 236, 216, 0.4);
+  text-decoration: line-through;
+}
+
+.ledgerProof {
+  border-top: 1px dashed var(--kp-rule);
+  padding-top: 0.4rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+}
+
+.proofFormula {
+  color: rgba(244, 236, 216, 0.7);
+}
+
+.proofTag {
+  color: var(--kp-green, #4ade80);
+  font-weight: 700;
+}
+
+/* Scene Footer */
+.sceneFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--kp-rule);
+  padding-top: 0.55rem;
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(0.58rem, 0.72vw, 0.7rem);
+  letter-spacing: 0.12em;
+  color: rgba(244, 236, 216, 0.5);
+  z-index: 20;
+}
+
+.footerBrand {
+  font-weight: 700;
+  color: var(--kp-paper);
+}
+
+.footerTagline {
+  color: rgba(244, 236, 216, 0.65);
+}
+
+/* Responsive & Mobile Refinements */
+@media (max-width: 48rem) {
+  .stage {
+    padding: 0.55rem 0.75rem 0.5rem;
+  }
+
+  .sceneHeader {
+    margin-top: 0.25rem;
+  }
+
+  .sceneIndex {
+    font-size: 1.4rem;
+  }
+
+  .sceneTitle {
+    font-size: 0.82rem;
+    letter-spacing: 0.12em;
+  }
+
+  .sceneMicrocopy {
+    font-size: 0.54rem;
+  }
+
+  .headerMeta {
+    display: none;
+  }
+
+  .arena {
+    justify-content: flex-start;
+    padding-top: 0.2rem;
+  }
+
+  .slipsContainer {
+    height: 310px;
+    margin-top: 0.2rem;
+  }
+
+  .slipLane {
+    left: 50%;
+    top: 50%;
+    margin: 0;
+  }
+
+  .slipLaneLeft {
+    transform: translate(-50%, -50%);
+  }
+
+  .slipLaneRight {
+    transform: translate(-50%, -50%);
+  }
+
+  .balanceRegister {
+    padding: 0.25rem 1rem;
+  }
+
+  .balanceNumeralWrap {
+    height: 2.2rem;
+    min-width: 140px;
+  }
+
+  .balanceNumeral {
+    font-size: 2rem;
+  }
+
+  .balanceLabel {
+    font-size: 0.62rem;
+    letter-spacing: 0.2em;
+  }
+
+  .authorityStock {
+    padding: 0.18rem 0.5rem;
+    font-size: 0.55rem;
+    margin-top: 0.25rem;
+  }
+
+  .commitDatumAxis {
+    top: 10%;
+    bottom: 8%;
+  }
+
+  .datumAperture {
+    width: 32px;
+    height: 32px;
+  }
+
+  .datumLabelTop,
+  .datumLabelBottom {
+    font-size: 0.48rem;
+    padding: 0.1rem 0.3rem;
+  }
+
+  .terminalLedger {
+    padding: 0.4rem 0.65rem;
+    margin-top: 0.35rem;
+    font-size: 0.55rem;
+  }
+
+  .ledgerHeader {
+    font-size: 0.54rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .ledgerGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.35rem;
+    margin: 0.35rem 0;
+  }
+
+  .cellLabel {
+    font-size: 0.5rem;
+  }
+
+  .cellValue {
+    font-size: 0.72rem;
+  }
+
+  .ledgerProof {
+    font-size: 0.5rem;
+    padding-top: 0.25rem;
+  }
+
+  .sceneFooter {
+    font-size: 0.52rem;
+    padding-top: 0.35rem;
+  }
+}

@@ -1,0 +1,506 @@
+.record {
+  position: relative;
+  background-color: var(--kp-paper-light);
+  background-image:
+    linear-gradient(rgba(240, 233, 214, 0.22), rgba(240, 233, 214, 0.22)),
+    image-set(
+      url("/assets/kavachpay/materials/paper-ticket-stock-900.webp") 1x,
+      url("/assets/kavachpay/materials/paper-ticket-stock-1600.webp") 2x
+    );
+  background-size: cover;
+  color: var(--kp-ink);
+  font-family: var(--font-admin), sans-serif;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 2px 5px rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(48, 38, 26, 0.35);
+  padding: 0.65rem 1.2rem;
+  display: grid;
+  grid-template-columns: 240px 120px 1fr 110px;
+  align-items: center;
+  gap: 1rem;
+  user-select: none;
+  isolation: isolate;
+  will-change: transform, opacity, border-color, box-shadow;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* Variant Border & Accent */
+.sourceRecord {
+  border-left: 5px solid rgba(48, 38, 26, 0.9);
+  padding: 0.85rem 1.3rem;
+  background-image:
+    linear-gradient(rgba(245, 239, 222, 0.3), rgba(245, 239, 222, 0.3)),
+    image-set(
+      url("/assets/kavachpay/materials/paper-handled-authority-900.webp") 1x,
+      url("/assets/kavachpay/materials/paper-handled-authority-1600.webp") 2x
+    );
+}
+
+.sourceRecord .serialId {
+  font-size: 1.4rem;
+}
+
+.sourceRecord .categoryTitle {
+  font-size: 1.3rem;
+}
+
+/* Source spine reads as part of the identity surface, not a bolted-on widget:
+   the registration channel is a cut into the same card, not a separate box. */
+.sourceRecord .colSpine {
+  background: transparent;
+  border: none;
+  border-right: 1px dashed rgba(48, 38, 26, 0.3);
+}
+
+.dependentRecord {
+  border-left: 4px solid rgba(48, 38, 26, 0.55);
+  margin-left: 1.4rem;
+  transform: scale(0.95);
+  transform-origin: left center;
+}
+
+.dependentRecord .serialId {
+  font-size: 1.05rem;
+}
+
+.dependentRecord .categoryTitle {
+  font-size: 0.98rem;
+}
+
+.controlRecord {
+  border-left: 4px solid rgba(85, 80, 72, 0.7);
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed rgba(48, 38, 26, 0.3);
+  background-image:
+    linear-gradient(rgba(235, 225, 201, 0.2), rgba(235, 225, 201, 0.2)),
+    image-set(
+      url("/assets/kavachpay/materials/paper-thin-receipt-900.webp") 1x,
+      url("/assets/kavachpay/materials/paper-thin-receipt-1600.webp") 2x
+    );
+}
+
+/* Corner registration crosshairs */
+.cornerMark {
+  position: absolute;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.7rem;
+  color: rgba(48, 38, 26, 0.4);
+  line-height: 1;
+  pointer-events: none;
+}
+.cornerTopLeft { top: 3px; left: 5px; }
+.cornerTopRight { top: 3px; right: 5px; }
+.cornerBottomLeft { bottom: 3px; left: 5px; }
+.cornerBottomRight { bottom: 3px; right: 5px; }
+
+/* 1. Identity & Serial Column */
+.colIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.serialPrefix {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.14em;
+  color: rgba(21, 19, 14, 0.55);
+}
+
+.serialId {
+  font-family: var(--font-admin), sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  color: var(--kp-ink);
+}
+
+.roleTag {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.06em;
+  color: rgba(21, 19, 14, 0.7);
+}
+
+.secondaryRef {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.48rem;
+  letter-spacing: 0.05em;
+  color: rgba(21, 19, 14, 0.5);
+}
+
+/* 2. Authority & Lineage Column */
+.colDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.categoryTitle {
+  font-family: var(--font-admin), sans-serif;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: var(--kp-ink);
+}
+
+.lineageInfo {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  color: rgba(21, 19, 14, 0.75);
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.limitValue {
+  font-family: var(--font-admin), sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--kp-ink);
+}
+
+/* 3. Physical Registration Spine / Band Column */
+.colSpine {
+  position: relative;
+  height: 42px;
+  background: rgba(30, 26, 20, 0.06);
+  border: 1px solid rgba(48, 38, 26, 0.22);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.3rem 0.5rem;
+  box-sizing: border-box;
+}
+
+/* Exposed socket background with measurement notches */
+.spineSocketTrack {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.5rem;
+  pointer-events: none;
+}
+
+.socketTeeth {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(48, 38, 26, 0.2) 0px,
+    rgba(48, 38, 26, 0.2) 2px,
+    transparent 2px,
+    transparent 10px
+  );
+  opacity: 0.5;
+}
+
+.socketEmptyNotice {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.08em;
+  color: rgba(169, 42, 36, 0.85);
+  font-weight: 700;
+}
+
+.spineMetaRow {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.54rem;
+  letter-spacing: 0.06em;
+  color: rgba(48, 38, 26, 0.75);
+}
+
+.spineDatumPip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.pipDot {
+  width: 5px;
+  height: 5px;
+  background: var(--kp-ink);
+  display: inline-block;
+}
+
+/* Recall channel: the physical track the source spine withdraws into. Without this,
+   the carriage appears to float disconnected over black once it slides past the card
+   edge; the channel gives the withdrawal a mechanism to travel through. */
+.recallChannel {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  right: 100%;
+  width: 280px;
+  background: linear-gradient(90deg, transparent, rgba(24, 20, 15, 0.9) 55%);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.recallChannelFade {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(235, 225, 201, 0.08) 0px,
+    rgba(235, 225, 201, 0.08) 1px,
+    transparent 1px,
+    transparent 9px
+  );
+  opacity: 0.4;
+}
+
+/* The Sliding Source Spine Carrier */
+.sourceSpineCarriage {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  right: 3px;
+  background: linear-gradient(90deg, rgba(38, 32, 24, 0.95), rgba(24, 20, 15, 0.98));
+  color: var(--kp-paper-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.6rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  z-index: 6;
+  will-change: transform;
+}
+
+.carriageTitle {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+}
+
+.carriageDatumNotch {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.06em;
+  color: var(--kp-ivory);
+}
+
+.notchBar {
+  width: 6px;
+  height: 14px;
+  background: var(--kp-ivory);
+}
+
+/* Inherited registration band */
+.inheritedRegisterBand {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  right: 3px;
+  background: rgba(48, 38, 26, 0.1);
+  border: 1px dashed rgba(48, 38, 26, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.5rem;
+  z-index: 4;
+  will-change: transform, border-color;
+  transition: border-color 0.2s ease;
+}
+
+.inheritedPin {
+  width: 6px;
+  height: 14px;
+  background: rgba(48, 38, 26, 0.7);
+}
+
+.inheritedLabel {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.54rem;
+  letter-spacing: 0.06em;
+  color: rgba(48, 38, 26, 0.85);
+}
+
+/* Independent control track */
+.independentRegisterTrack {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  right: 3px;
+  background: rgba(48, 38, 26, 0.06);
+  border: 1px solid rgba(48, 38, 26, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.5rem;
+  z-index: 4;
+  will-change: transform;
+}
+
+.independentPip {
+  width: 6px;
+  height: 6px;
+  background: rgba(48, 38, 26, 0.8);
+}
+
+.independentLabel {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.54rem;
+  letter-spacing: 0.06em;
+  color: rgba(48, 38, 26, 0.85);
+}
+
+/* 4. State Chamber Column */
+.colState {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.stateChamber {
+  border: 1.5px solid rgba(48, 38, 26, 0.45);
+  padding: 0.3rem 0.5rem;
+  text-align: right;
+  min-width: 100px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.stateLabel {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  color: rgba(21, 19, 14, 0.6);
+  line-height: 1;
+  margin-bottom: 0.15rem;
+}
+
+.stateValue {
+  display: block;
+  font-family: var(--font-admin), sans-serif;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  color: var(--kp-ink);
+}
+
+/* Administrative Revocation Stamps */
+.stampOverlay {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%) rotate(-3deg);
+  border: 2px solid var(--kp-red);
+  color: var(--kp-red);
+  padding: 0.25rem 0.6rem;
+  font-family: var(--font-admin), sans-serif;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-transform: uppercase;
+  background: rgba(240, 233, 214, 0.92);
+  box-shadow: 0 3px 10px rgba(169, 42, 36, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+  will-change: transform, opacity;
+}
+
+.stampWithdrawn {
+  border-color: var(--kp-red-dark);
+  color: var(--kp-red-dark);
+  font-size: 0.88rem;
+  padding: 0.22rem 0.5rem;
+  transform: translateY(-50%) rotate(2deg);
+}
+
+/* ========================================================================== */
+/* RESPONSIVE MOBILE RECOMPOSITION */
+/* ========================================================================== */
+@media (max-width: 48rem) {
+  .record {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto auto;
+    gap: 0.35rem 0.6rem;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .dependentRecord {
+    margin-left: 0.4rem;
+  }
+
+  .colIdentity {
+    grid-column: 1;
+    grid-row: 1;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.4rem;
+  }
+
+  .colDetails {
+    grid-column: 1;
+    grid-row: 2;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .colState {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .colSpine {
+    grid-column: 1 / span 2;
+    grid-row: 3;
+    height: 32px;
+  }
+
+  .recallChannel {
+    width: 180px;
+  }
+
+  .stateChamber {
+    min-width: 85px;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .serialId {
+    font-size: 1rem;
+  }
+
+  .categoryTitle {
+    font-size: 0.95rem;
+  }
+
+  .stampOverlay {
+    font-size: 0.95rem;
+    right: 0.2rem;
+  }
+
+  .stampWithdrawn {
+    font-size: 0.8rem;
+  }
+}

@@ -1,0 +1,202 @@
+.document {
+  aspect-ratio: 0.69;
+  background-color: var(--kp-paper-light);
+  background-image:
+    linear-gradient(rgba(234, 222, 192, 0.1), rgba(234, 222, 192, 0.1)),
+    image-set(
+      url("/assets/kavachpay/materials/paper-handled-authority-900.webp") 1x,
+      url("/assets/kavachpay/materials/paper-handled-authority-1600.webp") 2x
+    );
+  background-size: cover;
+  color: var(--kp-ink);
+  filter: contrast(1.02) saturate(0.82);
+  font-family: var(--font-admin), sans-serif;
+  isolation: isolate;
+  mask-image: url("/assets/kavachpay/masks/mandate-edge.svg");
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+  max-height: min(79vh, 860px);
+  padding: clamp(4.8rem, 9vh, 7rem) clamp(2rem, 3.5vw, 3.7rem) clamp(1.8rem, 4vh, 3rem);
+  position: relative;
+  width: min(39vw, 590px);
+  box-shadow: var(--kp-shadow-paper);
+}
+
+.document::before,
+.document::after {
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.document::before {
+  background:
+    linear-gradient(102deg, transparent 0 65%, rgba(62, 47, 25, 0.06) 67%, transparent 71%),
+    radial-gradient(circle at 13% 71%, rgba(57, 40, 19, 0.07), transparent 18%);
+  mix-blend-mode: multiply;
+}
+
+.document::after {
+  border: 1px solid rgba(38, 31, 19, 0.22);
+  inset: 1.2rem 1.35rem;
+  z-index: -1;
+}
+
+.hole {
+  background: var(--kp-red-dark);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(50, 10, 7, 0.7), 0 1px 1px rgba(0,0,0,.22);
+  height: clamp(2.55rem, 4.8vw, 3.7rem);
+  left: 50%;
+  position: absolute;
+  top: clamp(1.2rem, 2.7vh, 2rem);
+  transform: translateX(-50%);
+  width: clamp(2.55rem, 4.8vw, 3.7rem);
+}
+
+.hole::before {
+  background: var(--kp-paper);
+  border-radius: 50%;
+  content: "";
+  inset: 27%;
+  position: absolute;
+}
+
+.hole i {
+  background: var(--kp-black);
+  border-radius: 50%;
+  inset: 38%;
+  position: absolute;
+}
+
+.header,
+.typeRow,
+.field,
+.footer {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+}
+
+.header {
+  border-bottom: 2px solid var(--kp-ink);
+  padding-bottom: 0.4rem;
+}
+
+.brand {
+  font-family: var(--font-display), serif;
+  font-size: clamp(1.45rem, 2.3vw, 2.25rem);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+}
+
+.ref,
+.typeRow {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.5rem, 0.65vw, 0.67rem);
+  letter-spacing: 0.12em;
+}
+
+.typeRow {
+  border-bottom: 1px solid rgba(24, 22, 16, 0.56);
+  font-family: var(--font-admin), sans-serif;
+  font-size: clamp(0.66rem, 0.9vw, 0.9rem);
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  padding: 0.52rem 0 0.45rem;
+}
+
+.category {
+  border-bottom: 2px solid var(--kp-ink);
+  font-family: var(--font-display), serif;
+  font-size: clamp(3.2rem, 6vw, 6rem);
+  font-weight: 400;
+  letter-spacing: -0.038em;
+  line-height: 0.9;
+  padding: clamp(0.8rem, 1.7vh, 1.35rem) 0 clamp(0.58rem, 1.3vh, 1rem);
+  white-space: nowrap;
+}
+
+.field {
+  border-bottom: 1px solid rgba(24, 22, 16, 0.55);
+  font-size: clamp(0.8rem, 1.2vw, 1.15rem);
+  letter-spacing: 0.055em;
+  min-height: clamp(2.15rem, 4.1vh, 3.2rem);
+  padding: 0.55rem 0 0.38rem;
+}
+
+.fields { margin: 0; }
+
+.field dt {
+  font-size: 0.77em;
+  letter-spacing: 0.14em;
+}
+
+.field dd {
+  font-size: 1.1em;
+  font-weight: 700;
+  margin: 0;
+}
+
+.danger { color: var(--kp-red-dark); }
+
+.restriction {
+  bottom: clamp(7.3rem, 13vh, 9.6rem);
+  position: absolute;
+  right: clamp(1.9rem, 4.2vw, 3.8rem);
+}
+
+.footer {
+  align-items: end;
+  bottom: clamp(1.8rem, 4vh, 3rem);
+  left: clamp(2rem, 3.5vw, 3.7rem);
+  position: absolute;
+  right: clamp(2rem, 3.5vw, 3.7rem);
+}
+
+.footer p {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.55rem, 0.56vw, 0.62rem);
+  letter-spacing: 0.16em;
+  line-height: 1.55;
+  width: 28%;
+}
+
+.footer p:last-child { text-align: right; }
+
+.seal {
+  color: var(--kp-red-dark);
+  height: clamp(4.2rem, 7.8vw, 6.8rem);
+  transform: rotate(-7deg);
+  width: clamp(4.2rem, 7.8vw, 6.8rem);
+}
+
+@media (max-width: 800px) {
+  .document {
+    max-height: 68svh;
+    padding: 4.4rem 1.65rem 1.6rem;
+    width: min(86vw, 460px);
+  }
+
+  .restriction { bottom: 6.6rem; right: 1.7rem; }
+  .footer { bottom: 1.55rem; left: 1.65rem; right: 1.65rem; }
+  .document::after { inset: 0.9rem; }
+}
+
+@media (max-width: 520px) {
+  .document {
+    max-height: 60svh;
+    padding-top: 4rem;
+    width: min(82vw, 430px);
+  }
+
+  .restriction {
+    bottom: 3.5rem;
+    right: 1.4rem;
+  }
+}
+
+@media (max-height: 740px) and (min-width: 801px) {
+  .document { max-height: 76vh; }
+}

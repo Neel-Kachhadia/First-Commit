@@ -1,23 +1,18 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import {
   Activity,
   ArrowRight,
-  Bot,
   Check,
   ChevronRight,
   CircleAlert,
-  Clock3,
-  Network,
-  ShieldCheck,
-  Sparkles,
-  WalletCards,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AnimatedList,
   CountUpValue,
-  SpotlightCard,
 } from "@/components/ui/motion-primitives";
 import {
   AuthorityBar,
@@ -25,23 +20,17 @@ import {
   agentTone,
   ledgerTone,
 } from "@/components/kavach/primitives";
+import { AuthorityRing } from "@/components/kavach/authority-ring";
+import {
+  AgentGlyph,
+  ApprovalGlyph,
+  DecisionGlyph,
+  MandatePlusGlyph,
+  ReviewGlyph,
+} from "@/components/kavach/icons";
 import { useKavach } from "@/lib/kavach-store";
 import { formatDateTime, formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
-
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Command Center — KavachPay" },
-      {
-        name: "description",
-        content:
-          "Monitor live financial authority, exposure, approvals and agent payment decisions.",
-      },
-    ],
-  }),
-  component: Overview,
-});
 
 const currency = (value: number) => formatINR(value);
 
@@ -49,53 +38,29 @@ function MetricCard({
   label,
   value,
   helper,
-  icon: Icon,
   tone = "default",
-  progress,
 }: {
   label: string;
   value: number;
   helper: string;
-  icon: typeof Activity;
   tone?: "default" | "success" | "stepup";
-  progress?: number;
 }) {
   return (
-    <SpotlightCard className="metric-card min-h-36 p-4 sm:p-5">
-      <div className="relative z-10 flex h-full flex-col">
-        <div className="flex items-start justify-between gap-3">
+    <div className="metric-cell px-5 py-4">
+      <div className="grid grid-cols-[1fr_auto] items-end gap-3">
+        <div>
           <p className="label-caps">{label}</p>
-          <span
-            className={cn(
-              "grid h-8 w-8 place-items-center rounded-md border",
-              tone === "success" &&
-                "border-success/25 bg-success/10 text-success",
-              tone === "stepup" && "border-stepup/25 bg-stepup/10 text-stepup",
-              tone === "default" &&
-                "border-border bg-muted/60 text-muted-foreground",
-            )}
-          >
-            <Icon className="h-4 w-4" aria-hidden="true" />
-          </span>
+          <p className="mt-1 text-[11px] text-muted-foreground">{helper}</p>
         </div>
-        <p className="amount mt-3 text-2xl font-medium tracking-tight sm:text-[1.7rem]">
+        <p className={cn("amount text-xl font-medium tracking-tight", tone === "success" && "text-success", tone === "stepup" && "text-stepup")}>
           <CountUpValue value={value} format={currency} />
         </p>
-        <p className="mt-auto pt-2 text-xs text-muted-foreground">{helper}</p>
-        {progress !== undefined ? (
-          <div className="mt-3 h-1 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-success transition-[width] duration-700"
-              style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-            />
-          </div>
-        ) : null}
       </div>
-    </SpotlightCard>
+    </div>
   );
 }
 
-function Overview() {
+export default function Overview() {
   const {
     agents,
     ledger,
@@ -110,9 +75,6 @@ function Overview() {
   } = useKavach();
 
   const activeAgents = agents.filter((agent) => agent.status === "active");
-  const spendableShare = totalAuthority
-    ? Math.round((maxPossibleSpend / totalAuthority) * 100)
-    : 0;
   const primaryApproval = approvals[0];
   const approvalAgent = primaryApproval
     ? agents.find((agent) => agent.id === primaryApproval.agentId)
@@ -120,110 +82,102 @@ function Overview() {
 
   return (
     <div className="space-y-6 lg:space-y-7">
-      <header className="flex flex-col gap-5 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
+      <header className="page-heading relative flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-2 rounded-full border border-success/25 bg-success/8 px-2.5 py-1 text-[11px] font-medium text-success">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-50" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
-              </span>
-              Control plane live
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Last evaluated 12 seconds ago
-            </span>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-[2rem]">
-            Financial authority, at a glance
+          <p className="mb-1.5 text-xs font-medium text-destructive">Live control plane · evaluated 12s ago</p>
+          <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.035em] sm:text-[2rem]">
+            Control center
           </h1>
-          <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
-            See what every agent can spend, what needs your approval, and why
-            money moved.
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Current financial authority across agents, mandates and pending decisions.
           </p>
         </div>
         <Button asChild className="self-start sm:self-auto">
-          <Link to="/rules">
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
+          <Link href="/rules">
+            <MandatePlusGlyph className="h-4 w-4" />
             Create mandate
           </Link>
         </Button>
       </header>
 
-      <section
-        className="grid gap-4 xl:grid-cols-[1.3fr_2fr]"
-        aria-label="Authority summary"
-      >
-        <SpotlightCard className="exposure-card overflow-hidden p-5 sm:p-6">
-          <div className="relative z-10 flex h-full flex-col">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="label-caps text-primary/90">
-                  Maximum reachable exposure
+      <section className="exposure-console surface-card overflow-hidden" aria-label="Authority summary">
+        <div className="grid lg:grid-cols-[minmax(0,.9fr)_minmax(440px,1.1fr)]">
+          <div className="exposure-overview border-b border-border p-5 sm:p-6 lg:border-b-0 lg:border-r">
+            <div className="grid items-center gap-5 sm:grid-cols-[minmax(0,1fr)_208px]">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Reachable exposure</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Maximum that active agents can spend without another decision</p>
+                <p className="amount mt-8 text-4xl font-medium tracking-[-0.05em] sm:text-5xl">
+                  <CountUpValue value={maxPossibleSpend} format={currency} />
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Worst case if every agent spends now
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  of <span className="amount text-foreground">{formatINR(totalAuthority)}</span> granted authority
                 </p>
+                <div className="mt-5 space-y-2.5 border-t border-border pt-4 text-xs">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground">Spendable agents</span>
+                    <strong className="font-medium">{activeAgents.length} of {agents.length}</strong>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-muted-foreground">Policy enforcement</span>
+                    <strong className={cn("font-medium", frozen ? "text-destructive" : "text-success")}>{frozen ? "Stopped" : "Live"}</strong>
+                  </div>
+                </div>
               </div>
-              <span className="grid h-9 w-9 place-items-center rounded-lg border border-primary/25 bg-primary/10 text-primary">
-                <Network className="h-4 w-4" aria-hidden="true" />
-              </span>
-            </div>
-            <p className="amount mt-8 text-4xl font-medium tracking-[-0.055em] sm:text-5xl">
-              <CountUpValue value={maxPossibleSpend} format={currency} />
-            </p>
-            <div className="mt-8">
-              <div className="mb-2 flex justify-between text-xs">
-                <span className="text-muted-foreground">
-                  Spendable authority
-                </span>
-                <span className="amount font-medium">{spendableShare}%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-background/60 ring-1 ring-border">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-[width] duration-700",
-                    frozen ? "bg-destructive" : "bg-primary",
-                  )}
-                  style={{ width: `${frozen ? 0 : spendableShare}%` }}
-                />
-              </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                <span>{activeAgents.length} agents actively spendable</span>
-                <Link
-                  to="/authority"
-                  className="inline-flex items-center gap-1 text-foreground hover:text-primary"
-                >
-                  Inspect graph <ChevronRight className="h-3.5 w-3.5" />
-                </Link>
+              <div className="flex self-stretch items-center justify-center border-t border-border pt-5 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+                <AuthorityRing total={totalAuthority} remaining={maxPossibleSpend} frozen={frozen} />
               </div>
             </div>
           </div>
-        </SpotlightCard>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="exposure-ledger">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-6">
+              <div>
+                <p className="text-sm font-medium">Exposure by agent</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Remaining autonomous authority</p>
+              </div>
+              <Link href="/authority" className="text-xs font-medium hover:text-destructive">Open graph →</Link>
+            </div>
+            <div>
+              {agents.map((agent) => {
+                const remaining = remainingFor(agent);
+                const pct = totalAuthority ? (remaining / totalAuthority) * 100 : 0;
+                return (
+                  <Link key={agent.id} href={`/agents/${agent.id}`} className="exposure-ledger-row grid grid-cols-[minmax(130px,1fr)_minmax(100px,.8fr)_auto] items-center gap-4 border-b border-border px-5 py-3 last:border-b-0 sm:px-6">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium">{agent.name}</p>
+                      <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{agent.rule.category}</p>
+                    </div>
+                    <div className="h-1.5 overflow-hidden bg-muted">
+                      <div className={cn("authority-fill h-full", agent.status === "active" ? "bg-success" : "bg-muted-foreground/35")} style={{width: `${Math.min(100, pct * 3)}%`}} />
+                    </div>
+                    <span className="amount w-20 text-right text-xs font-medium">{formatINR(remaining)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="exposure-metrics grid border-t border-border bg-card sm:grid-cols-3">
           <MetricCard
             label="Authority granted"
             value={totalAuthority}
             helper={`${agents.filter((agent) => agent.status !== "revoked").length} live mandates`}
-            icon={WalletCards}
           />
           <MetricCard
             label="Spent this month"
             value={totalConsumed}
             helper={`${Math.round((totalConsumed / totalAuthority) * 100)}% of active authority used`}
-            icon={Activity}
             tone="success"
-            progress={(totalConsumed / totalAuthority) * 100}
           />
           <MetricCard
-            label="Needs your approval"
+            label="Under review"
             value={approvals.reduce(
               (sum, approval) => sum + approval.amount,
               0,
             )}
-            helper={`${approvals.length} ${approvals.length === 1 ? "request" : "requests"} waiting`}
-            icon={Clock3}
+            helper={`${approvals.length} ${approvals.length === 1 ? "request" : "requests"} awaiting your decision`}
             tone="stepup"
           />
         </div>
@@ -234,7 +188,7 @@ function Overview() {
           <div className="flex items-start justify-between gap-4 border-b border-border p-5">
             <div>
               <div className="flex items-center gap-2">
-                <Bot className="h-4 w-4 text-primary" aria-hidden="true" />
+                <AgentGlyph className="h-4 w-4 text-primary" />
                 <h2 className="text-base font-semibold">Live authority</h2>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -242,7 +196,7 @@ function Overview() {
               </p>
             </div>
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/agents">
+              <Link href="/agents">
                 View all <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>
@@ -254,14 +208,13 @@ function Overview() {
               return (
                 <Link
                   key={agent.id}
-                  to="/agents/$agentId"
-                  params={{ agentId: agent.id }}
+                  href={`/agents/${agent.id}`}
                   className="agent-row group grid gap-4 border-b border-border px-5 py-4 last:border-b-0 sm:grid-cols-[minmax(180px,1.1fr)_minmax(150px,1fr)_auto] sm:items-center"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-muted/50 text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
-                        <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="grid h-8 w-8 shrink-0 place-items-center border border-border bg-muted/35 text-[10px] font-semibold text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
+                        {agent.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}
                       </span>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">
@@ -300,10 +253,7 @@ function Overview() {
           <div className="flex items-start justify-between gap-4 border-b border-border p-5">
             <div>
               <div className="flex items-center gap-2">
-                <ShieldCheck
-                  className="h-4 w-4 text-stepup"
-                  aria-hidden="true"
-                />
+                <ApprovalGlyph className="h-4 w-4 text-stepup" />
                 <h2 className="text-base font-semibold">Approval queue</h2>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -332,7 +282,7 @@ function Overview() {
                     {primaryApproval.description}
                   </p>
                 </div>
-                <Clock3 className="h-5 w-5 text-stepup" aria-hidden="true" />
+                <ReviewGlyph className="h-5 w-5 text-stepup" />
               </div>
               <div className="mt-5 rounded-md border border-stepup/20 bg-stepup/8 p-3">
                 <div className="flex items-start gap-2">
@@ -354,9 +304,22 @@ function Overview() {
                 Requested {formatDateTime(primaryApproval.requestedAt)} ·
                 One-time exception only
               </p>
+              {approvalAgent ? (
+                <p className="mt-2 rounded-md border border-border bg-muted/25 p-3 text-xs text-muted-foreground">
+                  If approved, {formatINR(primaryApproval.amount)} executes
+                  once; remaining authority becomes{" "}
+                  {formatINR(
+                    Math.max(
+                      0,
+                      remainingFor(approvalAgent) - primaryApproval.amount,
+                    ),
+                  )}
+                  . The mandate stays unchanged.
+                </p>
+              ) : null}
               <div className="mt-auto grid grid-cols-2 gap-2 pt-6">
                 <Button
-                  variant="outline"
+                  variant="destructive"
                   onClick={() => denyRequest(primaryApproval.id)}
                 >
                   <X className="h-4 w-4" /> Deny
@@ -367,7 +330,7 @@ function Overview() {
               </div>
               {approvals.length > 1 ? (
                 <Button variant="ghost" size="sm" className="mt-2" asChild>
-                  <Link to="/approvals">
+                  <Link href="/approvals">
                     Review {approvals.length - 1} more requests
                   </Link>
                 </Button>
@@ -395,7 +358,7 @@ function Overview() {
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5">
           <div>
             <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-primary" aria-hidden="true" />
+              <DecisionGlyph className="h-4 w-4 text-primary" />
               <h2 className="text-base font-semibold">Decision feed</h2>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -403,8 +366,8 @@ function Overview() {
             </p>
           </div>
           <Button variant="outline" size="sm" asChild>
-            <Link to="/activity">
-              Open activity log <ArrowRight className="h-3.5 w-3.5" />
+            <Link href="/activity">
+              Open decisions <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </Button>
         </div>

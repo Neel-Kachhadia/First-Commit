@@ -1,0 +1,74 @@
+:root {
+  --kp-black: #090a08;
+  --kp-black-2: #11110e;
+  --kp-ivory: #ebe1c9;
+  --kp-paper: #d9cdb3;
+  --kp-paper-light: #f0e7d3;
+  --kp-ink: #15130e;
+  --kp-red: #a92a24;
+  --kp-red-dark: #7f1d19;
+  --kp-red-soft: #d55448;
+  --kp-green: #477765;
+  --kp-yellow: #c6aa47;
+  --kp-muted: #aaa08c;
+  --kp-rule: rgba(235, 225, 201, 0.56);
+  --font-display: var(--font-instrument-serif);
+  --font-admin: var(--font-barlow-condensed);
+  --font-mono: var(--font-ibm-plex-mono);
+  --page-gutter: clamp(1.15rem, 2.1vw, 2.6rem);
+  --rule-ivory: 1px solid var(--kp-rule);
+  --kp-shadow-paper: 0 2.4rem 5rem rgba(0, 0, 0, 0.46), 0 0.3rem 0.7rem rgba(0,0,0,.22);
+  --kp-stock-noise: url("/assets/kavachpay/overlays/stock-grain-256.webp");
+  --kp-stamp-noise: var(--kp-stock-noise);
+  --kp-global-nav-height: 3.6rem;
+  --kp-global-nav-safe-area: var(--kp-global-nav-height);
+}
+
+.kavach-experience-page {
+  max-width: 100vw;
+  min-height: 100vh;
+  overflow-x: clip;
+  background-color: var(--kp-black);
+  background: var(--kp-black);
+  color: var(--kp-ivory);
+  font-family: var(--font-admin), "Arial Narrow", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.kavach-experience-page *,
+.kavach-experience-page *::before,
+.kavach-experience-page *::after {
+  box-sizing: border-box;
+}
+
+.kavach-experience-page a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.kavach-experience-page button,
+.kavach-experience-page a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 56rem) {
+  :root { --kp-global-nav-height: calc(3.35rem + env(safe-area-inset-top)); }
+}
+
+.pin-spacer {
+  background-color: var(--kp-black) !important;
+  background: var(--kp-black) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
