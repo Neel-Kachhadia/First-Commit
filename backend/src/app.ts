@@ -10,12 +10,31 @@ import {
   createGrantHandler,
 } from "./handlers/grant-handler.js";
 
+import {
+  webhookHandler,
+} from "./handlers/webhook-handler.js";
+
 dotenv.config();
 
 const app = express();
 
 const PORT =
   Number(process.env.PORT) || 4000;
+
+/*
+ * POST /v0/webhooks/razorpay
+ *
+ * MUST be registered before express.json() so that
+ * express.raw() receives the unmodified body bytes.
+ * Razorpay HMAC-SHA256 verification requires the raw body.
+ *
+ * @see https://razorpay.com/docs/webhooks/validate-test/
+ */
+app.post(
+  "/v0/webhooks/razorpay",
+  express.raw({ type: "application/json" }),
+  webhookHandler
+);
 
 app.use(cors());
 app.use(express.json());
