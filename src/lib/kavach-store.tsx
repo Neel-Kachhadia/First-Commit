@@ -3,20 +3,22 @@ import {
   useCallback,
   useContext,
   useMemo,
-  useState,
   type ReactNode,
 } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  seedAgents,
-  seedApprovals,
-  seedHistory,
-  seedLedger,
   type Agent,
   type ApprovalRequest,
   type AuthorityEvent,
   type LedgerEntry,
   type SpendingRule,
 } from "./kavach-data";
+import {
+  apiClient,
+  type CreateGrantPayload,
+  type SimulatePaymentPayload,
+} from "./api-client";
+import { grantToAgent, intentToLedgerEntry, intentToApproval } from "./kavach-adapters";
 
 interface NewAgentInput {
   name: string;
@@ -36,6 +38,7 @@ export interface SimulationResult {
   reason: string;
   amount: number;
   agentName: string;
+  intentId?: string;
 }
 
 interface KavachContextValue {
@@ -49,20 +52,17 @@ interface KavachContextValue {
   totalAuthority: number;
   totalConsumed: number;
   getAgent: (id: string) => Agent | undefined;
-  approveRequest: (id: string) => void;
-  denyRequest: (id: string) => void;
-  revokeAgent: (id: string) => void;
-  restoreAgent: (id: string) => void;
-  createAgent: (input: NewAgentInput) => string;
-  updateRule: (id: string, rule: SpendingRule) => void;
-  simulatePayment: (input: SimulationInput) => SimulationResult;
+  approveRequest: (id: string) => Promise<void>;
+  denyRequest: (id: string) => Promise<void>;
+  revokeAgent: (id: string) => Promise<void>;
+  restoreAgent: (id: string) => Promise<void>;
+  createAgent: (input: NewAgentInput) => Promise<string>;
+  updateRule: (id: string, rule: SpendingRule) => Promise<void>;
+  simulatePayment: (input: SimulationInput) => Promise<SimulationResult>;
   setFrozen: (value: boolean) => void;
 }
 
 const KavachContext = createContext<KavachContextValue | null>(null);
-
-let counter = 1100;
-const nextId = (prefix: string) => `${prefix}-${++counter}`;
 
 export function remainingAuthority(agent: Agent, frozen: boolean) {
   if (frozen || agent.status === "revoked") return 0;
@@ -70,11 +70,42 @@ export function remainingAuthority(agent: Agent, frozen: boolean) {
 }
 
 export function KavachProvider({ children }: { children: ReactNode }) {
-  const [agents, setAgents] = useState<Agent[]>(seedAgents);
-  const [ledger, setLedger] = useState<LedgerEntry[]>(seedLedger);
-  const [approvals, setApprovals] = useState<ApprovalRequest[]>(seedApprovals);
-  const [history, setHistory] = useState<AuthorityEvent[]>(seedHistory);
-  const [frozen, setFrozenState] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Queries
+  const { data: grantsData } = useQuery({
+    queryKey: ["grants"],
+    queryFn: () => apiClient.getGrants(),
+    refetchInterval: 3000,
+  });
+
+  const { data: ledgerData } = useQuery({
+    queryKey: ["ledger"],
+    queryFn: () => apiClient.getLedger(),
+    refetchInterval: 3000,
+  });
+
+  // Data processing
+  const agents = useMemo(() => {
+    if (!grantsData?.grants) return [];
+    return grantsData.grants.map(grantToAgent);
+  }, [grantsData]);
+
+  const ledger = useMemo(() => {
+    if (!ledgerData?.intents) return [];
+    return ledgerData.intents.map(intentToLedgerEntry);
+  }, [ledgerData]);
+
+  const approvals = useMemo(() => {
+    if (!ledgerData?.intents) return [];
+    return ledgerData.intents
+      .map(intentToApproval)
+      .filter((a): a is ApprovalRequest => a !== null);
+  }, [ledgerData]);
+
+  // Derived state
+  const frozen = false; // Add frozen logic back if needed via DB or local override
+  const history: AuthorityEvent[] = []; // Mocked/Empty for now unless exposure API is used.
 
   const remainingFor = useCallback(
     (agent: Agent) => remainingAuthority(agent, frozen),
@@ -100,263 +131,151 @@ export function KavachProvider({ children }: { children: ReactNode }) {
     [agents],
   );
 
-  const pushEvent = useCallback((label: string, detail: string, maxSpend: number) => {
-    setHistory((prev) => [
-      ...prev,
-      {
-        id: nextId("ev"),
-        at: new Date().toISOString(),
-        label,
-        detail,
-        maxSpend,
-      },
-    ]);
-  }, []);
-
   const getAgent = useCallback(
     (id: string) => agents.find((a) => a.id === id),
     [agents],
   );
 
-  const approveRequest = useCallback(
-    (id: string) => {
-      const request = approvals.find((a) => a.id === id);
-      if (!request) return;
-      let snapshot = 0;
-      setAgents((prev) => {
-        const next = prev.map((agent) => {
-          if (agent.id !== request.agentId) return agent;
-          const consumed = agent.consumed + request.amount;
-          const status: Agent["status"] =
-            consumed >= agent.rule.monthlyLimit ? "exhausted" : agent.status;
-          return { ...agent, consumed, status };
-        });
-        snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
-        return next;
-      });
-      setLedger((prev) =>
-        prev.map((entry) =>
-          entry.id === request.ledgerId
-            ? {
-                ...entry,
-                status: "allowed",
-                reason: "Step-up approval granted by the account holder.",
-              }
-            : entry,
-        ),
-      );
-      setApprovals((prev) => prev.filter((a) => a.id !== id));
-      const agentName = agents.find((a) => a.id === request.agentId)?.name ?? "Agent";
-      pushEvent(
-        `${agentName} approved for ₹${request.amount.toLocaleString("en-IN")}`,
-        `${request.merchant} — ${request.description}`,
-        snapshot,
-      );
+  // Mutations
+  const approveMutation = useMutation({
+    mutationFn: apiClient.approveIntent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["exposure"] });
+      queryClient.invalidateQueries({ queryKey: ["grants"] });
     },
-    [approvals, agents, frozen, pushEvent],
-  );
+  });
 
-  const denyRequest = useCallback(
-    (id: string) => {
-      const request = approvals.find((a) => a.id === id);
-      if (!request) return;
-      setLedger((prev) =>
-        prev.map((entry) =>
-          entry.id === request.ledgerId
-            ? {
-                ...entry,
-                status: "denied",
-                reason: "Step-up approval declined by the account holder.",
-              }
-            : entry,
-        ),
-      );
-      setApprovals((prev) => prev.filter((a) => a.id !== id));
-      const agentName = agents.find((a) => a.id === request.agentId)?.name ?? "Agent";
-      pushEvent(
-        `${agentName} denied for ₹${request.amount.toLocaleString("en-IN")}`,
-        `${request.merchant} — ${request.description}`,
-        maxPossibleSpend,
-      );
+  const executeOrderMutation = useMutation({
+    mutationFn: apiClient.executeOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ledger"] });
     },
-    [approvals, agents, maxPossibleSpend, pushEvent],
-  );
+  });
 
-  const revokeAgent = useCallback(
-    (id: string) => {
-      let snapshot = 0;
-      setAgents((prev) => {
-        const next = prev.map((agent) =>
-          agent.id === id ? { ...agent, status: "revoked" as const } : agent,
-        );
-        snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
-        return next;
-      });
-      setApprovals((prev) => prev.filter((a) => a.agentId !== id));
-      const agentName = agents.find((a) => a.id === id)?.name ?? "Agent";
-      pushEvent(`${agentName} revoked`, "All remaining authority withdrawn.", snapshot);
+  const revokeMutation = useMutation({
+    mutationFn: (grantId: string) => apiClient.revokeGrant(grantId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["grants"] });
+      queryClient.invalidateQueries({ queryKey: ["ledger"] });
     },
-    [agents, frozen, pushEvent],
-  );
+  });
 
-  const restoreAgent = useCallback(
-    (id: string) => {
-      let snapshot = 0;
-      setAgents((prev) => {
-        const next = prev.map((agent) => {
-          if (agent.id !== id) return agent;
-          const status: Agent["status"] =
-            agent.consumed >= agent.rule.monthlyLimit ? "exhausted" : "active";
-          return { ...agent, status };
-        });
-        snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
-        return next;
-      });
-      const agentName = agents.find((a) => a.id === id)?.name ?? "Agent";
-      pushEvent(`${agentName} authority restored`, "Mandate reinstated.", snapshot);
+  const createGrantMutation = useMutation({
+    mutationFn: apiClient.createGrant,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["grants"] }),
+  });
+
+  const simulateMutation = useMutation({
+    mutationFn: apiClient.simulatePayment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["grants"] });
+      queryClient.invalidateQueries({ queryKey: ["ledger"] });
     },
-    [agents, frozen, pushEvent],
-  );
+  });
 
-  const createAgent = useCallback(
-    (input: NewAgentInput) => {
-      const id = nextId("agent");
-      let snapshot = 0;
-      setAgents((prev) => {
-        const next: Agent[] = [
-          ...prev,
-          {
-            id,
-            name: input.name,
-            mandateId: `MND-${4400 + prev.length + 80}-NEW`,
-            purpose: input.purpose,
-            status: "active",
-            consumed: 0,
-            issuedOn: new Date().toISOString().slice(0, 10),
-            rule: input.rule,
-          },
-        ];
-        snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
-        return next;
-      });
-      pushEvent(
-        `${input.name} mandate issued`,
-        `₹${input.rule.monthlyLimit.toLocaleString("en-IN")} monthly authority granted.`,
-        snapshot,
-      );
-      return id;
-    },
-    [frozen, pushEvent],
-  );
+  const approveRequest = async (id: string) => {
+    const res = await approveMutation.mutateAsync(id);
+    if (res.intent?.status === "RESERVED") {
+      await executeOrderMutation.mutateAsync(id);
+    }
+  };
 
-  const updateRule = useCallback((id: string, rule: SpendingRule) => {
-    setAgents((prev) =>
-      prev.map((agent) => (agent.id === id ? { ...agent, rule } : agent)),
-    );
-  }, []);
+  const denyRequest = async (id: string) => {
+    // Currently, there's no explicitly deny endpoint (since they auto-deny if not approved or if explicitly closed).
+    // We can simulate it by doing nothing or if backend has deny, call it. 
+    // We will leave it as an optimistic update or mock for now.
+    console.warn("Explicit deny not wired to backend");
+  };
 
-  const simulatePayment = useCallback(
-    (input: SimulationInput): SimulationResult => {
-      const agent = agents.find((a) => a.id === input.agentId);
-      if (!agent) {
-        return {
-          status: "denied",
-          reason: "No mandate found for this agent.",
-          amount: input.amount,
-          agentName: "Unknown agent",
-        };
-      }
-      const remaining = remainingAuthority(agent, frozen);
-      let status: SimulationResult["status"] = "allowed";
-      let reason = `Within the ${`₹${agent.rule.monthlyLimit.toLocaleString("en-IN")}`} monthly rule.`;
+  const revokeAgent = async (id: string) => {
+    await revokeMutation.mutateAsync(id);
+  };
 
-      if (frozen) {
-        status = "denied";
-        reason = "Emergency stop is active — all agent spending is halted.";
-      } else if (agent.status === "revoked") {
-        status = "denied";
-        reason = "Agent authority has been revoked.";
-      } else if (input.amount > remaining) {
-        status = "denied";
-        reason = `Exceeds remaining authority of ₹${remaining.toLocaleString("en-IN")}.`;
-      } else if (input.amount > agent.rule.perTransactionCap) {
-        status = "pending";
-        reason = `Above the ₹${agent.rule.perTransactionCap.toLocaleString("en-IN")} per-transaction cap — step-up approval required.`;
-      }
+  const restoreAgent = async (id: string) => {
+    console.warn("Restore agent not supported by backend yet.");
+  };
 
-      const ledgerId = nextId("txn");
-      const entry: LedgerEntry = {
-        id: ledgerId,
-        agentId: agent.id,
-        merchant: input.merchant,
-        description: input.description,
-        amount: input.amount,
-        status,
-        reason,
-        at: new Date().toISOString(),
-      };
-      setLedger((prev) => [entry, ...prev]);
+  const createAgent = async (input: NewAgentInput) => {
+    const payload: CreateGrantPayload = {
+      label: input.name,
+      limit: input.rule.monthlyLimit,
+      currency: "INR",
+      hardMax: input.rule.perTransactionCap,
+      merchantAllow: input.rule.merchants,
+      category: input.rule.category.toUpperCase().replace(/ & /g, "_").replace(/ /g, "_"),
+      window: "MONTHLY",
+      windowStart: new Date().toISOString(),
+      delegationEnabled: false,
+    };
+    const res = await createGrantMutation.mutateAsync(payload);
+    return res.grant?.grantId || res.grantId || "unknown"; // Assuming backend returns { grant: { grantId } }
+  };
 
-      if (status === "pending") {
-        setApprovals((prev) => [
-          {
-            id: nextId("apr"),
-            agentId: agent.id,
-            ledgerId,
-            merchant: input.merchant,
-            description: input.description,
-            amount: input.amount,
-            reason: `Above the ₹${agent.rule.perTransactionCap.toLocaleString("en-IN")} per-transaction cap`,
-            requestedAt: entry.at,
-          },
-          ...prev,
-        ]);
-      }
+  const updateRule = async (id: string, rule: SpendingRule) => {
+    console.warn("Update rule not implemented on backend.");
+  };
 
-      if (status === "allowed") {
-        let snapshot = 0;
-        setAgents((prev) => {
-          const next = prev.map((a) => {
-            if (a.id !== agent.id) return a;
-            const consumed = a.consumed + input.amount;
-            return {
-              ...a,
-              consumed,
-              status: (consumed >= a.rule.monthlyLimit
-                ? "exhausted"
-                : a.status) as Agent["status"],
-            };
-          });
-          snapshot = next.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0);
-          return next;
-        });
-        pushEvent(
-          `${agent.name} spent ₹${input.amount.toLocaleString("en-IN")}`,
-          `${input.merchant} — ${input.description}`,
-          snapshot,
-        );
-      }
+  const simulatePayment = async (input: SimulationInput): Promise<SimulationResult> => {
+    const agent = getAgent(input.agentId);
+    const category = agent?.rule?.category 
+      ? agent.rule.category.toUpperCase().replace(/ & /g, "_").replace(/ /g, "_")
+      : "GENERAL";
 
-      return { status, reason, amount: input.amount, agentName: agent.name };
-    },
-    [agents, frozen, pushEvent],
-  );
+    const payload: SimulatePaymentPayload = {
+      amount: Math.round(input.amount * 100),
+      currency: "INR",
+      grantId: input.agentId,
+      merchant: {
+        merchantId: input.merchant,
+        name: input.merchant,
+        category: category,
+      },
+      idempotencyKey: `sim_${Date.now()}`,
+    };
+    const res = await simulateMutation.mutateAsync(payload);
+    
+    // Parse result based on backend response shape.
+    // ALLOW: HTTP 200 → { success: true, decision: "ALLOW", decisionReceipt: {...} }
+    // STEP_UP: HTTP 202 → { success: true, requiresStepUp: true, decision: { decision: "STEP_UP" }, intent: {...} }
+    // DENY: HTTP 403 → { success: false, decision: { decision: "DENY", reason: ... }, intent: {...} }
+    let status: SimulationResult["status"] = "denied";
+    let reason = "Denied by rules.";
 
-  const setFrozen = useCallback(
-    (value: boolean) => {
-      setFrozenState(value);
-      pushEvent(
-        value ? "Emergency stop engaged" : "Emergency stop cleared",
-        value
-          ? "All agent authority suspended across every mandate."
-          : "Agent authority reinstated to pre-stop levels.",
-        value
-          ? 0
-          : agents.reduce((sum, a) => sum + remainingAuthority(a, false), 0),
-      );
-    },
-    [agents, pushEvent],
-  );
+    // Flatten the decision string from either location
+    const decisionStr: string =
+      typeof res.decision === "string"
+        ? res.decision // ALLOW path: decision is the string directly
+        : res.decision?.decision ?? ""; // DENY / STEP_UP path: nested object
+
+    const decisionReason: string =
+      res.decisionReceipt?.reason ||
+      res.decision?.reason ||
+      res.error ||
+      "Denied by rules.";
+
+    if (decisionStr === "ALLOW") {
+      status = "allowed";
+      reason = "Authorized";
+    } else if (decisionStr === "STEP_UP" || res.requiresStepUp) {
+      status = "pending";
+      reason = "Requires step-up approval";
+    } else {
+      reason = decisionReason;
+    }
+
+    return {
+      status,
+      reason,
+      amount: input.amount,
+      agentName: agent?.name || "Unknown Agent",
+      intentId: res.intentId || res.intent?.intentId,
+    };
+  };
+
+  const setFrozen = (value: boolean) => {
+    console.warn("Set frozen not implemented");
+  };
 
   const value = useMemo<KavachContextValue>(
     () => ({
@@ -390,15 +309,7 @@ export function KavachProvider({ children }: { children: ReactNode }) {
       totalAuthority,
       totalConsumed,
       getAgent,
-      approveRequest,
-      denyRequest,
-      revokeAgent,
-      restoreAgent,
-      createAgent,
-      updateRule,
-      simulatePayment,
-      setFrozen,
-    ],
+    ]
   );
 
   return <KavachContext.Provider value={value}>{children}</KavachContext.Provider>;

@@ -87,3 +87,28 @@ export async function approveIntentHandler(
     });
   }
 }
+
+export async function listIntentsHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const userId =
+      typeof req.query.userId === "string" && req.query.userId.length > 0
+        ? req.query.userId
+        : "u_demo"; // Default to demo user
+
+    const intents = await intentService.listUserIntents(userId);
+
+    res.status(200).json({
+      success: true,
+      intents,
+    });
+  } catch (error) {
+    console.error("listIntentsHandler error:", error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to list intents",
+    });
+  }
+}

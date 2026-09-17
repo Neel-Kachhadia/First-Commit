@@ -29,7 +29,7 @@ export const Route = createFileRoute("/activity")({
   component: ActivityPage,
 });
 
-const FILTERS: { key: LedgerStatus | "all"; label: string }[] = [
+const FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "All decisions" },
   { key: "allowed", label: "Allowed" },
   { key: "pending", label: "Needs approval" },
@@ -38,14 +38,19 @@ const FILTERS: { key: LedgerStatus | "all"; label: string }[] = [
 
 function ActivityPage() {
   const { ledger, getAgent } = useKavach();
-  const [filter, setFilter] = useState<LedgerStatus | "all">("all");
+  const [filter, setFilter] = useState<string>("all");
   const [query, setQuery] = useState("");
 
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return ledger.filter((entry) => {
       const agent = getAgent(entry.agentId);
-      const matchesFilter = filter === "all" || entry.status === filter;
+      const { tone } = ledgerTone(entry.status);
+      const matchesFilter =
+        filter === "all" ||
+        (filter === "allowed" && tone === "allowed") ||
+        (filter === "pending" && tone === "stepup") ||
+        (filter === "denied" && tone === "denied");
       const matchesQuery =
         !normalized ||
         entry.merchant.toLowerCase().includes(normalized) ||
@@ -55,9 +60,9 @@ function ActivityPage() {
     });
   }, [filter, getAgent, ledger, query]);
 
-  const allowed = ledger.filter((entry) => entry.status === "allowed");
-  const denied = ledger.filter((entry) => entry.status === "denied");
-  const pending = ledger.filter((entry) => entry.status === "pending");
+  const allowed = ledger.filter((entry) => ledgerTone(entry.status).tone === "allowed");
+  const denied = ledger.filter((entry) => ledgerTone(entry.status).tone === "denied");
+  const pending = ledger.filter((entry) => ledgerTone(entry.status).tone === "stepup");
 
   return (
     <div className="space-y-7">

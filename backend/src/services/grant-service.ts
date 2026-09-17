@@ -385,6 +385,10 @@ export class GrantService {
     return revokedGrant;
   }
 
+  async listUserGrants(userId: string): Promise<Grant[]> {
+    return grantRepository.listUserGrants(userId);
+  }
+
   private async findGrantById(
     userId: string,
     grantId: string

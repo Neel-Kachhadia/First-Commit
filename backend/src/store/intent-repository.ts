@@ -2,6 +2,7 @@ import {
   GetCommand,
   PutCommand,
   UpdateCommand,
+  ScanCommand,
 } from "@aws-sdk/lib-dynamodb";
 
 import { dynamo } from "./dynamodb.js";
@@ -155,6 +156,28 @@ export class IntentRepository {
           "attribute_not_exists(PK)",
       })
     );
+  }
+
+  /**
+   * List all intents for a user.
+   * Note: Uses a Scan operation (Temporary for demo/hackathon integration).
+   * In a production environment, use a GSI with PK = USER#<userId>
+   */
+  async listUserIntents(userId: string): Promise<Intent[]> {
+    const result = await dynamo.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "userId = :userId AND entityType = :entityType",
+        ExpressionAttributeValues: {
+          ":userId": userId,
+          ":entityType": "INTENT",
+        },
+      })
+    );
+    
+    // Sort descending by createdAt
+    const items = (result.Items || []) as Intent[];
+    return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 }
 

@@ -92,3 +92,28 @@ export async function revokeGrantHandler(
     });
   }
 }
+
+export async function listGrantsHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const userId =
+      typeof req.query.userId === "string" && req.query.userId.length > 0
+        ? req.query.userId
+        : "u_demo"; // Default to demo user
+
+    const grants = await grantService.listUserGrants(userId);
+
+    res.status(200).json({
+      success: true,
+      grants,
+    });
+  } catch (error) {
+    console.error("listGrantsHandler error:", error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to list grants",
+    });
+  }
+}

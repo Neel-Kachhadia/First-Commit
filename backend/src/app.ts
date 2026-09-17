@@ -6,6 +6,7 @@ import path from "path";
 import {
   createIntentHandler,
   approveIntentHandler,
+  listIntentsHandler,
 } from "./handlers/intent-handler.js";
 
 import {
@@ -15,6 +16,7 @@ import {
 import {
   createGrantHandler,
   revokeGrantHandler,
+  listGrantsHandler,
 } from "./handlers/grant-handler.js";
 
 import {
@@ -35,9 +37,14 @@ import {
 
 import {
   createOrderHandler,
-  verifyPaymentHandler,
+  executeOrderHandler,
   getCheckoutConfigHandler,
+  verifyPaymentHandler,
 } from "./handlers/checkout-handler.js";
+
+import {
+  resetDemoHandler,
+} from "./handlers/demo-handler.js";
 
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), "backend/.env") });
@@ -78,6 +85,7 @@ export function createApp() {
 
   app.get("/api/config", getCheckoutConfigHandler);
   app.post("/api/create-order", createOrderHandler);
+  app.post("/api/execute-order", executeOrderHandler);
   app.post("/api/verify-payment", verifyPaymentHandler);
 
   /*
@@ -99,6 +107,11 @@ export function createApp() {
     createGrantHandler
   );
 
+  app.get(
+    "/v0/grants",
+    listGrantsHandler
+  );
+
   app.post(
     "/v0/grants/:id/revoke",
     revokeGrantHandler
@@ -109,6 +122,11 @@ export function createApp() {
     getExposureHandler
   );
 
+  app.get(
+    "/v0/intents",
+    listIntentsHandler
+  );
+
   app.post(
     "/v0/intents",
     createIntentHandler
@@ -117,6 +135,11 @@ export function createApp() {
   app.post(
     "/v0/intents/:id/approve",
     approveIntentHandler
+  );
+
+  app.post(
+    "/v0/demo/reset",
+    resetDemoHandler
   );
 
   app.get(

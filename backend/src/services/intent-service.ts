@@ -467,6 +467,10 @@ export class IntentService {
   
     return null;
   }
+
+  async listUserIntents(userId: string): Promise<Intent[]> {
+    return intentRepository.listUserIntents(userId);
+  }
 }
 
 export const intentService =

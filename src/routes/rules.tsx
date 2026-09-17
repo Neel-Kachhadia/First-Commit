@@ -72,7 +72,7 @@ function RulesPage() {
     agentName: string;
   } | null>(null);
 
-  const submitMandate = (event: React.FormEvent) => {
+  const submitMandate = async (event: React.FormEvent) => {
     event.preventDefault();
     const next: Errors = {};
     const m = Number(monthlyLimit);
@@ -99,7 +99,7 @@ function RulesPage() {
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    const id = createAgent({
+    const id = await createAgent({
       name: name.trim(),
       purpose: purpose.trim(),
       rule: {
@@ -116,7 +116,7 @@ function RulesPage() {
     navigate({ to: "/agents/$agentId", params: { agentId: id } });
   };
 
-  const runSimulation = (event: React.FormEvent) => {
+  const runSimulation = async (event: React.FormEvent) => {
     event.preventDefault();
     const next: Record<string, string> = {};
     const amount = Number(simAmount);
@@ -128,7 +128,7 @@ function RulesPage() {
     setSimErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    const outcome = simulatePayment({
+    const outcome = await simulatePayment({
       agentId: simAgent,
       merchant: simMerchant.trim(),
       description: simDescription.trim() || "Agent-initiated payment",
@@ -412,6 +412,22 @@ function RulesPage() {
               <p className="mt-2 text-sm text-muted-foreground">
                 {result.reason}
               </p>
+              
+              {result.status === "pending" && result.intentId ? (
+                <div className="mt-4 flex gap-2">
+                  <Button 
+                    size="sm" 
+                    onClick={async () => {
+                      const id = result.intentId;
+                      if (!id) return;
+                      await approveRequest(id);
+                      setResult({ ...result, status: "allowed", tone: "allowed", label: "Approved & Executed", reason: "Payment approved and order executed successfully." });
+                    }}
+                  >
+                    Approve
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </section>

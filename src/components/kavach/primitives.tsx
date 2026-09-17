@@ -59,10 +59,27 @@ export function agentTone(status: string): { tone: Tone; label: string } {
 
 export function ledgerTone(status: string): { tone: Tone; label: string } {
   switch (status) {
+    // Backend "allowed" states
+    case "ALLOW":
+    case "ALLOWED":
+    case "RESERVED":
+    case "EXECUTED":
+    case "APPROVED":
     case "allowed":
       return { tone: "allowed", label: "Allowed" };
+
+    // Backend "step-up" states — awaiting human approval
+    case "STEP_UP":
+    case "STEP_UP_REQUIRED":
     case "pending":
       return { tone: "stepup", label: "Needs approval" };
+
+    // Backend "denied" / transitional states
+    case "DENY":
+    case "DENIED":
+    case "REVOKED":
+    case "FAILED":
+    case "PENDING": // transitional in-flight state, not a real step-up
     default:
       return { tone: "denied", label: "Denied" };
   }

@@ -155,6 +155,7 @@ export async function createOrderHandler(
     // ------------------------------------------------------------
 
     if (typeof amount !== "number" || !Number.isFinite(amount)) {
+      console.log("[createOrderHandler] 400 Bad Request - Invalid amount. Body:", req.body);
       res.status(400).json({
         success: false,
         error: "Invalid amount",
@@ -164,6 +165,7 @@ export async function createOrderHandler(
     }
 
     if (!Number.isInteger(amount)) {
+      console.log("[createOrderHandler] 400 Bad Request - Non-integer amount. Body:", req.body);
       res.status(400).json({
         success: false,
         error: "Invalid amount",
@@ -173,6 +175,7 @@ export async function createOrderHandler(
     }
 
     if (amount < 100) {
+      console.log("[createOrderHandler] 400 Bad Request - Amount too low. Body:", req.body);
       res.status(400).json({
         success: false,
         error: "Amount too low",
@@ -191,6 +194,7 @@ export async function createOrderHandler(
     // ------------------------------------------------------------
 
     if (typeof grantId !== "string" || !grantId.trim()) {
+      console.log("[createOrderHandler] 400 Bad Request - grantId required. Body:", req.body);
       res.status(400).json({
         success: false,
         error: "grantId is required",
@@ -205,6 +209,7 @@ export async function createOrderHandler(
     // ------------------------------------------------------------
 
     if (typeof userId !== "string" || !userId.trim()) {
+      console.log("[createOrderHandler] 400 Bad Request - Invalid userId. Body:", req.body);
       res.status(400).json({
         success: false,
         error: "Invalid userId",
@@ -217,6 +222,7 @@ export async function createOrderHandler(
     // ------------------------------------------------------------
 
     if (!merchant || typeof merchant !== "object") {
+      console.log("[createOrderHandler] 400 Bad Request - Merchant required. Body:", req.body);
       res.status(400).json({
         success: false,
         error: "Merchant information is required",
@@ -230,6 +236,7 @@ export async function createOrderHandler(
       typeof merchant.merchantId !== "string" ||
       !merchant.merchantId.trim()
     ) {
+      console.log("[createOrderHandler] 400 Bad Request - Invalid merchantId. Body:", req.body);
       res.status(400).json({
         success: false,
         error: "Invalid merchant.merchantId",
@@ -241,6 +248,7 @@ export async function createOrderHandler(
       typeof merchant.name !== "string" ||
       !merchant.name.trim()
     ) {
+      console.log("[createOrderHandler] 400 Bad Request - Invalid merchant.name. Body:", req.body);
       res.status(400).json({
         success: false,
         error: "Invalid merchant.name",
@@ -540,3 +548,28 @@ export function getCheckoutConfigHandler(
     key_id: keyId,
   });
 }
+
+  export async function executeOrderHandler(req: Request, res: Response): Promise<void> {
+    try {
+      const { intentId, userId = "u_demo" } = req.body;
+      if (!intentId) { res.status(400).json({ success: false, error: 'intentId required' }); return; }
+      
+      const { intentRepository } = await import("../store/intent-repository.js");
+      const intent = await intentRepository.getIntent(intentId);
+      if (!intent) {
+        res.status(404).json({ success: false, error: "Intent not found" });
+        return;
+      }
+      if (intent.userId !== userId) {
+        res.status(403).json({ success: false, error: "Not authorized to execute this intent" });
+        return;
+      }
+    
+    const payment = await paymentService.execute(intentId);
+    res.status(200).json({ success: true, order_id: payment.razorpayOrderId });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+
