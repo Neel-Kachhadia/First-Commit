@@ -1,0 +1,307 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * KavachPay design system.
+ * KavachPay: warm paper in light mode, defensive graphite in dark mode,
+ * oxide red for authority and restrained semantic status colours.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 3px);
+  --radius-md: calc(var(--radius) - 1px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-raised: var(--raised);
+  --color-raised-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-paper-foreground: var(--paper-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-stepup: var(--stepup);
+  --color-stepup-foreground: var(--stepup-foreground);
+  --color-brass: var(--brass);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+:root {
+  --radius: 0.5rem;
+
+  --background: #f3ede1;
+  --foreground: #151512;
+  --card: #f8f4ea;
+  --card-foreground: #151512;
+  --raised: #f8f4ea;
+  --paper: #e9dfc9;
+  --paper-foreground: #171714;
+  --popover: #f8f4ea;
+  --popover-foreground: #151512;
+  --primary: #a54535;
+  --primary-foreground: #f8f4ea;
+  --secondary: #e9dfc9;
+  --secondary-foreground: #151512;
+  --muted: #e9dfc9;
+  --muted-foreground: #68645b;
+  --accent: #e9dfc9;
+  --accent-foreground: #151512;
+  --destructive: #d9564b;
+  --destructive-foreground: #f8f4ea;
+  --success: #3e8066;
+  --success-foreground: #f8f4ea;
+  --stepup: #b58a45;
+  --stepup-foreground: #151512;
+  --brass: #a88a5b;
+  --border: rgba(21, 21, 18, 0.14);
+  --input: rgba(21, 21, 18, 0.14);
+  --ring: #a54535;
+}
+
+.dark {
+  --background: #090b0a;
+  --foreground: #f1ead8;
+  --card: #111512;
+  --card-foreground: #f1ead8;
+  --raised: #181c18;
+  --paper: #e9dfc9;
+  --paper-foreground: #171714;
+  --popover: #181c18;
+  --popover-foreground: #f1ead8;
+  --primary: #b34c3b;
+  --primary-foreground: #f1ead8;
+  --secondary: #181c18;
+  --secondary-foreground: #f1ead8;
+  --muted: #181c18;
+  --muted-foreground: #aaa496;
+  --accent: #181c18;
+  --accent-foreground: #f1ead8;
+  --destructive: #d9564b;
+  --destructive-foreground: #f1ead8;
+  --success: #62a889;
+  --success-foreground: #090b0a;
+  --stepup: #c39a54;
+  --stepup-foreground: #090b0a;
+  --brass: #a88a5b;
+  --border: rgba(241, 234, 216, 0.13);
+  --input: rgba(241, 234, 216, 0.13);
+  --ring: #b34c3b;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-sans);
+    letter-spacing: -0.035em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Tabular figures for every monetary value in the product. */
+@utility amount {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@utility label-caps {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+@utility surface-card {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.spotlight-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-card);
+}
+
+.spotlight-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    360px circle at var(--spotlight-x) var(--spotlight-y),
+    color-mix(in srgb, var(--color-primary) 10%, transparent),
+    transparent 62%
+  );
+  transition: opacity 180ms ease;
+}
+
+.spotlight-card:hover::before {
+  opacity: 1;
+}
+
+.exposure-card {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-primary) 8%, var(--color-card)),
+    var(--color-card) 58%
+  );
+}
+
+.metric-card {
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.metric-card:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--color-primary) 28%,
+    var(--color-border)
+  );
+  transform: translateY(-1px);
+}
+
+.agent-row {
+  transition: background-color 150ms ease;
+}
+
+.agent-row:hover {
+  background: color-mix(in srgb, var(--color-muted) 42%, transparent);
+}
+
+.animated-list > * {
+  animation: list-enter 360ms both;
+}
+
+.animated-list > *:nth-child(2) {
+  animation-delay: 45ms;
+}
+.animated-list > *:nth-child(3) {
+  animation-delay: 90ms;
+}
+.animated-list > *:nth-child(4) {
+  animation-delay: 135ms;
+}
+.animated-list > *:nth-child(5) {
+  animation-delay: 180ms;
+}
+
+@keyframes list-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.decision-table th,
+.decision-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.authority-grid {
+  background-image:
+    linear-gradient(to right, var(--color-border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-border) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+
+.exposure-chart .recharts-area-curve {
+  filter: drop-shadow(
+    0 3px 5px color-mix(in srgb, var(--color-primary) 18%, transparent)
+  );
+}
+
+.exposure-chart .recharts-dot {
+  transition:
+    filter 160ms ease,
+    opacity 160ms ease;
+}
+
+.exposure-chart:hover .recharts-dot {
+  filter: drop-shadow(
+    0 0 5px color-mix(in srgb, var(--color-primary) 35%, transparent)
+  );
+}
+
+.exposure-chart .recharts-active-dot circle {
+  filter: drop-shadow(
+    0 0 8px color-mix(in srgb, var(--color-primary) 56%, transparent)
+  );
+}
+
+.exposure-chart .recharts-tooltip-wrapper {
+  outline: none;
+  transition: opacity 140ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

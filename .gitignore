@@ -1,6 +1,34 @@
+# Dependencies
 node_modules/
+
+# Build and framework output
+.output/
+.tanstack/
+.wrangler/
 dist/
+cdk.out/
+
+# Local environment files
 .env
 .env.*
 !.env.example
-cdk.out/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Test and coverage output
+coverage/
+.nyc_output/
+
+# TypeScript cache
+*.tsbuildinfo
