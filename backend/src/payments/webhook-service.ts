@@ -24,7 +24,7 @@
  * @see https://razorpay.com/docs/webhooks/validate-test/
  */
 
-import { PutCommand, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { PutCommand, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 import { dynamo } from "../store/dynamodb.js";
 import { TABLE_NAME } from "../store/table.js";
@@ -65,23 +65,11 @@ export class WebhookService {
       throw new Error("Invalid Razorpay webhook signature.");
     }
 
-    // 2. Idempotency check — have we already processed this eventId?
-    const existing = await this.getWebhookRecord(eventId);
-
-    if (existing) {
-      console.log(
-        `[WebhookService] Duplicate event ${eventId} (${existing.eventType}). ` +
-          `Already processed at ${existing.processedAt}. Skipping.`
-      );
-      return { processed: false, duplicate: true };
-    }
-
     const eventType = payload.event;
     const paymentEntity = payload.payload.payment?.entity;
     const orderEntity = payload.payload.order?.entity;
 
     // Extract the intentId from Razorpay order notes.
-    // Both payment and order entities carry the notes we set in createPayment().
     const intentId =
       paymentEntity?.notes?.intentId ??
       orderEntity?.notes?.intentId;
@@ -92,34 +80,68 @@ export class WebhookService {
 
     const now = new Date().toISOString();
 
-    // 3. Record the event immediately (before processing) so concurrent
-    //    duplicate deliveries don't race through to the state transition.
-    //    We use attribute_not_exists(PK) to make this atomic.
-    try {
-      await this.createWebhookRecord({
-        eventId,
-        eventType,
-        razorpayPaymentId,
-        razorpayOrderId,
-        intentId,
-        status: "PROCESSED",
-        processedAt: now,
-      });
-    } catch (err: unknown) {
-      // Another concurrent request won the race — treat as duplicate.
-      const isConditionalFail =
-        err instanceof Error &&
-        err.name === "ConditionalCheckFailedException";
+    // 2. Lifecycle & Idempotency check:
+    //    NEW EVENT -> PROCESSING -> PROCESSED (or FAILED)
+    //    FAILED -> retry allowed -> PROCESSING -> PROCESSED
+    //    PROCESSED -> duplicate -> return { processed: false, duplicate: true }
+    //    PROCESSING -> concurrent -> return { processed: false, duplicate: true }
+    const existing = await this.getWebhookRecord(eventId);
 
-      if (isConditionalFail) {
+    if (existing) {
+      if (existing.status === "PROCESSED") {
         console.log(
-          `[WebhookService] Concurrent duplicate for event ${eventId}. ` +
-            `Ignoring.`
+          `[WebhookService] Duplicate event ${eventId} (${existing.eventType}). ` +
+            `Already processed at ${existing.processedAt}. Skipping.`
         );
         return { processed: false, duplicate: true };
       }
 
-      throw err;
+      if (existing.status === "PROCESSING") {
+        console.log(
+          `[WebhookService] Concurrent event ${eventId} (${existing.eventType}) is in PROCESSING state. Skipping.`
+        );
+        return { processed: false, duplicate: true };
+      }
+
+      // If existing.status === "FAILED", allow retry!
+      console.log(
+        `[WebhookService] Retrying previously FAILED event ${eventId}. Transitioning to PROCESSING.`
+      );
+      await this.updateWebhookRecordStatus(eventId, "PROCESSING");
+    } else {
+      // 3. New event: create record with status "PROCESSING"
+      try {
+        await this.createWebhookRecord({
+          eventId,
+          eventType,
+          razorpayPaymentId,
+          razorpayOrderId,
+          intentId,
+          status: "PROCESSING",
+          processedAt: now,
+        });
+      } catch (err: unknown) {
+        const isConditionalFail =
+          err instanceof Error &&
+          err.name === "ConditionalCheckFailedException";
+
+        if (isConditionalFail) {
+          const raced = await this.getWebhookRecord(eventId);
+          if (raced && (raced.status === "PROCESSED" || raced.status === "PROCESSING")) {
+            console.log(
+              `[WebhookService] Concurrent duplicate for event ${eventId} (status: ${raced.status}). Ignoring.`
+            );
+            return { processed: false, duplicate: true };
+          }
+          if (raced && raced.status === "FAILED") {
+            await this.updateWebhookRecordStatus(eventId, "PROCESSING");
+          } else {
+            return { processed: false, duplicate: true };
+          }
+        } else {
+          throw err;
+        }
+      }
     }
 
     // 4. Route event to the correct state transition handler.
@@ -131,7 +153,8 @@ export class WebhookService {
             intentId,
             razorpayPaymentId,
             eventId,
-            eventType
+            eventType,
+            payload
           );
           break;
 
@@ -139,12 +162,12 @@ export class WebhookService {
           await this.handlePaymentFailed(
             intentId,
             razorpayPaymentId,
-            eventId
+            eventId,
+            payload
           );
           break;
 
         default: {
-          // Unexpected event type — log and ignore.
           const unhandled = eventType as string;
           console.log(
             `[WebhookService] Unhandled event type "${unhandled}" ` +
@@ -152,8 +175,11 @@ export class WebhookService {
           );
         }
       }
+
+      // Transition to PROCESSED on successful state transition
+      await this.updateWebhookRecordStatus(eventId, "PROCESSED");
     } catch (processingError) {
-      // Update webhook record to mark processing failure.
+      // Update webhook record to mark processing failure (allows retry)
       await this.updateWebhookRecordStatus(eventId, "FAILED");
 
       console.error(
@@ -179,17 +205,75 @@ export class WebhookService {
     intentId: string | undefined,
     razorpayPaymentId: string | undefined,
     eventId: string,
-    eventType: string
+    eventType: string,
+    payload: RazorpayWebhookPayload
   ): Promise<void> {
     if (!intentId) {
-      console.warn(
+      throw new Error(
         `[WebhookService] ${eventType} event ${eventId} has no intentId ` +
           `in order notes. Cannot update intent status.`
       );
-      return;
     }
 
-    // Update payment record status → EXECUTED
+    // Check 1 — Payment record exists
+    const paymentRecord = await paymentService.getPaymentRecord(intentId);
+    if (!paymentRecord) {
+      throw new Error(
+        `[WebhookService] Payment record PAYMENT#${intentId} not found. Rejecting webhook.`
+      );
+    }
+
+    const paymentEntity = payload.payload.payment?.entity;
+    const orderEntity = payload.payload.order?.entity;
+
+    // Check 2 — Razorpay order ID matches
+    const webhookOrderId = paymentEntity?.order_id ?? orderEntity?.id;
+    if (!webhookOrderId || webhookOrderId !== paymentRecord.razorpayOrderId) {
+      throw new Error(
+        `[WebhookService] Razorpay order ID mismatch for intent ${intentId}. ` +
+          `Expected "${paymentRecord.razorpayOrderId}", received "${webhookOrderId}". Rejecting webhook.`
+      );
+    }
+
+    // Check 3 — Amount matches (Razorpay paise vs KavachPay Math.round(amount * 100))
+    const webhookAmount = paymentEntity?.amount ?? orderEntity?.amount;
+    const expectedPaise = Math.round(paymentRecord.amount * 100);
+    if (webhookAmount === undefined || webhookAmount !== expectedPaise) {
+      throw new Error(
+        `[WebhookService] Payment amount mismatch for intent ${intentId}. ` +
+          `Expected ${expectedPaise} paise, received ${webhookAmount} paise. Rejecting webhook.`
+      );
+    }
+
+    // Check 4 — Currency matches
+    const webhookCurrency = paymentEntity?.currency;
+    if (
+      webhookCurrency &&
+      paymentRecord.currency &&
+      webhookCurrency.toUpperCase() !== paymentRecord.currency.toUpperCase()
+    ) {
+      throw new Error(
+        `[WebhookService] Payment currency mismatch for intent ${intentId}. ` +
+          `Expected "${paymentRecord.currency}", received "${webhookCurrency}". Rejecting webhook.`
+      );
+    }
+
+    // Check 5 — Intent state: must be RESERVED before transitioning to EXECUTED
+    const intent = await intentRepository.getIntent(intentId);
+    if (!intent) {
+      throw new Error(
+        `[WebhookService] Intent ${intentId} not found in repository. Rejecting webhook.`
+      );
+    }
+
+    if (intent.status !== "RESERVED") {
+      throw new Error(
+        `[WebhookService] Invalid intent status transition for ${intentId}. ` +
+          `Current status is "${intent.status}". Expected "RESERVED". Rejecting webhook.`
+      );
+    }
+
+    // All 5 checks passed — update payment record status → EXECUTED
     await paymentService.updatePaymentStatus(
       intentId,
       "EXECUTED",
@@ -208,14 +292,33 @@ export class WebhookService {
   private async handlePaymentFailed(
     intentId: string | undefined,
     razorpayPaymentId: string | undefined,
-    eventId: string
+    eventId: string,
+    payload: RazorpayWebhookPayload
   ): Promise<void> {
     if (!intentId) {
-      console.warn(
+      throw new Error(
         `[WebhookService] payment.failed event ${eventId} has no intentId ` +
           `in order notes. Cannot update intent status.`
       );
-      return;
+    }
+
+    // Validate payment record exists
+    const paymentRecord = await paymentService.getPaymentRecord(intentId);
+    if (!paymentRecord) {
+      throw new Error(
+        `[WebhookService] Payment record PAYMENT#${intentId} not found on payment.failed. Rejecting webhook.`
+      );
+    }
+
+    const paymentEntity = payload.payload.payment?.entity;
+    const orderEntity = payload.payload.order?.entity;
+    const webhookOrderId = paymentEntity?.order_id ?? orderEntity?.id;
+
+    if (webhookOrderId && webhookOrderId !== paymentRecord.razorpayOrderId) {
+      throw new Error(
+        `[WebhookService] Razorpay order ID mismatch on payment.failed for intent ${intentId}. ` +
+          `Expected "${paymentRecord.razorpayOrderId}", received "${webhookOrderId}". Rejecting webhook.`
+      );
     }
 
     // Update payment record status → FAILED
@@ -280,8 +383,6 @@ export class WebhookService {
     eventId: string,
     status: WebhookRecord["status"]
   ): Promise<void> {
-    const { UpdateCommand } = await import("@aws-sdk/lib-dynamodb");
-
     await dynamo.send(
       new UpdateCommand({
         TableName: TABLE_NAME,
