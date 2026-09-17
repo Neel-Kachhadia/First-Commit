@@ -1,0 +1,763 @@
+.replaySection {
+  --kp-bg: #09090b;
+  --kp-paper: #f4ecd8;
+  --kp-paper-deep: #ebdaba;
+  --kp-ink: #15130e;
+  --kp-red: #a92a24;
+  --kp-red-dark: #7d1f1a;
+  --kp-green: #265c42;
+  --kp-rule: rgba(244, 236, 216, 0.14);
+  --kp-rule-subtle: rgba(244, 236, 216, 0.08);
+
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  color: var(--kp-paper);
+  overflow: hidden;
+  z-index: 10;
+  visibility: hidden;
+  pointer-events: none;
+  contain: layout style paint;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(0.9rem, 2.2vw, 1.8rem) clamp(1.2rem, 3.8vw, 3.5rem);
+  box-sizing: border-box;
+}
+
+/* 07 -> 08 carrier: evidence docket registered inside inspection plane. */
+.docket {
+  position: absolute;
+  top: clamp(0.25rem, 1vw, 0.7rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 1.1rem;
+  border: 1px solid var(--kp-rule);
+  background: rgba(14, 14, 17, 0.94);
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(0.55rem, 0.68vw, 0.66rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  z-index: 30;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+.docketLabel {
+  color: rgba(244, 236, 216, 0.6);
+}
+
+.docketAmount {
+  font-family: var(--font-display, serif);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--kp-paper);
+}
+
+.docketMerchant {
+  color: rgba(244, 236, 216, 0.75);
+}
+
+.docketOutcome {
+  color: #4ade80;
+  font-weight: 700;
+}
+
+.docketNote {
+  color: var(--kp-red);
+  font-weight: 600;
+}
+
+/* Scene Editorial Header */
+.sceneHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-top: 0;
+  z-index: 20;
+}
+
+.headerIndexWrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+}
+
+.sceneIndex {
+  font-family: var(--font-display, serif);
+  font-size: clamp(1.5rem, 2.2vw, 2.2rem);
+  font-weight: 400;
+  color: var(--kp-paper);
+  line-height: 1;
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sceneTitle {
+  font-family: var(--font-sans, sans-serif);
+  font-size: clamp(0.85rem, 1.12vw, 1.12rem);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--kp-paper);
+  margin: 0;
+}
+
+.sceneMicrocopy {
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(0.56rem, 0.7vw, 0.68rem);
+  letter-spacing: 0.12em;
+  color: rgba(244, 236, 216, 0.55);
+}
+
+.headerMeta {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: rgba(244, 236, 216, 0.5);
+  text-align: right;
+  border-left: 1px solid var(--kp-rule);
+  padding-left: 0.8rem;
+}
+
+/* Central Inspection Gate Arena */
+.arena {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Optical Gate Reticle: framing the focal aperture.
+   Sits ABOVE the evidence card in stacking so the hardware physically
+   occludes the card's edges (proves the evidence is inside the machine,
+   not a card floating in front of it). */
+.gateReticle {
+  position: absolute;
+  width: min(84vw, 640px);
+  height: clamp(370px, 48vh, 440px);
+  border: 1px solid rgba(244, 236, 216, 0.06);
+  pointer-events: none;
+  z-index: 16;
+}
+
+/* Foreground machine runners: dark machined bars that overlap the top/bottom
+   edges of whichever evidence card currently sits in the aperture. */
+.gateRunnerTop,
+.gateRunnerBottom {
+  position: absolute;
+  left: -22px;
+  right: -22px;
+  height: 11px;
+  background: linear-gradient(180deg, #45403788 0%, #17140f 55%, #0b0a08 100%);
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
+}
+
+.gateRunnerTop {
+  top: -6px;
+}
+
+.gateRunnerBottom {
+  bottom: -6px;
+}
+
+.gateRailLeft,
+.gateRailRight {
+  position: absolute;
+  top: -22px;
+  bottom: -22px;
+  width: 11px;
+  background: linear-gradient(90deg, #45403788 0%, #17140f 55%, #0b0a08 100%);
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
+}
+
+.gateRailLeft {
+  left: -6px;
+}
+
+.gateRailRight {
+  right: -6px;
+}
+
+.reticleDatumTop {
+  position: absolute;
+  top: -1.2rem;
+  left: 0;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  color: rgba(244, 236, 216, 0.35);
+}
+
+/* Reticle Corner Brackets: machined registration pillars, thick enough to
+   read as real hardware sitting in front of the evidence card. */
+.cornerTL,
+.cornerTR,
+.cornerBL,
+.cornerBR {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-color: rgba(20, 18, 14, 0.95);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+.cornerTL {
+  top: -9px;
+  left: -9px;
+  border-top: 4px solid;
+  border-left: 4px solid;
+}
+
+.cornerTR {
+  top: -9px;
+  right: -9px;
+  border-top: 4px solid;
+  border-right: 4px solid;
+}
+
+.cornerBL {
+  bottom: -9px;
+  left: -9px;
+  border-bottom: 4px solid;
+  border-left: 4px solid;
+}
+
+.cornerBR {
+  bottom: -9px;
+  right: -9px;
+  border-bottom: 4px solid;
+  border-right: 4px solid;
+}
+
+/* Administrative Red Registration Datum Ticks */
+.gateTickTop,
+.gateTickBottom {
+  position: absolute;
+  left: 50%;
+  width: 1px;
+  height: 8px;
+  background: var(--kp-red);
+  transform: translateX(-50%);
+}
+
+.gateTickTop {
+  top: -4px;
+}
+
+.gateTickBottom {
+  bottom: -4px;
+}
+
+.gateTickLeft,
+.gateTickRight {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 1px;
+  background: var(--kp-red);
+  transform: translateY(-50%);
+}
+
+.gateTickLeft {
+  left: -4px;
+}
+
+.gateTickRight {
+  right: -4px;
+}
+
+/* Registered Evidence Exposures on Physical Film Stock.
+   Sized to sit inside the gate aperture with a visible margin, so the
+   machine housing (.gateReticle runners/rails/corners, z-index above this)
+   and the reels/film behind remain visible around it. */
+.evidenceExposure {
+  position: absolute;
+  width: min(64vw, 460px);
+  border: 1px solid rgba(21, 19, 14, 0.28);
+  background: var(--kp-paper);
+  color: var(--kp-ink);
+  padding: 1rem 1.25rem;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6);
+  box-sizing: border-box;
+  will-change: transform, opacity;
+  z-index: 10;
+}
+
+.exposureHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid rgba(21, 19, 14, 0.2);
+  padding-bottom: 0.45rem;
+  margin-bottom: 0.5rem;
+}
+
+.headLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+.exposureIndex {
+  font-family: var(--font-display, serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--kp-red);
+}
+
+.exposureLabel {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.exposureBadge {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid rgba(21, 19, 14, 0.25);
+  background: rgba(21, 19, 14, 0.05);
+  color: rgba(21, 19, 14, 0.7);
+  text-transform: uppercase;
+}
+
+.exposureQuestion {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(21, 19, 14, 0.6);
+  margin: 0 0 0.65rem;
+}
+
+/* Standard High-Density Evidence Field Grid */
+.exposureFields {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem 0.9rem;
+  margin: 0;
+}
+
+.fieldRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.fieldKey {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  color: rgba(21, 19, 14, 0.55);
+}
+
+.fieldVal {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--kp-ink);
+}
+
+.fieldValHighlight {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--kp-red);
+  margin: 0;
+}
+
+/* ============================================================
+   Special Temporal Breakdown for Budget State (§3)
+   ============================================================ */
+.budgetExposure {
+  padding: 1.05rem 1.35rem;
+}
+
+.temporalContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.temporalBlock {
+  background: rgba(21, 19, 14, 0.03);
+  border: 1px solid rgba(21, 19, 14, 0.12);
+  padding: 0.4rem 0.6rem;
+}
+
+.temporalPhaseTag {
+  display: block;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(21, 19, 14, 0.55);
+  margin-bottom: 0.25rem;
+}
+
+.temporalGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.temporalRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.temporalEventBlock {
+  background: rgba(169, 42, 36, 0.08);
+  border: 1px solid rgba(169, 42, 36, 0.25);
+  padding: 0.4rem 0.6rem;
+}
+
+.temporalEventTag {
+  display: block;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--kp-red);
+  margin-bottom: 0.2rem;
+}
+
+.temporalEventRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.eventLabel {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: var(--kp-ink);
+}
+
+.eventAmount {
+  font-family: var(--font-display, serif);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--kp-red);
+}
+
+.exposureProof {
+  margin: 0.35rem 0 0;
+  padding-top: 0.35rem;
+  border-top: 1px dashed rgba(21, 19, 14, 0.2);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.56rem;
+  letter-spacing: 0.06em;
+  color: rgba(21, 19, 14, 0.75);
+  text-align: center;
+}
+
+/* ============================================================
+   Special Hero Composition for Original Intent (§19)
+   ============================================================ */
+.intentExposure {
+  padding: 1.25rem 1.6rem;
+}
+
+.intentContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.intentInstructionBox {
+  background: rgba(21, 19, 14, 0.04);
+  border-left: 3px solid var(--kp-red);
+  padding: 0.6rem 0.85rem;
+}
+
+.intentPromptLabel {
+  display: block;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  color: rgba(21, 19, 14, 0.55);
+  margin-bottom: 0.2rem;
+}
+
+.intentPromptText {
+  font-family: var(--font-display, serif);
+  font-size: clamp(1.15rem, 1.5vw, 1.45rem);
+  font-weight: 700;
+  color: var(--kp-ink);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.intentMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.45rem 0.85rem;
+  margin: 0;
+}
+
+.intentOriginStamp {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid rgba(38, 92, 66, 0.35);
+  background: rgba(38, 92, 66, 0.08);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.54rem;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: #1e5239;
+}
+
+.intentStampIcon {
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+/* ============================================================
+   Terminal Full-Chain Spine: ONE OUTCOME. ONE UNBROKEN CAUSAL RECORD.
+   ============================================================ */
+.fullChain {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(2.8rem, 5vw, 3.8rem);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  z-index: 25;
+  width: min(94vw, 1100px);
+}
+
+.fullChainLabel {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--kp-paper);
+}
+
+.fullChainSpine {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.45rem 0.8rem;
+  border-top: 1px solid var(--kp-red);
+  border-bottom: 1px solid var(--kp-red);
+  background: rgba(9, 9, 11, 0.85);
+  box-sizing: border-box;
+}
+
+.fullChainNode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.nodeIdx {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.5rem;
+  color: var(--kp-red);
+  font-weight: 700;
+}
+
+.nodeName {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.54rem;
+  letter-spacing: 0.06em;
+  color: rgba(244, 236, 216, 0.8);
+  white-space: nowrap;
+}
+
+/* Scene Footer */
+.sceneFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--kp-rule);
+  padding-top: 0.5rem;
+  font-family: var(--font-mono, monospace);
+  font-size: clamp(0.56rem, 0.7vw, 0.68rem);
+  letter-spacing: 0.12em;
+  color: rgba(244, 236, 216, 0.5);
+  z-index: 20;
+}
+
+.footerBrand {
+  font-weight: 700;
+  color: var(--kp-paper);
+}
+
+.footerTagline {
+  color: rgba(244, 236, 216, 0.65);
+}
+
+/* ============================================================
+   Responsive Refinements: 1366x768 & Laptops
+   ============================================================ */
+@media (max-height: 52rem) {
+  .stage {
+    padding-top: 0.5rem;
+    padding-bottom: 0.4rem;
+  }
+
+  .evidenceExposure {
+    padding: 0.85rem 1.15rem;
+  }
+
+  .intentPromptText {
+    font-size: 1.15rem;
+  }
+
+  .fullChain {
+    bottom: 2.4rem;
+  }
+
+  .fullChainSpine {
+    padding: 0.35rem 0.6rem;
+  }
+}
+
+/* ============================================================
+   Mobile Archival Film Track Fallback (< 48rem)
+   ============================================================ */
+@media (max-width: 48rem) {
+  .stage {
+    padding: 0.55rem 0.75rem 0.5rem;
+  }
+
+  .docket {
+    top: 0.2rem;
+    width: 94vw;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.28rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.48rem;
+  }
+
+  .sceneIndex {
+    font-size: 1.35rem;
+  }
+
+  .sceneTitle {
+    font-size: 0.82rem;
+    letter-spacing: 0.12em;
+  }
+
+  .sceneMicrocopy {
+    font-size: 0.52rem;
+  }
+
+  .headerMeta {
+    display: none;
+  }
+
+  /* Mobile card height varies a lot by layer (Budget/Intent run tall).
+     Runner bars are hidden here (see below) since a fixed-height aperture
+     cannot track that variable content without cutting through text;
+     corner brackets alone still carry the "inside the machine" cue. */
+  .gateReticle {
+    width: 92vw;
+    height: 380px;
+  }
+
+  .gateRunnerTop,
+  .gateRunnerBottom,
+  .gateRailLeft,
+  .gateRailRight {
+    display: none;
+  }
+
+  .evidenceExposure {
+    width: 82vw;
+    padding: 0.8rem 0.95rem;
+  }
+
+  /* Sprocket perforation strip: mobile has no WebGL film stock, so the
+     evidence card itself carries the film metaphor at its top/bottom edge. */
+  .evidenceExposure::before,
+  .evidenceExposure::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    height: 8px;
+    background-image: radial-gradient(circle, rgba(9, 9, 11, 0.55) 42%, transparent 43%);
+    background-size: 13px 8px;
+    background-repeat: repeat-x;
+    background-position: center;
+  }
+
+  .evidenceExposure::before {
+    top: -13px;
+  }
+
+  .evidenceExposure::after {
+    bottom: -13px;
+  }
+
+  .exposureFields {
+    grid-template-columns: 1fr;
+    gap: 0.32rem;
+  }
+
+  .temporalGrid {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .intentMetaGrid {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .fullChain {
+    bottom: 2.2rem;
+  }
+
+  .fullChainSpine {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 0.25rem;
+    column-gap: 0.6rem;
+  }
+
+  .sceneFooter {
+    font-size: 0.52rem;
+    padding-top: 0.35rem;
+  }
+}

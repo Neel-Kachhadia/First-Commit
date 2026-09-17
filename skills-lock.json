@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": {
+    "context-window-management": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/context-window-management/SKILL.md",
+      "computedHash": "80571f449bd943136f09c8264b9ff5db348107904c006e12a92a106decce796b"
+    },
+    "frontend-design": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "808e01b929a2b0fabaede596026c8072ba967fe970ac331f2e75367ce548b3c0"
+    },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "ec48c58ca973b42c826d5d3be9069b7023d2361ebf7f89ee56b0bae7eb92390a"
+    },
+    "mobile-design": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/mobile-design/SKILL.md",
+      "computedHash": "0fecb7721a1cc4c869fcfce919be7edee62cdf1eb89cd3de0885cfabd7092534"
+    },
+    "threejs-skills": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/threejs-skills/SKILL.md",
+      "computedHash": "c04e1ab1911877730ae5d60ddc5e77af85f7ebc1d443d1904d664e966ede4f80"
+    },
+    "webapp-testing": {
+      "source": "vudovn/ag-kit",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/webapp-testing/SKILL.md",
+      "computedHash": "1495f6d8eb5f493c33bb775b2a9a6556538a34861807fc48615e5a544d84619a"
+    }
+  }
+}

@@ -1,4 +1,7 @@
-import { Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import {
   AlertDialog,
@@ -42,7 +45,12 @@ import { formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { to: "/", label: "Command Center", icon: CommandGlyph, exact: true },
+  {
+    to: "/dashboard",
+    label: "Command Center",
+    icon: CommandGlyph,
+    exact: true,
+  },
   { to: "/agents", label: "Agents", icon: AgentGlyph, exact: false },
   { to: "/authority", label: "Authority", icon: AuthorityGlyph, exact: false },
   { to: "/approvals", label: "Approvals", icon: ApprovalGlyph, exact: false },
@@ -57,16 +65,21 @@ const NAV = [
 
 function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const { approvals } = useKavach();
+  const pathname = usePathname();
   return (
     <nav className="flex flex-col gap-1" aria-label="Main">
       {NAV.map((item) => {
         const Icon = item.icon;
+        const active = item.exact
+          ? pathname === item.to
+          : pathname === item.to || pathname.startsWith(`${item.to}/`);
         return (
           <Link
             key={item.to}
-            to={item.to}
+            href={item.to}
             onClick={onNavigate}
-            activeOptions={{ exact: item.exact }}
+            data-status={active ? "active" : undefined}
+            aria-current={active ? "page" : undefined}
             className="nav-item group relative flex items-center gap-3 rounded-[5px] px-3 py-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground data-[status=active]:text-foreground"
           >
             <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -163,7 +176,7 @@ function ThemeToggle() {
 function Brand({ className }: { className?: string }) {
   return (
     <Link
-      to="/"
+      href="/dashboard"
       className={cn("flex min-w-0 items-center gap-2.5 rounded-md", className)}
     >
       <KavachMark className="h-7 w-7 shrink-0 text-primary" />
@@ -219,7 +232,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="lg:pl-[232px]">
+      <div className="shell-content-wrapper lg:pl-[232px]">
         <header className="shell-topbar sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:px-6 lg:px-8">
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -247,7 +260,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="min-w-0 flex-1">
               <Brand className="lg:hidden" />
               <Link
-                to="/activity"
+                href="/activity"
                 className="hidden h-9 max-w-md items-center gap-2 rounded-md border border-input bg-card px-3 text-xs text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground md:flex"
                 aria-label="Search transactions, mandates, authorities or agents"
               >
@@ -267,7 +280,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
               <Button variant="ghost" size="icon" className="relative" asChild>
                 <Link
-                  to="/approvals"
+                  href="/approvals"
                   aria-label={`${approvals.length} approval notifications`}
                 >
                   <Bell className="h-4 w-4" />

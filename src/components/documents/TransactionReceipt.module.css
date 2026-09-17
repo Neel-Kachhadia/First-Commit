@@ -1,0 +1,211 @@
+.receipt {
+  --receipt-bg: var(--kp-paper-light);
+  --receipt-ink: var(--kp-ink);
+  --receipt-border: rgba(21, 19, 14, 0.16);
+  position: relative;
+  background-color: var(--receipt-bg);
+  background-image:
+    linear-gradient(rgba(240, 231, 211, 0.2), rgba(240, 231, 211, 0.2)),
+    image-set(
+      url("/assets/kavachpay/materials/paper-thin-receipt-900.webp") 1x,
+      url("/assets/kavachpay/materials/paper-thin-receipt-1600.webp") 2x
+    );
+  background-size: cover;
+  background-position: center;
+  color: var(--receipt-ink);
+  filter: contrast(1.03) saturate(0.85);
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.48),
+    0 3px 8px rgba(0, 0, 0, 0.24);
+  width: clamp(215px, 18vw, 275px);
+  padding: 0.95rem 1.15rem 0.85rem;
+  border-left: 1px solid var(--receipt-border);
+  border-right: 1px solid var(--receipt-border);
+  isolation: isolate;
+  user-select: none;
+}
+
+/* Micro-serration top and bottom edge */
+.receipt::before,
+.receipt::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background-size: 8px 5px;
+  pointer-events: none;
+}
+
+.receipt::before {
+  top: -5px;
+  background-image: radial-gradient(circle at 4px 5px, transparent 4px, var(--receipt-bg) 4.5px);
+}
+
+.receipt::after {
+  bottom: -5px;
+  background-image: radial-gradient(circle at 4px 0, transparent 4px, var(--receipt-bg) 4.5px);
+}
+
+.receiptBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  position: relative;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  border-bottom: 1px dashed var(--receipt-border);
+  padding-bottom: 0.45rem;
+}
+
+.brandRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.wordmark {
+  font-family: var(--font-display), serif;
+  font-size: 1.1rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--receipt-ink);
+  line-height: 1;
+}
+
+.txId {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
+  color: rgba(21, 19, 14, 0.65);
+}
+
+.subMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-admin), sans-serif;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(21, 19, 14, 0.75);
+}
+
+.agentName {
+  color: var(--receipt-ink);
+}
+
+.constraintBadge {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.56rem;
+  letter-spacing: 0.06em;
+  color: var(--kp-red-dark);
+  font-weight: 700;
+}
+
+.mandateRef {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.55rem;
+  color: rgba(21, 19, 14, 0.55);
+}
+
+.amountSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.1rem 0;
+}
+
+.amountWrap {
+  display: flex;
+  align-items: baseline;
+  font-family: var(--font-display), serif;
+  font-size: clamp(2.2rem, 2.9vw, 3.1rem);
+  line-height: 0.88;
+  letter-spacing: -0.03em;
+  color: var(--receipt-ink);
+}
+
+.currencySymbol {
+  font-size: 0.62em;
+  margin-right: 0.08em;
+  font-weight: 400;
+}
+
+.amountValue {
+  font-weight: 400;
+}
+
+.categoryBadge {
+  font-family: var(--font-admin), sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--receipt-ink);
+}
+
+.stampSlot {
+  position: absolute;
+  right: -0.3rem;
+  bottom: 0.7rem;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px dashed var(--receipt-border);
+  padding-top: 0.4rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.14em;
+  color: rgba(21, 19, 14, 0.5);
+  text-transform: uppercase;
+}
+
+/* Subtle status variance */
+.approved {
+  transform: rotate(-0.6deg);
+}
+
+.stepup {
+  transform: rotate(0.5deg);
+}
+
+.denied {
+  transform: rotate(-0.4deg);
+}
+
+@media (max-width: 48rem) {
+  .receipt {
+    width: clamp(170px, 44vw, 210px);
+    padding: 0.7rem 0.85rem 0.65rem;
+  }
+
+  .amountWrap {
+    font-size: 1.85rem;
+  }
+
+  .categoryBadge {
+    font-size: 0.7rem;
+  }
+
+  .wordmark {
+    font-size: 0.95rem;
+  }
+
+  .stampSlot {
+    right: -0.2rem;
+    bottom: 0.5rem;
+    transform: scale(0.85);
+    transform-origin: right bottom;
+  }
+}

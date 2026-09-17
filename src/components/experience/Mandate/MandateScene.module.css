@@ -1,0 +1,435 @@
+.section {
+  background: transparent;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  overflow: hidden;
+  z-index: 3;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stage {
+  color: var(--kp-ivory);
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.stage::before {
+  background:
+    linear-gradient(90deg, transparent 0 7%, rgba(233, 223, 199, 0.045) 7.05% 7.1%, transparent 7.15% 92.9%, rgba(233, 223, 199, 0.045) 92.95% 93%, transparent 93.05%);
+  content: "";
+  inset: 0;
+  position: absolute;
+  z-index: 1;
+}
+
+.boundingPaper {
+  position: absolute;
+  inset: 0;
+  background-color: var(--kp-ivory);
+  background-image:
+    linear-gradient(rgba(235, 225, 201, 0.94), rgba(235, 225, 201, 0.94)),
+    var(--kp-paper-texture);
+  background-size: cover;
+  pointer-events: none;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.copy,
+.copyStage,
+.copyPaper {
+  left: var(--page-gutter);
+  position: absolute;
+  top: 18vh;
+  width: min(35vw, 520px);
+}
+
+.copyStage {
+  color: var(--kp-ivory);
+  z-index: 2;
+}
+
+.copyPaper {
+  color: var(--kp-ink);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.sceneLabel,
+.support,
+.truth {
+  font-family: var(--font-mono), monospace;
+  letter-spacing: 0.17em;
+}
+
+.sceneLabel {
+  color: var(--kp-red-soft);
+  font-size: clamp(0.58rem, 0.7vw, 0.74rem);
+  margin-bottom: clamp(1.4rem, 3vh, 2.7rem);
+}
+
+.copy h2,
+.copyStage h2,
+.copyPaper strong,
+.copyHeading {
+  font-family: var(--font-display), serif;
+  font-size: clamp(4rem, 7vw, 8.2rem);
+  font-weight: 400;
+  letter-spacing: -0.038em;
+  line-height: 0.82;
+  margin-left: -0.035em;
+  display: block;
+}
+
+.bridgeMeta {
+  border-top: 1px solid rgba(20, 19, 15, 0.25);
+  color: rgba(20, 19, 15, 0.65);
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.55rem, 0.68vw, 0.72rem);
+  font-style: normal;
+  letter-spacing: 0.16em;
+  margin-top: clamp(2rem, 5vh, 4rem);
+  padding-top: 0.85rem;
+  width: 63%;
+}
+
+.support {
+  border-top: var(--rule-ivory);
+  font-size: clamp(0.62rem, 0.74vw, 0.8rem);
+  line-height: 1.48;
+  margin-top: clamp(2rem, 5vh, 4rem);
+  padding-top: 0.85rem;
+  width: 63%;
+}
+
+.truth {
+  bottom: -18vh;
+  color: var(--kp-muted);
+  font-size: clamp(0.58rem, 0.7vw, 0.74rem);
+  line-height: 1.65;
+  position: absolute;
+  right: 0;
+  text-align: right;
+}
+
+.intent {
+  background-color: var(--kp-paper);
+  background-image: url("/assets/kavachpay/materials/paper-master-ivory-900.webp");
+  background-size: cover;
+  box-shadow: 0 18px 48px rgba(0,0,0,.32);
+  color: var(--kp-ink);
+  font-family: var(--font-admin), sans-serif;
+  left: 31vw;
+  padding: 1rem 1.35rem;
+  position: absolute;
+  top: 22vh;
+  transform: rotate(-5deg);
+  width: min(23vw, 340px);
+  z-index: 7;
+}
+
+.intent span,
+.intent i {
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.48rem, 0.58vw, 0.62rem);
+  font-style: normal;
+  letter-spacing: 0.14em;
+}
+
+.intent strong {
+  display: block;
+  font-family: var(--font-display), serif;
+  font-size: clamp(1.6rem, 2.65vw, 2.8rem);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 0.92;
+  margin: 0.8rem 0 1.2rem;
+}
+
+.intent i { border-top: 1px solid rgba(20,19,15,.4); padding-top: 0.5rem; text-align: right; }
+
+.sheet {
+  position: absolute;
+  right: clamp(5vw, 8vw, 10rem);
+  top: 11vh;
+  transform-origin: 50% 60%;
+  z-index: 3;
+}
+
+.sheetShadow {
+  background: rgba(0,0,0,.45);
+  filter: blur(28px);
+  inset: 1.5rem -1rem -2rem 1.5rem;
+  pointer-events: none;
+  position: absolute;
+  transform: rotate(-2deg);
+  z-index: -1;
+}
+
+.documentWrap {
+  filter: drop-shadow(0 24px 34px rgba(0,0,0,.38));
+}
+
+.measure {
+  align-items: center;
+  bottom: 2.8vh;
+  color: var(--kp-muted);
+  display: flex;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.55rem, 0.68vw, 0.72rem);
+  gap: 0.9rem;
+  left: var(--page-gutter);
+  letter-spacing: 0.14em;
+  position: absolute;
+  width: 27vw;
+}
+
+.measure i { background: var(--kp-rule); height: 1px; flex: 1; position: relative; }
+.measure i::before { background: var(--kp-red); content: ""; height: 5px; position: absolute; right: 37.5%; top: -2px; width: 1px; }
+
+.fieldHandoff,
+.boundingPaper {
+  background-color: var(--kp-paper-light);
+  background-image: image-set(
+    url("/assets/kavachpay/materials/paper-master-ivory-900.webp") 1x,
+    url("/assets/kavachpay/materials/paper-master-ivory-1600.webp") 2x
+  );
+  background-size: cover;
+  clip-path: inset(0% 0% 0% 0%);
+  inset: 0;
+  opacity: 1;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  will-change: clip-path;
+  z-index: 5;
+}
+
+.spliceGeometry {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.spliceRuleTop,
+.spliceRuleUpper,
+.spliceRuleLower,
+.spliceRuleBottom {
+  position: absolute;
+  left: var(--page-gutter);
+  right: var(--page-gutter);
+  height: 1px;
+  background-color: var(--kp-rule);
+  transform-origin: 75% center;
+}
+
+.spliceRuleTop {
+  top: 8.2vh;
+}
+
+.spliceRuleUpper {
+  top: 34.87vh;
+}
+
+.spliceRuleLower {
+  top: 61.53vh;
+}
+
+.spliceRuleBottom {
+  top: 88.2vh;
+}
+
+.spliceTickLeft,
+.spliceTickRight {
+  position: absolute;
+  top: -4px;
+  width: 1px;
+  height: 9px;
+  background-color: var(--kp-rule);
+}
+
+.spliceTickLeft {
+  left: 0;
+}
+
+.spliceTickRight {
+  right: 0;
+}
+
+.spliceLabelLeft {
+  position: absolute;
+  left: 0.5rem;
+  top: -1.1rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.16em;
+  color: var(--kp-muted);
+}
+
+.spliceLabelRight {
+  position: absolute;
+  right: 0.5rem;
+  top: -1.1rem;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.55rem;
+  letter-spacing: 0.16em;
+  color: var(--kp-muted);
+}
+
+.paperCarrier {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  will-change: transform, clip-path;
+}
+
+.registeredFrame {
+  border: 1px dashed rgba(138, 43, 31, 0.45);
+  box-shadow: 0 0 0 1px rgba(20, 19, 15, 0.1);
+  height: clamp(520px, 78vh, 760px);
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: clamp(4vw, 7vw, 9rem);
+  top: 10vh;
+  width: clamp(340px, 44vw, 620px);
+  z-index: 6;
+}
+
+.registeredFrame::before,
+.registeredFrame::after {
+  color: var(--kp-red);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  position: absolute;
+}
+
+.registeredFrame::before {
+  content: "+ REG. 01 // MANDATE STOCK";
+  left: 0.5rem;
+  top: -1.2rem;
+}
+
+.registeredFrame::after {
+  bottom: -1.2rem;
+  content: "+ BOUNDARY 01";
+  right: 0.5rem;
+}
+
+.regCornerTL,
+.regCornerTR,
+.regCornerBL,
+.regCornerBR {
+  border-color: var(--kp-red);
+  border-style: solid;
+  height: 10px;
+  pointer-events: none;
+  position: absolute;
+  width: 10px;
+}
+
+.regCornerTL {
+  border-width: 1.5px 0 0 1.5px;
+  left: -5px;
+  top: -5px;
+}
+
+.regCornerTR {
+  border-width: 1.5px 1.5px 0 0;
+  right: -5px;
+  top: -5px;
+}
+
+.regCornerBL {
+  border-width: 0 0 1.5px 1.5px;
+  bottom: -5px;
+  left: -5px;
+}
+
+.regCornerBR {
+  border-width: 0 1.5px 1.5px 0;
+  bottom: -5px;
+  right: -5px;
+}
+
+
+@media (max-width: 900px) {
+  .copy,
+  .copyStage,
+  .copyPaper { left: var(--page-gutter); top: 11vh; width: 84vw; }
+  .copy h2,
+  .copyStage h2,
+  .copyPaper strong,
+  .copyHeading { font-size: clamp(3.5rem, 15vw, 6rem); line-height: 0.82; }
+  .support { margin-top: 1.4rem; width: 48%; }
+  .truth { bottom: auto; right: 0; top: 9rem; }
+  .intent { left: -3vw; top: 43vh; width: 58vw; }
+  .registeredFrame {
+    height: 69svh;
+    left: 50%;
+    right: auto;
+    top: 26.5vh;
+    transform: translateX(-50%);
+    width: min(88vw, 470px);
+  }
+  .sheet { left: 50%; right: auto; top: 27vh; transform: translateX(-50%); }
+  .measure { bottom: 2.7vh; width: 52vw; }
+  .spliceRuleTop,
+  .spliceRuleUpper,
+  .spliceRuleLower,
+  .spliceRuleBottom {
+    transform-origin: center center;
+  }
+  .spliceLabelLeft,
+  .spliceLabelRight {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .copy,
+  .copyStage,
+  .copyPaper { top: 10vh; }
+  .copy h2,
+  .copyStage h2,
+  .copyPaper strong,
+  .copyHeading { font-size: 14.5vw; }
+  .support,
+  .truth {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    white-space: nowrap;
+    width: 1px;
+  }
+  .intent {
+    left: 8vw;
+    top: 28vh;
+    width: 84vw;
+  }
+  .intent strong { font-size: clamp(1.6rem, 7.4vw, 2rem); }
+  .registeredFrame {
+    height: 61svh;
+    top: 36.5vh;
+    width: min(84vw, 436px);
+  }
+  .sheet { top: 37vh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section { height: auto; min-height: 100svh; }
+  .stage { min-height: 100svh; position: relative; }
+  .transitionRule,
+  .spliceGeometry { display: none; }
+}

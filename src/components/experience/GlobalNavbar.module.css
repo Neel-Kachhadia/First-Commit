@@ -1,0 +1,277 @@
+.nav {
+  --nav-rule: rgba(235, 225, 201, 0.42);
+  align-items: stretch;
+  background: rgba(9, 10, 8, 0.965);
+  border-bottom: 1px solid var(--nav-rule);
+  color: var(--kp-ivory);
+  display: grid;
+  grid-template-columns: minmax(8.5rem, 0.75fr) minmax(29rem, 1.7fr) minmax(23rem, 1fr);
+  height: var(--kp-global-nav-height);
+  inset: 0 0 auto;
+  isolation: isolate;
+  position: fixed;
+  z-index: 100;
+}
+
+.nav::after {
+  background: var(--kp-red);
+  bottom: -1px;
+  content: "";
+  height: 2px;
+  left: var(--page-gutter);
+  position: absolute;
+  width: 1.1rem;
+}
+
+.brand,
+.chapter,
+.actions button,
+.controlTrigger,
+.controlHeader button,
+.mobileChapters button,
+.mobileActions button {
+  appearance: none;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.brand {
+  align-items: center;
+  border-right: 1px solid var(--nav-rule);
+  display: flex;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  padding: 0 var(--page-gutter);
+  text-align: left;
+}
+
+.desktopIndex {
+  align-items: stretch;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 0.35rem;
+}
+
+.chapter {
+  align-items: center;
+  border-right: 1px solid rgba(235, 225, 201, 0.11);
+  display: flex;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  gap: 0;
+  justify-content: center;
+  letter-spacing: 0.08em;
+  min-width: 2.05rem;
+  opacity: 0.52;
+  overflow: hidden;
+  padding: 0 0.56rem;
+  transition: opacity 150ms ease;
+}
+
+.chapter:first-child { border-left: 1px solid rgba(235, 225, 201, 0.11); }
+.chapter:hover,
+.chapter:focus-visible { opacity: 1; }
+
+.chapter[data-active] {
+  color: var(--kp-paper-light);
+  opacity: 1;
+}
+
+.chapter[data-active] .chapterNumber { color: var(--kp-red-soft); }
+
+.chapterLabel {
+  font-family: var(--font-admin), sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.chapter[data-active] .chapterLabel {
+  margin-left: 0.5rem;
+  max-width: 11.5rem;
+  opacity: 1;
+}
+
+.actions {
+  align-items: center;
+  border-left: 1px solid var(--nav-rule);
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 0 0.7rem;
+}
+
+.actions button {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  min-height: 2.15rem;
+  padding: 0 0.65rem;
+  white-space: nowrap;
+}
+
+.secondaryAction { opacity: 0.66; }
+.secondaryAction:hover,
+.secondaryAction:focus-visible { opacity: 1; }
+
+.primaryAction {
+  background: var(--kp-red-dark) !important;
+  border: 1px solid rgba(235, 225, 201, 0.3) !important;
+  color: var(--kp-paper-light) !important;
+  font-weight: 700 !important;
+}
+
+.primaryAction:hover,
+.primaryAction:focus-visible { background: var(--kp-red) !important; }
+
+.mobileCurrent,
+.controlTrigger,
+.controlIndex { display: none; }
+
+.srStatus {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@media (max-width: 74rem) {
+  .nav { grid-template-columns: minmax(7.75rem, 0.7fr) minmax(25rem, 1.5fr) minmax(18rem, 1fr); }
+  .chapter { min-width: 1.8rem; padding-inline: 0.4rem; }
+  .chapter[data-active] .chapterLabel { max-width: 8.5rem; }
+  .actions button { padding-inline: 0.45rem; }
+}
+
+@media (max-width: 56rem) {
+  .nav {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .brand { font-size: 0.73rem; padding-inline: 1rem; }
+  .desktopIndex,
+  .actions { display: none; }
+
+  .mobileCurrent {
+    align-items: center;
+    display: flex;
+    font-family: var(--font-mono), monospace;
+    font-size: 0.58rem;
+    justify-content: center;
+    letter-spacing: 0.08em;
+    min-width: 0;
+    overflow: hidden;
+    padding: 0 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .controlTrigger {
+    border-left: 1px solid var(--nav-rule);
+    display: block;
+    font-size: 0.61rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    padding: 0 1rem;
+  }
+
+  .controlIndex {
+    background: var(--kp-black);
+    display: flex;
+    flex-direction: column;
+    inset: var(--kp-global-nav-height) 0 0;
+    opacity: 0;
+    overflow: auto;
+    pointer-events: none;
+    position: fixed;
+    transform: translateY(-0.65rem);
+    visibility: hidden;
+    z-index: 110;
+  }
+
+  .controlIndex[data-open] {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+    visibility: visible;
+  }
+
+  .controlHeader {
+    align-items: center;
+    border-bottom: 1px solid var(--nav-rule);
+    display: flex;
+    font-size: 0.63rem;
+    font-weight: 700;
+    justify-content: space-between;
+    letter-spacing: 0.16em;
+    padding: 1rem var(--page-gutter);
+  }
+
+  .controlHeader button { font-family: var(--font-mono), monospace; font-size: 0.58rem; }
+
+  .mobileChapters { display: flex; flex: 1; flex-direction: column; }
+  .mobileChapters button {
+    align-items: baseline;
+    border-bottom: 1px solid rgba(235, 225, 201, 0.18);
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: 2rem 1fr;
+    min-height: 3.75rem;
+    padding: 0 var(--page-gutter);
+    text-align: left;
+  }
+
+  .mobileChapters button span {
+    color: var(--kp-muted);
+    font-family: var(--font-mono), monospace;
+    font-size: 0.65rem;
+  }
+
+  .mobileChapters button strong {
+    font-family: var(--font-display), serif;
+    font-size: clamp(1.35rem, 6vw, 2rem);
+    font-weight: 400;
+  }
+
+  .mobileChapters button[data-active] { border-left: 3px solid var(--kp-red); }
+  .mobileChapters button[data-active] span { color: var(--kp-red-soft); }
+
+  .mobileActions {
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: 1fr 1fr;
+    padding: 1rem var(--page-gutter) calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .mobileActions button {
+    border: 1px solid var(--nav-rule);
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    min-height: 2.75rem;
+  }
+
+  .mobileActions .primaryAction { grid-column: 1 / -1; }
+}
+
+@media (max-width: 26rem) {
+  .brand { letter-spacing: 0.13em; padding-inline: 0.75rem; }
+  .mobileCurrent { font-size: 0.52rem; padding-inline: 0.4rem; }
+  .controlTrigger { font-size: 0.54rem; padding-inline: 0.7rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chapter,
+  .controlIndex { transition: none; }
+}

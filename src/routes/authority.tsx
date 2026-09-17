@@ -1,4 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { useState } from "react";
 import { ArrowDownRight, History, ExternalLink } from "lucide-react";
 import {
@@ -20,21 +22,7 @@ import { useKavach } from "@/lib/kavach-store";
 import { formatDateTime, formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/authority")({
-  head: () => ({
-    meta: [
-      { title: "Authority universe — KavachPay" },
-      {
-        name: "description",
-        content:
-          "Inspect live financial authority, maximum reachable exposure, and the events that changed it.",
-      },
-    ],
-  }),
-  component: AuthorityPage,
-});
-
-function AuthorityPage() {
+export default function AuthorityPage() {
   const {
     history,
     maxPossibleSpend,
@@ -58,7 +46,7 @@ function AuthorityPage() {
         description="A live map of who can spend, how much remains, and every event that changed your financial blast radius."
         actions={
           <Button variant="outline" asChild>
-            <Link to="/rules">Create child mandate</Link>
+            <Link href="/rules">Create child mandate</Link>
           </Button>
         }
       />
@@ -252,8 +240,7 @@ function AuthorityPage() {
 
               <Button variant="outline" className="mt-5 w-full" asChild>
                 <Link
-                  to="/agents/$agentId"
-                  params={{ agentId: selectedAgent.id }}
+                  href={`/agents/${selectedAgent.id}`}
                 >
                   Inspect mandate <ExternalLink className="h-3.5 w-3.5" />
                 </Link>

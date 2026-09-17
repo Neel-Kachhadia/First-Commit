@@ -1,4 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import { Check, Copy, ExternalLink, X } from "lucide-react";
 import { ApprovalGlyph, ReviewGlyph } from "@/components/kavach/icons";
 import { toast } from "sonner";
@@ -7,21 +9,7 @@ import { PageHeader } from "@/components/kavach/primitives";
 import { useKavach } from "@/lib/kavach-store";
 import { formatDateTime, formatINR } from "@/lib/kavach-data";
 
-export const Route = createFileRoute("/approvals")({
-  head: () => ({
-    meta: [
-      { title: "Approvals — KavachPay step-up requests" },
-      {
-        name: "description",
-        content:
-          "Review agent payments that exceeded their rule and decide whether to approve or decline each step-up request.",
-      },
-    ],
-  }),
-  component: ApprovalsPage,
-});
-
-function ApprovalsPage() {
+export default function ApprovalsPage() {
   const { approvals, approveRequest, denyRequest, getAgent, remainingFor } =
     useKavach();
   const totalWaiting = approvals.reduce(
@@ -36,7 +24,7 @@ function ApprovalsPage() {
         description="Payments that crossed an agent's autonomous boundary. Review the exact rule and approve a one-time exception—or stop it."
         actions={
           <Button variant="outline" asChild>
-            <Link to="/activity">Open decision log</Link>
+            <Link href="/activity">Open decision log</Link>
           </Button>
         }
       />
@@ -181,8 +169,7 @@ function ApprovalsPage() {
                     </button>
                     {agent ? (
                       <Link
-                        to="/agents/$agentId"
-                        params={{ agentId: agent.id }}
+                        href={`/agents/${agent.id}`}
                         className="inline-flex items-center gap-1 hover:text-foreground"
                       >
                         Inspect mandate <ExternalLink className="h-3 w-3" />

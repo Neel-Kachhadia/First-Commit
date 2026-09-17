@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+"use client";
+
 import { useMemo, useState } from "react";
 import { CheckCircle2, Clock3, Filter, Search, ShieldX } from "lucide-react";
 import { DecisionGlyph } from "@/components/kavach/icons";
@@ -28,20 +29,6 @@ import {
 } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/activity")({
-  head: () => ({
-    meta: [
-      { title: "Decision Feed — KavachPay" },
-      {
-        name: "description",
-        content:
-          "An explainable ledger of every agent payment attempt and its complete causal record.",
-      },
-    ],
-  }),
-  component: ActivityPage,
-});
-
 const FILTERS: { key: LedgerStatus | "all"; label: string }[] = [
   { key: "all", label: "All decisions" },
   { key: "allowed", label: "Allowed" },
@@ -49,7 +36,7 @@ const FILTERS: { key: LedgerStatus | "all"; label: string }[] = [
   { key: "denied", label: "Denied" },
 ];
 
-function ActivityPage() {
+export default function ActivityPage() {
   const { ledger, agents, getAgent } = useKavach();
   const [filter, setFilter] = useState<LedgerStatus | "all">("all");
   const [query, setQuery] = useState("");

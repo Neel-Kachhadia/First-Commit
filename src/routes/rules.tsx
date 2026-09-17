@@ -1,4 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -25,20 +28,6 @@ import { PageHeader, StatusPill } from "@/components/kavach/primitives";
 import { useKavach } from "@/lib/kavach-store";
 import { CATEGORIES, formatINR, type LedgerStatus } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
-
-export const Route = createFileRoute("/rules")({
-  head: () => ({
-    meta: [
-      { title: "Mandate Studio — KavachPay" },
-      {
-        name: "description",
-        content:
-          "Define, test, review and activate a scoped financial mandate.",
-      },
-    ],
-  }),
-  component: RulesPage,
-});
 
 const CATEGORY_PRESETS: Record<
   string,
@@ -147,9 +136,9 @@ function evaluateDraft(
   };
 }
 
-function RulesPage() {
+export default function RulesPage() {
   const { createAgent } = useKavach();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [draft, setDraft] = useState<Draft>(initialDraft);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -234,7 +223,7 @@ function RulesPage() {
     toast.success("Mandate activated", {
       description: `${draft.name} now holds ${formatINR(Number(draft.limit))} per ${draft.period.toLowerCase()}.`,
     });
-    navigate({ to: "/agents/$agentId", params: { agentId: id } });
+    router.push(`/agents/${id}`);
   };
 
   return (
@@ -244,7 +233,7 @@ function RulesPage() {
         description="Define financial intent, prove the boundaries against the current draft, then review the exact policy artifact before activation."
         actions={
           <Button variant="outline" asChild>
-            <Link to="/agents">
+            <Link href="/agents">
               View active mandates <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>

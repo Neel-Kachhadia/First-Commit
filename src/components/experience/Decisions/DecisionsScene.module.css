@@ -1,0 +1,482 @@
+.section {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  color: var(--kp-ivory);
+  isolation: isolate;
+  z-index: 4;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: clamp(0.45rem, 1.3vh, 0.95rem) var(--page-gutter);
+  overflow: hidden;
+  box-sizing: border-box;
+  background-color: transparent;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Top Header Bar */
+/* -------------------------------------------------------------------------- */
+.sceneHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: var(--rule-ivory);
+  padding-bottom: 0.8vh;
+  position: relative;
+  z-index: 5;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+}
+
+.sceneIndex {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.72rem, 0.9vw, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--kp-red);
+}
+
+.headerDivider {
+  color: var(--kp-muted);
+  font-size: 0.8em;
+}
+
+.headerTitle {
+  font-family: var(--font-admin), sans-serif;
+  font-size: clamp(0.95rem, 1.35vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kp-ivory);
+}
+
+.headerRight {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.52rem, 0.65vw, 0.72rem);
+  letter-spacing: 0.16em;
+}
+
+.headerSub {
+  color: var(--kp-ivory);
+}
+
+.headerMeta {
+  color: var(--kp-muted);
+}
+
+/* -------------------------------------------------------------------------- */
+/* 3 Horizontal Evaluation Lanes (Contact Sheet / Film Structure) */
+/* -------------------------------------------------------------------------- */
+.lanesBoard {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  position: relative;
+  border-bottom: var(--rule-ivory);
+  gap: 0;
+}
+
+.lane {
+  min-height: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: clamp(90px, 10vw, 140px) 1fr clamp(130px, 13vw, 190px);
+  align-items: center;
+  border-top: var(--rule-ivory);
+  padding: 0 0.5vw;
+  overflow: hidden;
+}
+
+/* Left Lane Identity */
+.laneIdentity {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  z-index: 3;
+}
+
+.laneLetter {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.75rem, 0.95vw, 1rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--kp-muted);
+}
+
+.laneTagWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.laneTag {
+  font-family: var(--font-display), serif;
+  font-size: clamp(1.8rem, 2.8vw, 3.2rem);
+  font-weight: 400;
+  line-height: 0.85;
+  letter-spacing: -0.025em;
+  color: var(--kp-ivory);
+  white-space: nowrap;
+  display: inline-block;
+  will-change: transform, clip-path, opacity;
+}
+
+.tagStepUp {
+  color: var(--kp-ivory);
+}
+
+.tagDeny {
+  color: var(--kp-ivory);
+}
+
+.laneRule {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.48rem, 0.58vw, 0.64rem);
+  letter-spacing: 0.18em;
+  color: var(--kp-muted);
+}
+
+/* Sprocket Track Details */
+.sprocketTrack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.55;
+}
+
+.sprocketRow {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(235, 225, 201, 0.16) 0,
+    rgba(235, 225, 201, 0.16) 7px,
+    transparent 7px,
+    transparent 18px
+  );
+}
+
+/* Travel Path Track & Carriage */
+.trackContainer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  z-index: 2;
+}
+
+.trackLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: rgba(235, 225, 201, 0.22);
+  z-index: 1;
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.trackLine::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  width: 1px;
+  height: 9px;
+  background-color: rgba(235, 225, 201, 0.45);
+}
+
+/* Terminated route lines for Deny */
+.trackLineTerminated {
+  position: absolute;
+  left: 0;
+  width: 48%;
+  height: 1px;
+  background-color: rgba(169, 42, 36, 0.65);
+  z-index: 1;
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.trackRemainingVoid {
+  position: absolute;
+  left: 48%;
+  right: 0;
+  height: 1px;
+  border-top: 1px dashed rgba(235, 225, 201, 0.14);
+  z-index: 1;
+}
+
+/* Hold Gate for Step-Up (Overhead mechanical clamp) */
+.holdGate {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.5rem, 0.6vw, 0.66rem);
+  letter-spacing: 0.16em;
+  color: var(--kp-ivory);
+  background-color: rgba(9, 10, 8, 0.92);
+  padding: 0.22rem 0.55rem;
+  border: 1px solid rgba(235, 225, 201, 0.35);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.gateBracketLeft,
+.gateBracketRight {
+  color: var(--kp-red);
+  font-weight: 700;
+}
+
+.gateLabel {
+  font-weight: 600;
+}
+
+/* Route Sever Barrier for Deny (Overhead terminal barricade) */
+.routeBarrier {
+  position: absolute;
+  left: 48%;
+  top: 8px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background-color: rgba(9, 10, 8, 0.95);
+  padding: 0.22rem 0.65rem;
+  border: 1px solid var(--kp-red);
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.5rem, 0.6vw, 0.66rem);
+  letter-spacing: 0.18em;
+  color: var(--kp-red);
+  font-weight: 700;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.barrierTick {
+  width: 4px;
+  height: 4px;
+  background-color: var(--kp-red);
+}
+
+/* Receipt Carriage (Moving along rail) */
+.receiptCarriage {
+  position: absolute;
+  left: 36%;
+  transform: translateX(-50%);
+  z-index: 3;
+  will-change: transform, opacity;
+}
+
+/* Right Restrained Annotation */
+.laneOutcome {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  z-index: 3;
+  text-align: right;
+}
+
+.outcomeLine {
+  font-family: var(--font-admin), sans-serif;
+  font-size: clamp(0.68rem, 0.85vw, 0.95rem);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--kp-ivory);
+  text-transform: uppercase;
+}
+
+.outcomeSub {
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.48rem, 0.56vw, 0.62rem);
+  letter-spacing: 0.14em;
+  color: var(--kp-muted);
+  text-transform: uppercase;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Bottom Administrative Bar */
+/* -------------------------------------------------------------------------- */
+.sceneFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.8vh;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.52rem, 0.65vw, 0.72rem);
+  letter-spacing: 0.16em;
+  color: var(--kp-muted);
+  position: relative;
+  z-index: 5;
+}
+
+.footerBrand {
+  color: var(--kp-ivory);
+  font-weight: 600;
+}
+
+.footerTagline {
+  color: var(--kp-muted);
+}
+
+.footerCode {
+  color: var(--kp-red);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mobile Recomposed Layout (<= 48rem / 768px) */
+/* -------------------------------------------------------------------------- */
+@media (max-width: 48rem) {
+  .stage {
+    height: 100vh;
+    padding: 3vh var(--page-gutter) 2vh;
+  }
+
+  .lanesBoard {
+    height: 85vh;
+  }
+
+  .lane {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      "identity outcome"
+      "track track";
+    padding: 0.35rem 0;
+    gap: 0.2rem;
+  }
+
+  .laneIdentity {
+    grid-area: identity;
+    align-items: baseline;
+    gap: 0.55rem;
+  }
+
+  .laneTagWrap {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.45rem;
+  }
+
+  .laneTag {
+    font-size: 1.4rem;
+  }
+
+  .laneRule {
+    font-size: 0.48rem;
+  }
+
+  .laneOutcome {
+    grid-area: outcome;
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .outcomeLine {
+    font-size: 0.58rem;
+  }
+
+  .outcomeSub {
+    font-size: 0.44rem;
+  }
+
+  .trackContainer {
+    grid-area: track;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .receiptCarriage {
+    left: 32%;
+  }
+
+  .holdGate,
+  .routeBarrier {
+    top: 2px;
+    font-size: 0.45rem;
+    padding: 0.14rem 0.38rem;
+  }
+}
+
+/* Approved receipt carrier: same viewport datum in Decisions and Delegation. */
+.evidenceCarrier {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 25;
+  width: max-content;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .section {
+    height: auto;
+    margin-top: 0;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  .stage {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .receiptCarriage {
+    transform: translateX(0) !important;
+    opacity: 1 !important;
+  }
+
+  .section [data-stamp="allow"],
+  .section [data-stamp="stepup"],
+  .section [data-stamp="deny"] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .section [data-gate="stepup"],
+  .section [data-barrier="deny"],
+  .section [data-note="allow"],
+  .section [data-note="stepup"],
+  .section [data-note="deny"] {
+    opacity: 1 !important;
+  }
+}

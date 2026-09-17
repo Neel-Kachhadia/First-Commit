@@ -1,4 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+"use client";
+
+import Link from "next/link";
 import {
   Activity,
   ArrowRight,
@@ -30,20 +32,6 @@ import { useKavach } from "@/lib/kavach-store";
 import { formatDateTime, formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Command Center — KavachPay" },
-      {
-        name: "description",
-        content:
-          "Monitor live financial authority, exposure, approvals and agent payment decisions.",
-      },
-    ],
-  }),
-  component: Overview,
-});
-
 const currency = (value: number) => formatINR(value);
 
 function MetricCard({
@@ -72,7 +60,7 @@ function MetricCard({
   );
 }
 
-function Overview() {
+export default function Overview() {
   const {
     agents,
     ledger,
@@ -105,7 +93,7 @@ function Overview() {
           </p>
         </div>
         <Button asChild className="self-start sm:self-auto">
-          <Link to="/rules">
+          <Link href="/rules">
             <MandatePlusGlyph className="h-4 w-4" />
             Create mandate
           </Link>
@@ -148,14 +136,14 @@ function Overview() {
                 <p className="text-sm font-medium">Exposure by agent</p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">Remaining autonomous authority</p>
               </div>
-              <Link to="/authority" className="text-xs font-medium hover:text-destructive">Open graph →</Link>
+              <Link href="/authority" className="text-xs font-medium hover:text-destructive">Open graph →</Link>
             </div>
             <div>
               {agents.map((agent) => {
                 const remaining = remainingFor(agent);
                 const pct = totalAuthority ? (remaining / totalAuthority) * 100 : 0;
                 return (
-                  <Link key={agent.id} to="/agents/$agentId" params={{agentId: agent.id}} className="exposure-ledger-row grid grid-cols-[minmax(130px,1fr)_minmax(100px,.8fr)_auto] items-center gap-4 border-b border-border px-5 py-3 last:border-b-0 sm:px-6">
+                  <Link key={agent.id} href={`/agents/${agent.id}`} className="exposure-ledger-row grid grid-cols-[minmax(130px,1fr)_minmax(100px,.8fr)_auto] items-center gap-4 border-b border-border px-5 py-3 last:border-b-0 sm:px-6">
                     <div className="min-w-0">
                       <p className="truncate text-xs font-medium">{agent.name}</p>
                       <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{agent.rule.category}</p>
@@ -208,7 +196,7 @@ function Overview() {
               </p>
             </div>
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/agents">
+              <Link href="/agents">
                 View all <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>
@@ -220,8 +208,7 @@ function Overview() {
               return (
                 <Link
                   key={agent.id}
-                  to="/agents/$agentId"
-                  params={{ agentId: agent.id }}
+                  href={`/agents/${agent.id}`}
                   className="agent-row group grid gap-4 border-b border-border px-5 py-4 last:border-b-0 sm:grid-cols-[minmax(180px,1.1fr)_minmax(150px,1fr)_auto] sm:items-center"
                 >
                   <div className="min-w-0">
@@ -343,7 +330,7 @@ function Overview() {
               </div>
               {approvals.length > 1 ? (
                 <Button variant="ghost" size="sm" className="mt-2" asChild>
-                  <Link to="/approvals">
+                  <Link href="/approvals">
                     Review {approvals.length - 1} more requests
                   </Link>
                 </Button>
@@ -379,7 +366,7 @@ function Overview() {
             </p>
           </div>
           <Button variant="outline" size="sm" asChild>
-            <Link to="/activity">
+            <Link href="/activity">
               Open decisions <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </Button>

@@ -1,0 +1,221 @@
+.section {
+  background: var(--kp-black);
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.frame {
+  background: var(--kp-black);
+  color: var(--kp-ivory);
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.stock,
+.stock::after {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.stock {
+  background:
+    radial-gradient(ellipse at 68% 74%, rgba(232, 219, 186, 0.035), transparent 26%),
+    var(--kp-black);
+}
+
+.stock::after {
+  background-image: var(--kp-stock-noise);
+  content: "";
+  mix-blend-mode: screen;
+  opacity: 0.26;
+}
+
+.aperture {
+  align-items: center;
+  border: var(--rule-ivory);
+  display: flex;
+  font-family: var(--font-admin), sans-serif;
+  font-size: clamp(0.75rem, 1vw, 1rem);
+  font-weight: 600;
+  justify-content: space-between;
+  left: 11vw;
+  letter-spacing: 0.14em;
+  opacity: 0;
+  padding: 1.1rem 1.3rem 0.9rem;
+  position: absolute;
+  right: 11vw;
+  text-transform: uppercase;
+  top: 27vh;
+}
+
+.wordmark {
+  bottom: 11.5vh;
+  clip-path: inset(0 0 0 0);
+  font-family: var(--font-display), serif;
+  font-size: clamp(6.2rem, 15.4vw, 18rem);
+  font-weight: 400;
+  left: calc(var(--page-gutter) - 0.025em);
+  letter-spacing: -0.035em;
+  line-height: 0.92;
+  padding-bottom: 0.12em;
+  position: absolute;
+  white-space: nowrap;
+  will-change: transform, clip-path;
+}
+
+.statement {
+  bottom: 3.6vh;
+  display: flex;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.55rem, 0.72vw, 0.75rem);
+  justify-content: space-between;
+  left: var(--page-gutter);
+  letter-spacing: 0.24em;
+  line-height: 1.4;
+  position: absolute;
+  right: var(--page-gutter);
+  z-index: 4;
+}
+
+.statement p:last-child { text-align: right; }
+
+.cornerMark {
+  border: var(--rule-ivory);
+  bottom: 22vh;
+  font-family: var(--font-admin), sans-serif;
+  font-size: 0.8rem;
+  line-height: 0.9;
+  padding: 0.48rem;
+  position: absolute;
+  right: var(--page-gutter);
+  text-align: center;
+}
+
+.registrationMark {
+  align-items: center;
+  color: var(--kp-red-soft);
+  display: flex;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.48rem, 0.58vw, 0.62rem);
+  gap: 0.5rem;
+  left: var(--page-gutter);
+  letter-spacing: 0.22em;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: calc(48% - 1.35rem);
+  z-index: 6;
+}
+
+.regCross {
+  color: var(--kp-red);
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.rule {
+  background: var(--kp-ivory);
+  height: 1px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  transform: scaleX(0);
+  top: 48%;
+  transform-origin: center;
+  z-index: 5;
+}
+
+.paperReveal {
+  background-color: var(--kp-paper-light);
+  background-image: image-set(
+    url("/assets/kavachpay/materials/paper-master-ivory-900.webp") 1x,
+    url("/assets/kavachpay/materials/paper-master-ivory-1600.webp") 2x
+  );
+  background-size: cover;
+  clip-path: inset(48% 0 52% 0);
+  inset: 0;
+  position: absolute;
+  z-index: 2;
+}
+
+.paperReveal::before {
+  background:
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.3), transparent 68%),
+    var(--kp-stock-noise);
+  clip-path: polygon(0 42%, 3% 22%, 7% 55%, 12% 28%, 18% 64%, 23% 36%, 29% 58%, 35% 19%, 41% 51%, 47% 31%, 54% 68%, 60% 34%, 67% 57%, 73% 25%, 80% 62%, 87% 32%, 93% 54%, 100% 24%, 100% 100%, 0 100%);
+  content: "";
+  height: 12px;
+  left: 0;
+  opacity: 0.48;
+  position: absolute;
+  right: 0;
+  top: -7px;
+}
+
+.paperBridge {
+  left: var(--page-gutter);
+  opacity: 0;
+  position: absolute;
+  top: 18vh;
+  width: min(35vw, 520px);
+  z-index: 3;
+}
+
+.bridgeLabel {
+  color: var(--kp-red-soft);
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.58rem, 0.7vw, 0.74rem);
+  font-style: normal;
+  letter-spacing: 0.17em;
+  margin-bottom: clamp(1.4rem, 3vh, 2.7rem);
+}
+
+.bridgeTitle {
+  color: var(--kp-ink);
+  display: block;
+  font-family: var(--font-display), serif;
+  font-size: clamp(4rem, 7vw, 8.2rem);
+  font-weight: 400;
+  letter-spacing: -0.038em;
+  line-height: 0.82;
+  margin-left: -0.035em;
+}
+
+.bridgeMeta {
+  border-top: 1px solid rgba(20, 19, 15, 0.25);
+  color: rgba(20, 19, 15, 0.65);
+  display: block;
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.55rem, 0.68vw, 0.72rem);
+  font-style: normal;
+  letter-spacing: 0.16em;
+  margin-top: clamp(2rem, 5vh, 4rem);
+  padding-top: 0.85rem;
+  width: 63%;
+}
+
+@media (max-width: 760px) {
+  .section { height: 100%; }
+  .aperture { align-items: flex-start; flex-direction: column; gap: 0.45rem; left: var(--page-gutter); right: var(--page-gutter); top: 22vh; }
+  .wordmark { bottom: 19vh; font-size: clamp(5.2rem, 25vw, 8rem); white-space: normal; width: 92vw; }
+  .statement { bottom: 4.5vh; }
+  .cornerMark { bottom: 30vh; }
+  .paperBridge strong { font-size: clamp(3.5rem, 14vw, 5.4rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section { height: 100%; }
+  .aperture { clip-path: none; opacity: 1; }
+  .rule,
+  .transitionCue,
+  .paperReveal { display: none; }
+}

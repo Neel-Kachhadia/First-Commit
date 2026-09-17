@@ -1,16 +1,23 @@
 # Dependencies
-node_modules/
+/node_modules/
+/.pnp
+.pnp.*
 
-# Build and framework output
-.output/
-.tanstack/
-.wrangler/
-dist/
+# Next.js build output
+/.next/
+/out/
 
-# This repository uses Bun's lockfile.
-package-lock.json
+# Generated build and audit output
+/.output/
+/output/
+/.tanstack/
+/.wrangler/
+/dist/
+/coverage/
+/playwright-report/
+/test-results/
 
-# Local environment files
+# Environment files
 .env
 .env.*
 !.env.example
@@ -22,15 +29,18 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# TypeScript cache
+*.tsbuildinfo
+next-env.d.ts
+
 # Editor and operating-system files
 .DS_Store
 .idea/
 .vscode/
 *.swp
 
-# Test and coverage output
-coverage/
-.nyc_output/
-
-# TypeScript cache
-*.tsbuildinfo
+# Local agent tooling
+/.claude/
+/.agents/
+/.codex/
+/codex-skills/
