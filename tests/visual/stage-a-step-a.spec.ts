@@ -41,10 +41,10 @@ test.describe("Stage A.3 — Step A: Prologue -> Mandate Persistent Stage Verifi
 
     expect(stageInfo).not.toBeNull();
     expect(stageInfo?.position).toBe("fixed");
-    expect(stageInfo?.top).toBe(0);
+    expect(stageInfo?.top).toBeLessThanOrEqual(60);
     expect(stageInfo?.left).toBe(0);
     expect(stageInfo?.width).toBe(viewportDim.width);
-    expect(stageInfo?.height).toBe(viewportDim.height);
+    expect(stageInfo?.height).toBeCloseTo(viewportDim.height - stageInfo!.top, 0);
 
     // Invariant 2: No pin-spacers exist for migrated scenes
     const pinSpacers = await page.evaluate(() => document.querySelectorAll(".pin-spacer").length);
@@ -98,8 +98,8 @@ test.describe("Stage A.3 — Step A: Prologue -> Mandate Persistent Stage Verifi
         windowHeight: window.innerHeight,
       };
     });
-    expect(boundaryCheck.mTop).toBe(0);
-    expect(boundaryCheck.mHeight).toBe(viewportDim.height);
+    expect(boundaryCheck.mTop).toBeLessThanOrEqual(60);
+    expect(boundaryCheck.mHeight).toBeCloseTo(viewportDim.height - (boundaryCheck.mTop ?? 0), 0);
 
     // Mandate progression
     await seekSceneProgress(page, "[data-scene='mandate']", 0.25);

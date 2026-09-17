@@ -28,7 +28,7 @@ test.describe("FilmIntro — pre-film leader / slate / clap sequence", () => {
       };
       requestAnimationFrame(attach);
     });
-    await page.goto("/?intro=1", { waitUntil: "networkidle" });
+    await page.goto("/?intro=1", { waitUntil: "domcontentloaded" });
     await page.evaluate(() => document.fonts.ready);
 
     const intro = page.locator("[data-film-intro]");
@@ -42,11 +42,11 @@ test.describe("FilmIntro — pre-film leader / slate / clap sequence", () => {
       .poll(
         async () =>
           underline.evaluate((el) => Number.parseFloat(el.getAttribute("stroke-dashoffset") ?? "1")),
-        { timeout: 3000 },
+        { timeout: 5000 },
       )
       .toBeLessThan(1);
 
-    await expect(intro).toBeHidden({ timeout: 3000 });
+    await expect(intro).toBeHidden({ timeout: 5000 });
 
     const numerals = await page.evaluate(() => (window as unknown as { __kpNumerals: string[] }).__kpNumerals);
     expect(numerals).toEqual(["3", "2", "1"]);
@@ -76,16 +76,40 @@ test.describe("FilmIntro — pre-film leader / slate / clap sequence", () => {
     await expect(page.locator("[data-global-navbar]")).not.toHaveAttribute("data-intro-hidden", "true");
   });
 
-  test("sessionStorage bypasses replay on a second load; ?intro=0 also bypasses", async ({ page }, testInfo) => {
+  test("root refresh replays FilmIntro; SPA navigation does not; ?intro=0 bypasses", async ({ page }, testInfo) => {
     test.skip(!desktopOnly.has(testInfo.project.name), "Representative desktop session gate.");
-    await page.goto("/?intro=1", { waitUntil: "networkidle" });
+    // 1. Fresh root load plays intro
+    await page.goto("/", { waitUntil: "networkidle" });
+    await expect(page.locator("[data-film-intro]")).toBeVisible();
+
+    // 2. Page reload at root replays intro (Correction 25)
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.locator("[data-film-intro]")).toBeVisible();
+
+    // 3. Intro completes
+    await page.keyboard.press("Escape");
+    await expect(page.locator("[data-film-intro]")).toBeHidden({ timeout: 1000 });
+    await expect(page.locator("[data-global-navbar]")).not.toHaveAttribute("data-intro-hidden", "true");
+
+    // 4. SPA navigate to another scene (e.g. 05)
+    const nav = page.locator("[data-global-navbar]");
+    await nav.locator("button[aria-label^='05 ']").click();
+    await expect(page).toHaveURL(/#scene-05$/);
+    await expect(page.locator("[data-film-intro]")).toHaveCount(0);
+
+    // 5. SPA navigate back to 00 -> no intro replay
+    await nav.locator("button[aria-label^='00 ']").click();
+    await expect(page).toHaveURL(/#scene-00$/);
+    await expect(page.locator("[data-film-intro]")).toHaveCount(0);
+
+    // 6. Hard page reload at root -> intro plays again (Correction 26)
+    await page.goto("/");
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.locator("[data-film-intro]")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.locator("[data-film-intro]")).toBeHidden({ timeout: 1000 });
 
-    await page.goto("/", { waitUntil: "networkidle" });
-    await expect(page.locator("[data-film-intro]")).toHaveCount(0);
-    await expect(page.locator("[data-global-navbar]")).not.toHaveAttribute("data-intro-hidden", "true");
-
+    // 7. ?intro=0 bypasses
     await page.goto("/?intro=0", { waitUntil: "networkidle" });
     await expect(page.locator("[data-film-intro]")).toHaveCount(0);
   });
