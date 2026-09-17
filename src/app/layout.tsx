@@ -32,6 +32,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${display.variable} ${admin.variable} ${mono.variable}`}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var w=console.warn;console.warn=function(){if(arguments[0]&&typeof arguments[0]==='string'&&arguments[0].indexOf('THREE.Clock: This module has been deprecated')!==-1)return;w.apply(console,arguments);};})();`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
