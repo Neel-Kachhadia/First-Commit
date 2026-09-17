@@ -1,0 +1,65 @@
+.stage {
+  position: fixed;
+  inset: var(--kp-global-nav-safe-area) 0 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  background-color: var(--kp-black);
+}
+
+.stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.fallback {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: none;
+}
+
+.fallback[data-active="true"] {
+  opacity: 1;
+}
+
+.fallback::before,
+.fallback::after {
+  position: absolute;
+  top: 50%;
+  left: 76%;
+  width: min(38vw, 34rem);
+  aspect-ratio: 0.69;
+  content: "";
+  background-position: center;
+  background-size: cover;
+  box-shadow: 0 1.8rem 4rem rgb(0 0 0 / 24%);
+  transform-origin: center;
+}
+
+.fallback::before {
+  background-image: url("/assets/kavachpay/materials/paper-master-ivory-1600.webp");
+  transform: translate(-52%, -49%) rotate(-1.5deg);
+}
+
+.fallback::after {
+  background-image: url("/assets/kavachpay/materials/paper-handled-authority-1600.webp");
+  opacity: 0.72;
+  transform: translate(-45%, -47%) rotate(2.2deg) scale(0.97);
+}
+
+@media (max-width: 48rem) {
+  .stage {
+    display: none;
+  }
+
+  .fallback::before,
+  .fallback::after {
+    left: 56%;
+    width: min(84vw, 30rem);
+  }
+}
