@@ -1,0 +1,6 @@
+{
+  "app": "npx ts-node bin/kavachpay-infrastructure.ts",
+  "context": {
+    "environment": "dev"
+  }
+}
