@@ -1,0 +1,140 @@
+.leader {
+  align-items: center;
+  /* Deliberately light — "near-black numerals" only read against a genuinely
+     lighter ivory/grey film-stock field, not another near-black. */
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(255, 248, 230, 0.14), transparent 62%),
+    radial-gradient(ellipse at center, #8a806c 0%, #5d5647 55%, #3c372c 100%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  position: absolute;
+  will-change: transform, opacity;
+}
+
+.leader::after {
+  background-image: var(--kp-stock-noise);
+  content: "";
+  inset: -20%;
+  mix-blend-mode: overlay;
+  opacity: 0.22;
+  pointer-events: none;
+  position: absolute;
+}
+
+.registration {
+  align-items: center;
+  aspect-ratio: 1;
+  display: flex;
+  height: min(52vh, 52vw);
+  justify-content: center;
+  opacity: 0.5;
+  position: absolute;
+}
+
+.ring {
+  border: 1px solid rgba(235, 225, 201, 0.4);
+  border-radius: 50%;
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+
+.ring::before {
+  border: 1px solid rgba(235, 225, 201, 0.22);
+  border-radius: 50%;
+  content: "";
+  inset: 8%;
+  position: absolute;
+}
+
+.crosshairV,
+.crosshairH {
+  background: rgba(235, 225, 201, 0.3);
+  position: absolute;
+}
+
+.crosshairV { height: 100%; width: 1px; }
+.crosshairH { height: 1px; width: 100%; }
+
+.wedge {
+  clip-path: polygon(50% 50%, 50% 0%, 74% 0%);
+  height: 100%;
+  position: absolute;
+  transform-origin: 50% 50%;
+  width: 100%;
+}
+
+.wedge::after {
+  background: rgba(169, 42, 36, 0.55);
+  content: "";
+  inset: 0;
+}
+
+.numeral {
+  color: #131110;
+  font-family: var(--font-admin), sans-serif;
+  font-size: clamp(8.5rem, 22vw, 15rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  position: relative;
+  text-shadow: 0 1px 0 rgba(255, 248, 230, 0.18);
+}
+
+.edgeMarkTop,
+.edgeMarkBottom {
+  color: rgba(19, 17, 16, 0.62);
+  font-family: var(--font-mono), monospace;
+  font-size: clamp(0.55rem, 1vw, 0.72rem);
+  letter-spacing: 0.28em;
+  position: absolute;
+}
+
+.edgeMarkTop { top: 5.5%; }
+.edgeMarkBottom { bottom: 5.5%; }
+
+.splice {
+  background: rgba(240, 231, 211, 0.9);
+  height: 3px;
+  inset: auto 0 38% 0;
+  opacity: 0;
+  position: absolute;
+}
+
+.scratchA,
+.scratchB {
+  background: rgba(240, 231, 211, 0.14);
+  height: 140%;
+  opacity: 0.5;
+  position: absolute;
+  top: -20%;
+  width: 1px;
+}
+
+.scratchA { left: 32%; transform: rotate(0.6deg); }
+.scratchB { left: 68%; transform: rotate(-0.4deg); opacity: 0.3; }
+
+.dust {
+  background:
+    radial-gradient(1px 1px at 22% 30%, rgba(240, 231, 211, 0.5), transparent 60%),
+    radial-gradient(1px 1px at 71% 62%, rgba(240, 231, 211, 0.4), transparent 60%),
+    radial-gradient(1.5px 1.5px at 45% 78%, rgba(240, 231, 211, 0.35), transparent 60%),
+    radial-gradient(1px 1px at 84% 24%, rgba(240, 231, 211, 0.4), transparent 60%);
+  inset: 0;
+  opacity: 0.7;
+  position: absolute;
+}
+
+.frameAdvanceFlash {
+  background: rgba(240, 231, 211, 0.9);
+  inset: 0;
+  opacity: 0;
+  position: absolute;
+}
+
+@media (max-width: 56rem) {
+  .registration { height: min(40vh, 62vw); }
+  .edgeMarkTop, .edgeMarkBottom { letter-spacing: 0.18em; }
+}

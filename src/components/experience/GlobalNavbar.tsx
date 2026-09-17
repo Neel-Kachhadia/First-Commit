@@ -14,6 +14,7 @@ const ACTION_NOTICE = "Destination reserved for the application phase; not imple
 
 export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps) {
   const activeScene = useExperienceStore((state) => state.activeScene);
+  const introComplete = useExperienceStore((state) => state.introComplete);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const navRef = useRef<HTMLElement>(null);
@@ -67,7 +68,14 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
   }, [menuOpen, setOpen]);
 
   return (
-    <nav ref={navRef} className={styles.nav} aria-label="KavachPay control index" data-global-navbar>
+    <nav
+      ref={navRef}
+      className={styles.nav}
+      aria-label="KavachPay control index"
+      data-global-navbar
+      data-intro-hidden={!introComplete || undefined}
+      inert={!introComplete}
+    >
       <button className={styles.brand} type="button" onClick={() => navigate("prologue")}>
         KAVACHPAY
       </button>

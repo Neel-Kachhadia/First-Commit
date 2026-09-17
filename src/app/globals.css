@@ -22,6 +22,8 @@
   --kp-stamp-noise: var(--kp-stock-noise);
   --kp-global-nav-height: 3.6rem;
   --kp-global-nav-safe-area: var(--kp-global-nav-height);
+  /* Layer scale: cinematicStage 3, .grain 30, GlobalNavbar .nav 100, mobile controlIndex 110, FilmIntro (top, pre-film only) 200. */
+  --kp-z-intro: 200;
 }
 
 *,

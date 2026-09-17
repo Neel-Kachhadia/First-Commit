@@ -14,6 +14,7 @@ import { ConcurrencyScene } from "./Concurrency/ConcurrencyScene";
 import { CausalReplayScene } from "./CausalReplay/CausalReplayScene";
 import { DebugStageHUD } from "./DebugStageHUD";
 import { GlobalNavbar } from "./GlobalNavbar";
+import { FilmIntro } from "./FilmIntro/FilmIntro";
 import { experienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import {
@@ -44,6 +45,8 @@ export function KavachExperience() {
   const lenisRef = useRef<Lenis | null>(null);
   const menuScrollYRef = useRef(0);
   const previousOverflowRef = useRef({ html: "", body: "" });
+  const introOverflowRef = useRef({ html: "", body: "" });
+  const introLockedRef = useRef(false);
 
   const navigateScene = useCallback((key: RegisteredSceneKey) => {
     const scene = SCENE_BY_KEY[key];
@@ -91,6 +94,35 @@ export function KavachExperience() {
     document.documentElement.style.overflow = previousOverflowRef.current.html;
     document.body.style.overflow = previousOverflowRef.current.body;
     window.scrollTo({ top: menuScrollYRef.current, left: 0, behavior: "auto" });
+    if (stage) {
+      stage.inert = false;
+      stage.removeAttribute("aria-hidden");
+    }
+    lenisRef.current?.start();
+    ScrollTrigger.update();
+  }, []);
+
+  const lockForIntro = useCallback(() => {
+    const stage = document.querySelector<HTMLElement>("[data-cinematic-stage]");
+    introLockedRef.current = true;
+    introOverflowRef.current = {
+      html: document.documentElement.style.overflow,
+      body: document.body.style.overflow,
+    };
+    lenisRef.current?.stop();
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    if (stage) {
+      stage.inert = true;
+      stage.setAttribute("aria-hidden", "true");
+    }
+  }, []);
+
+  const releaseFromIntro = useCallback(() => {
+    const stage = document.querySelector<HTMLElement>("[data-cinematic-stage]");
+    introLockedRef.current = false;
+    document.documentElement.style.overflow = introOverflowRef.current.html;
+    document.body.style.overflow = introOverflowRef.current.body;
     if (stage) {
       stage.inert = false;
       stage.removeAttribute("aria-hidden");
@@ -157,6 +189,9 @@ export function KavachExperience() {
       });
       lenisRef.current = lenis;
       const activeLenis = lenis;
+      // FilmIntro's lock effect (a child) can run before this parent effect creates Lenis;
+      // converge on the correct state regardless of which fired first.
+      if (introLockedRef.current) activeLenis.stop();
       tick = (time: number) => activeLenis.raf(time * 1000);
       activeLenis.on("scroll", ScrollTrigger.update);
       gsap.ticker.add(tick);
@@ -257,6 +292,7 @@ export function KavachExperience() {
 
   return (
     <main className={styles.experience}>
+      <FilmIntro onLock={lockForIntro} onRelease={releaseFromIntro} />
       <GlobalNavbar onNavigate={navigateScene} onMenuOpenChange={handleMenuOpenChange} />
       <ExperienceCanvas />
       {isLegacy ? (
