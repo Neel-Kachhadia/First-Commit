@@ -125,7 +125,7 @@ export interface WebhookRecord {
 
   intentId?: string;
 
-  status: "PROCESSED" | "DUPLICATE" | "FAILED";
+  status: "PROCESSING" | "PROCESSED" | "DUPLICATE" | "FAILED";
 
   processedAt: string;
 }

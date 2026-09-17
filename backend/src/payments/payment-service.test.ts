@@ -227,4 +227,106 @@ describe("PaymentService", () => {
 
     expect(updateCall).toBeDefined();
   });
+
+  // ── 8. Test G: Duplicate execute() idempotency ─────────────────────────────
+
+  it("returns existing payment record on duplicate execute() without creating another Razorpay order", async () => {
+    const existingPaymentRecord = {
+      intentId: "i_test-pay-001",
+      userId: "user_001",
+      amount: 1850,
+      currency: "INR",
+      razorpayOrderId: "order_test001",
+      status: "PAYMENT_CREATED",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Simulate DB state: first call has no payment record, PutCommand saves it,
+    // subsequent calls return the saved payment record.
+    let hasPaymentRecord = false;
+    vi.mocked(intentRepository.getIntent).mockResolvedValue(buildIntent("RESERVED"));
+
+    mockDynamoSend.mockImplementation((cmd: unknown) => {
+      const command = cmd as { constructor: { name: string } };
+      if (command.constructor.name === "GetCommand") {
+        if (hasPaymentRecord) {
+          return Promise.resolve({ Item: existingPaymentRecord });
+        }
+        return Promise.resolve({ Item: null });
+      }
+      if (command.constructor.name === "PutCommand") {
+        hasPaymentRecord = true;
+        return Promise.resolve({});
+      }
+      return Promise.resolve({});
+    });
+
+    const firstResult = await paymentService.execute("i_test-pay-001");
+    expect(firstResult.success).toBe(true);
+    expect(firstResult.razorpayOrderId).toBe("order_test001");
+    expect(mockAdapter.createPayment).toHaveBeenCalledTimes(1);
+
+    // Second call: payment record already exists in DB
+    const secondResult = await paymentService.execute("i_test-pay-001");
+    expect(secondResult.success).toBe(true);
+    expect(secondResult.razorpayOrderId).toBe("order_test001");
+
+    // Must NOT have created a second Razorpay order
+    expect(mockAdapter.createPayment).toHaveBeenCalledTimes(1);
+  });
+
+  // ── 9. Concurrent race condition on PutCommand ────────────────────────────
+
+  it("handles race condition where PutCommand encounters ConditionalCheckFailedException and returns canonical payment", async () => {
+    const canonicalRecord = {
+      intentId: "i_test-pay-001",
+      userId: "user_001",
+      amount: 1850,
+      currency: "INR",
+      razorpayOrderId: "order_canonical_won_race",
+      status: "PAYMENT_CREATED",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const conditionalError = new Error("Conditional check failed");
+    conditionalError.name = "ConditionalCheckFailedException";
+
+    vi.mocked(intentRepository.getIntent).mockResolvedValue(buildIntent("RESERVED"));
+
+    mockDynamoSend.mockImplementation((cmd: unknown) => {
+      const command = cmd as { constructor: { name: string } };
+      if (command.constructor.name === "GetCommand") {
+        // Initial pre-check returns null; post-race retrieval returns canonical
+        return Promise.resolve({ Item: canonicalRecord });
+      }
+      if (command.constructor.name === "PutCommand") {
+        return Promise.reject(conditionalError);
+      }
+      return Promise.resolve({});
+    });
+
+    // We simulate initial getPaymentRecord returning null, but PutCommand failing
+    let getCallCount = 0;
+    mockDynamoSend.mockImplementation((cmd: unknown) => {
+      const command = cmd as { constructor: { name: string } };
+      if (command.constructor.name === "GetCommand") {
+        getCallCount++;
+        if (getCallCount === 1) {
+          return Promise.resolve({ Item: null }); // initial check
+        }
+        return Promise.resolve({ Item: canonicalRecord }); // canonical record retrieval
+      }
+      if (command.constructor.name === "PutCommand") {
+        return Promise.reject(conditionalError);
+      }
+      return Promise.resolve({});
+    });
+
+    const result = await paymentService.execute("i_test-pay-001");
+
+    expect(result.success).toBe(true);
+    expect(result.razorpayOrderId).toBe("order_canonical_won_race");
+  });
 });

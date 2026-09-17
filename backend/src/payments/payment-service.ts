@@ -43,7 +43,22 @@ export class PaymentService implements IPaymentService {
    * @param intentId The KavachPay intent ID
    */
   async execute(intentId: string): Promise<PaymentResult> {
-    // 1. Load the intent
+    // 1. Idempotency pre-check: If a payment record already exists for this intent,
+    //    do NOT create another Razorpay order. Return the canonical record.
+    const existingPayment = await this.getPaymentRecord(intentId);
+    if (existingPayment) {
+      console.log(
+        `[PaymentService] Payment record already exists for intent ${intentId}. ` +
+          `Returning existing Razorpay order: ${existingPayment.razorpayOrderId}`
+      );
+      return {
+        success: true,
+        razorpayOrderId: existingPayment.razorpayOrderId,
+        razorpayPaymentId: existingPayment.razorpayPaymentId,
+      };
+    }
+
+    // 2. Load the intent
     const intent = await intentRepository.getIntent(intentId);
 
     if (!intent) {
@@ -52,7 +67,7 @@ export class PaymentService implements IPaymentService {
       );
     }
 
-    // 2. Only RESERVED intents can be executed.
+    // 3. Only RESERVED intents can be executed.
     //    The Authority Engine is responsible for reaching this state.
     if (intent.status !== "RESERVED") {
       throw new Error(
@@ -64,7 +79,7 @@ export class PaymentService implements IPaymentService {
     const adapter = getRazorpayAdapter();
     const now = new Date().toISOString();
 
-    // 3. Create the Razorpay order
+    // 4. Create the Razorpay order
     let razorpayOrderId: string;
 
     try {
@@ -91,7 +106,7 @@ export class PaymentService implements IPaymentService {
       };
     }
 
-    // 4. Persist the payment record
+    // 5. Persist the payment record with atomic conditional guard
     const paymentRecord: PaymentRecord = {
       intentId,
       userId: intent.userId,
@@ -103,15 +118,35 @@ export class PaymentService implements IPaymentService {
       updatedAt: now,
     };
 
-    await this.createPaymentRecord(paymentRecord);
+    try {
+      await this.createPaymentRecord(paymentRecord);
+    } catch (err: unknown) {
+      const isConditionalFail =
+        err instanceof Error &&
+        err.name === "ConditionalCheckFailedException";
 
-    // 5. Update intent status → PAYMENT_CREATED
-    //    Uses the existing intentRepository.updateStatus() method.
+      if (isConditionalFail) {
+        // Another concurrent execution won the race to write the PAYMENT record.
+        // Return the canonical existing payment/order.
+        console.log(
+          `[PaymentService] Race condition detected for intent ${intentId}. ` +
+            `Retrieving canonical payment record.`
+        );
+        const canonical = await this.getPaymentRecord(intentId);
+        if (canonical) {
+          return {
+            success: true,
+            razorpayOrderId: canonical.razorpayOrderId,
+            razorpayPaymentId: canonical.razorpayPaymentId,
+          };
+        }
+      }
+
+      throw err;
+    }
+
+    // 6. Keep intent status at RESERVED until webhook confirmation
     await intentRepository.updateStatus(intentId, "RESERVED");
-    // Note: We keep intent at RESERVED here; it transitions to EXECUTED/FAILED
-    // only when the Razorpay webhook arrives. This matches the state machine:
-    //   RESERVED → PAYMENT_CREATED (payment record) → EXECUTED/FAILED (webhook)
-    // The intent status update to EXECUTED/FAILED is done by WebhookService.
 
     console.log(
       `[PaymentService] Payment created for intent ${intentId}. ` +

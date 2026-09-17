@@ -41,6 +41,8 @@ import {
 } from "./handlers/checkout-handler.js";
 
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), "backend/.env") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 const app = express();
 
