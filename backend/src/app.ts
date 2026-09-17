@@ -4,11 +4,21 @@ import dotenv from "dotenv";
 
 import {
   createIntentHandler,
+  approveIntentHandler,
 } from "./handlers/intent-handler.js";
 
 import {
+  getDecisionsHandler,
+} from "./handlers/decision-handler.js";
+
+import {
   createGrantHandler,
+  revokeGrantHandler,
 } from "./handlers/grant-handler.js";
+
+import {
+  getExposureHandler,
+} from "./handlers/exposure-handler.js";
 
 dotenv.config();
 
@@ -35,8 +45,28 @@ app.post(
 );
 
 app.post(
+  "/v0/grants/:id/revoke",
+  revokeGrantHandler
+);
+
+app.get(
+  "/v0/exposure",
+  getExposureHandler
+);
+
+app.post(
   "/v0/intents",
   createIntentHandler
+);
+
+app.post(
+  "/v0/intents/:id/approve",
+  approveIntentHandler
+);
+
+app.get(
+  "/v0/intents/:intentId/decisions",
+  getDecisionsHandler
 );
 
 app.listen(PORT, () => {

@@ -342,6 +342,47 @@ export class GrantService {
     return grant;
   }
 
+  async revokeGrant(
+    userId: string,
+    grantId: string
+  ): Promise<Grant> {
+    const grant = await grantRepository.getGrant(
+      userId,
+      grantId
+    );
+
+    if (!grant) {
+      throw new Error(
+        `Grant ${grantId} was not found.`
+      );
+    }
+
+    if (grant.status === "REVOKED") {
+      throw new Error(
+        `Grant ${grantId} is already revoked.`
+      );
+    }
+
+    await grantRepository.revokeGrant(
+      userId,
+      grantId
+    );
+
+    const revokedGrant =
+      await grantRepository.getGrant(
+        userId,
+        grantId
+      );
+
+    if (!revokedGrant) {
+      throw new Error(
+        `Grant ${grantId} could not be loaded after revocation.`
+      );
+    }
+
+    return revokedGrant;
+  }
+
   private async findGrantById(
     userId: string,
     grantId: string

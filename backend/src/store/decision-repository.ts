@@ -108,6 +108,38 @@ export class DecisionRepository {
   }
 
   /**
+   * Get all decisions for an intent, sorted chronologically.
+   */
+  async getDecisionsForIntent(
+    intentId: string
+  ): Promise<Decision[]> {
+    const result = await dynamo.send(
+      new QueryCommand({
+        TableName: TABLE_NAME,
+
+        KeyConditionExpression:
+          "PK = :pk AND begins_with(SK, :prefix)",
+
+        ExpressionAttributeValues: {
+          ":pk": `INTENT#${intentId}`,
+          ":prefix": "DECISION#",
+        },
+
+        ScanIndexForward: true,
+      })
+    );
+
+    const decisions =
+      (result.Items ?? []) as Decision[];
+
+    decisions.sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt)
+    );
+
+    return decisions;
+  }
+
+  /**
    * Store a deterministic decision receipt.
    *
    * This is intentionally separate from the decision itself.

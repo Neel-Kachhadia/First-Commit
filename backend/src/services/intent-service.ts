@@ -14,6 +14,10 @@ import {
 } from "../store/decision-repository.js";
 
 import {
+  receiptService,
+} from "./receipt-service.js";
+
+import {
   authorityEngine,
 } from "../engine/authority-engine.js";
 
@@ -147,16 +151,21 @@ export class IntentService {
       await intentRepository.registerIdempotencyKey(
         intent
       );
-    } catch (error) {
+    } catch (error: any) {
       /*
-       * Another concurrent request may have registered
-       * the same key between our read and this write.
-       *
-       * Retrieve the winning intent and treat this
-       * request as a replay.
+       * Only catch idempotency collision errors.
+       * If this is a network or validation error, fail immediately.
+       */
+      if (error.name !== "ConditionalCheckFailedException") {
+        throw error;
+      }
+
+      /*
+       * Another concurrent request has acquired the lock, but might
+       * still be writing the Intent object. We poll briefly.
        */
       const concurrentIntent =
-        await intentRepository.getByIdempotencyKey(
+        await this.waitForExistingIntent(
           input.idempotencyKey
         );
 
@@ -173,7 +182,9 @@ export class IntentService {
         };
       }
 
-      throw error;
+      throw new Error(
+        `Idempotency key ${input.idempotencyKey} is locked by another request, but the winning intent was not available after the retry window.`
+      );
     }
 
     /*
@@ -229,7 +240,7 @@ export class IntentService {
          */
         decision.reserved = true;
 
-        await decisionRepository.createDecision(
+        await receiptService.finalizeDecision(
           decision
         );
 
@@ -252,7 +263,7 @@ export class IntentService {
         decision.reason = "Authorization passed, but atomic reservation failed because the required authority could not be reserved.";
         decision.reserved = false;
 
-        await decisionRepository.createDecision(
+        await receiptService.finalizeDecision(
           decision
         );
 
@@ -264,7 +275,7 @@ export class IntentService {
         intent.status = "DENIED";
       }
     } else if (decision.decision === "STEP_UP") {
-      await decisionRepository.createDecision(
+      await receiptService.finalizeDecision(
         decision
       );
 
@@ -275,7 +286,7 @@ export class IntentService {
 
       intent.status = "STEP_UP_REQUIRED";
     } else {
-      await decisionRepository.createDecision(
+      await receiptService.finalizeDecision(
         decision
       );
 
@@ -322,12 +333,13 @@ export class IntentService {
     //    revocation, expiration, scope, or capacity rules.
     const decision = await authorityEngine.evaluate(
       intent,
-      authorityPath.grants
+      authorityPath.grants,
+      { isApproval: true }
     );
 
     // 5. Approval only proceeds if the current state still allows it.
     if (decision.decision !== "ALLOW") {
-      await decisionRepository.createDecision(decision);
+      await receiptService.finalizeDecision(decision);
 
       await intentRepository.updateStatus(
         intent.intentId,
@@ -360,7 +372,7 @@ export class IntentService {
       // 7. Reservation succeeded
       decision.reserved = true;
 
-      await decisionRepository.createDecision(decision);
+      await receiptService.finalizeDecision(decision);
 
       await intentRepository.updateStatus(
         intent.intentId,
@@ -382,7 +394,7 @@ export class IntentService {
         "Approval succeeded at the policy layer, but atomic reservation failed because the required authority could not be reserved.";
       decision.reserved = false;
 
-      await decisionRepository.createDecision(decision);
+      await receiptService.finalizeDecision(decision);
 
       await intentRepository.updateStatus(
         intent.intentId,
@@ -401,17 +413,59 @@ export class IntentService {
 
   /**
    * Retrieve stored decision for replay.
+   * Includes bounded polling since the intent is persisted
+   * before the decision is evaluated and persisted.
    */
   private async getStoredDecision(
     intent: Intent
   ): Promise<Decision> {
-    const decision = await decisionRepository.getLatestDecision(intent.intentId);
-
-    if (!decision) {
-      throw new Error(`No decision found for existing intent ${intent.intentId}`);
+    const delays = [0, 25, 50, 100, 200, 400];
+  
+    for (const delay of delays) {
+      if (delay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+      const decision = await decisionRepository.getLatestDecision(intent.intentId);
+      if (decision) {
+        return decision;
+      }
     }
 
-    return decision;
+    throw new Error(`No decision found for existing intent ${intent.intentId} after retry window.`);
+  }
+
+  /**
+   * Bounded polling to wait for a concurrent winner
+   * to write the intent after locking the idempotency key.
+   */
+  private async waitForExistingIntent(
+    idempotencyKey: string,
+    maxAttempts = 6
+  ): Promise<Intent | null> {
+    const delays = [0, 25, 50, 100, 200, 400];
+  
+    for (
+      let attempt = 0;
+      attempt < Math.min(maxAttempts, delays.length);
+      attempt++
+    ) {
+      if (delays[attempt] > 0) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, delays[attempt])
+        );
+      }
+  
+      const existing =
+        await intentRepository.getByIdempotencyKey(
+          idempotencyKey
+        );
+  
+      if (existing) {
+        return existing;
+      }
+    }
+  
+    return null;
   }
 }
 

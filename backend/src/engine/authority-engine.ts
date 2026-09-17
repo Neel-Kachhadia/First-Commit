@@ -22,7 +22,8 @@ export class AuthorityEngine {
    */
   async evaluate(
     intent: Intent,
-    grants: Grant[]
+    grants: Grant[],
+    options?: { isApproval?: boolean }
   ): Promise<Decision> {
     const decisionId = `dec_${randomUUID()}`;
     const now = new Date().toISOString();
@@ -165,6 +166,7 @@ export class AuthorityEngine {
      * satisfies the step-up requirement.
      */
     if (
+      !options?.isApproval &&
       targetGrant.stepUpAbove !== undefined &&
       intent.amount >
         targetGrant.stepUpAbove
