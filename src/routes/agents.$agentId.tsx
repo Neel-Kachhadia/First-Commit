@@ -1,7 +1,13 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  Bot,
+  History,
+  ShieldCheck,
+  SlidersHorizontal,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,7 +43,8 @@ export const Route = createFileRoute("/agents/$agentId")({
       { property: "og:title", content: "Agent mandate — KavachPay" },
       {
         property: "og:description",
-        content: "Spending rule, approved merchants, consumed authority and decisions.",
+        content:
+          "Spending rule, approved merchants, consumed authority and decisions.",
       },
     ],
   }),
@@ -46,8 +53,15 @@ export const Route = createFileRoute("/agents/$agentId")({
 
 function AgentDetail() {
   const { agentId } = useParams({ from: "/agents/$agentId" });
-  const { getAgent, ledger, remainingFor, revokeAgent, restoreAgent, updateRule, frozen } =
-    useKavach();
+  const {
+    getAgent,
+    ledger,
+    remainingFor,
+    revokeAgent,
+    restoreAgent,
+    updateRule,
+    frozen,
+  } = useKavach();
   const agent = getAgent(agentId);
 
   const [confirmRevoke, setConfirmRevoke] = useState(false);
@@ -71,8 +85,10 @@ function AgentDetail() {
 
   const tone = agentTone(agent.status);
   const entries = ledger.filter((e) => e.agentId === agent.id);
-  const monthlyValue = monthly === "" ? String(agent.rule.monthlyLimit) : monthly;
-  const perTxnValue = perTxn === "" ? String(agent.rule.perTransactionCap) : perTxn;
+  const monthlyValue =
+    monthly === "" ? String(agent.rule.monthlyLimit) : monthly;
+  const perTxnValue =
+    perTxn === "" ? String(agent.rule.perTransactionCap) : perTxn;
 
   const saveRule = (event: React.FormEvent) => {
     event.preventDefault();
@@ -104,7 +120,7 @@ function AgentDetail() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
       <div>
         <Link
           to="/agents"
@@ -113,10 +129,19 @@ function AgentDetail() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           All agents
         </Link>
-        <div className="mt-4 grid gap-4 border-b border-border pb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div className="mt-4 grid gap-5 border-b border-border pb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <div className="min-w-0">
+            <div className="mb-3 flex items-center gap-2 text-[11px] font-medium text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" /> Live
+              mandate
+            </div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold sm:text-3xl">{agent.name}</h1>
+              <span className="grid h-9 w-9 place-items-center rounded-md border border-border bg-muted/50 text-primary">
+                <Bot className="h-4 w-4" />
+              </span>
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-[2rem]">
+                {agent.name}
+              </h1>
               <StatusPill tone={tone.tone} label={tone.label} />
             </div>
             <p className="amount mt-1 text-xs text-muted-foreground">
@@ -139,7 +164,10 @@ function AgentDetail() {
                 Restore authority
               </Button>
             ) : (
-              <Button variant="destructive" onClick={() => setConfirmRevoke(true)}>
+              <Button
+                variant="destructive"
+                onClick={() => setConfirmRevoke(true)}
+              >
                 Revoke authority
               </Button>
             )}
@@ -162,95 +190,128 @@ function AgentDetail() {
         <Metric
           label="Remaining"
           value={formatINR(remainingFor(agent))}
-          hint={frozen ? "Suspended by emergency stop" : "Available to this agent now"}
+          hint={
+            frozen
+              ? "Suspended by emergency stop"
+              : "Available to this agent now"
+          }
           tone={frozen ? "stepup" : "primary"}
         />
       </section>
 
-      <section className="surface-card p-5 sm:p-6">
-        <h2 className="text-lg font-semibold">Authority consumed</h2>
-        <div className="mt-4 space-y-2">
-          <AuthorityBar
-            consumed={agent.consumed}
-            limit={agent.rule.monthlyLimit}
-            muted={agent.status === "revoked" || frozen}
-          />
-          <p className="amount text-xs text-muted-foreground">
-            {formatINR(agent.consumed)} of {formatINR(agent.rule.monthlyLimit)}
-          </p>
-        </div>
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div>
-            <dt className="label-caps">Category</dt>
-            <dd className="mt-1 text-sm font-medium">{agent.rule.category}</dd>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,.8fr)] xl:items-start">
+        <section className="surface-card p-5 sm:p-6">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            <h2 className="text-base font-semibold">Enforced authority</h2>
           </div>
-          <div>
-            <dt className="label-caps">Reset window</dt>
-            <dd className="mt-1 text-sm font-medium">{agent.rule.window}</dd>
-          </div>
-          <div className="sm:col-span-2">
-            <dt className="label-caps">Approved merchants</dt>
-            <dd className="mt-2 flex flex-wrap gap-2">
-              {agent.rule.merchants.map((m) => (
-                <span
-                  key={m}
-                  className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs text-muted-foreground"
-                >
-                  {m}
-                </span>
-              ))}
-            </dd>
-          </div>
-        </dl>
-      </section>
-
-      <section className="surface-card p-5 sm:p-6">
-        <h2 className="text-lg font-semibold">Adjust the spending rule</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Changes apply to the next payment this agent attempts.
-        </p>
-        <form className="mt-5 grid gap-4 sm:grid-cols-2" onSubmit={saveRule} noValidate>
-          <div className="grid gap-1.5">
-            <Label htmlFor="monthly">Monthly limit (₹)</Label>
-            <Input
-              id="monthly"
-              inputMode="numeric"
-              value={monthlyValue}
-              onChange={(e) => setMonthly(e.target.value)}
+          <div className="mt-4 space-y-2">
+            <AuthorityBar
+              consumed={agent.consumed}
+              limit={agent.rule.monthlyLimit}
+              muted={agent.status === "revoked" || frozen}
             />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="pertxn">Per-transaction cap (₹)</Label>
-            <Input
-              id="pertxn"
-              inputMode="numeric"
-              value={perTxnValue}
-              onChange={(e) => setPerTxn(e.target.value)}
-            />
-          </div>
-          {error ? (
-            <p role="alert" className="text-sm text-destructive sm:col-span-2">
-              {error}
+            <p className="amount text-xs text-muted-foreground">
+              {formatINR(agent.consumed)} of{" "}
+              {formatINR(agent.rule.monthlyLimit)}
             </p>
-          ) : null}
-          <div className="sm:col-span-2">
-            <Button type="submit">Save rule</Button>
           </div>
-        </form>
-      </section>
+          <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div>
+              <dt className="label-caps">Category</dt>
+              <dd className="mt-1 text-sm font-medium">
+                {agent.rule.category}
+              </dd>
+            </div>
+            <div>
+              <dt className="label-caps">Reset window</dt>
+              <dd className="mt-1 text-sm font-medium">{agent.rule.window}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="label-caps">Approved merchants</dt>
+              <dd className="mt-2 flex flex-wrap gap-2">
+                {agent.rule.merchants.map((m) => (
+                  <span
+                    key={m}
+                    className="rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs text-muted-foreground"
+                  >
+                    {m}
+                  </span>
+                ))}
+              </dd>
+            </div>
+          </dl>
+        </section>
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Decision history</h2>
+        <section className="surface-card p-5 sm:p-6">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-stepup" />
+            <h2 className="text-base font-semibold">Adjust spending rule</h2>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Changes apply to the next payment this agent attempts.
+          </p>
+          <form
+            className="mt-5 grid gap-4 sm:grid-cols-2"
+            onSubmit={saveRule}
+            noValidate
+          >
+            <div className="grid gap-1.5">
+              <Label htmlFor="monthly">Monthly limit (₹)</Label>
+              <Input
+                id="monthly"
+                inputMode="numeric"
+                value={monthlyValue}
+                onChange={(e) => setMonthly(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="pertxn">Per-transaction cap (₹)</Label>
+              <Input
+                id="pertxn"
+                inputMode="numeric"
+                value={perTxnValue}
+                onChange={(e) => setPerTxn(e.target.value)}
+              />
+            </div>
+            {error ? (
+              <p
+                role="alert"
+                className="text-sm text-destructive sm:col-span-2"
+              >
+                {error}
+              </p>
+            ) : null}
+            <div className="sm:col-span-2">
+              <Button type="submit">Save rule</Button>
+            </div>
+          </form>
+        </section>
+      </div>
+
+      <section className="surface-card overflow-hidden">
+        <div className="flex items-center justify-between gap-4 border-b border-border p-5">
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-primary" />
+            <h2 className="text-base font-semibold">Decision history</h2>
+          </div>
+          <span className="amount text-xs text-muted-foreground">
+            {entries.length} events
+          </span>
+        </div>
         {entries.length === 0 ? (
-          <p className="surface-card p-6 text-sm text-muted-foreground">
+          <p className="p-6 text-sm text-muted-foreground">
             This agent has not attempted a payment yet.
           </p>
         ) : (
-          <ul className="surface-card divide-y divide-border">
+          <ul className="divide-y divide-border">
             {entries.map((entry) => {
               const t = ledgerTone(entry.status);
               return (
-                <li key={entry.id} className="grid gap-2 p-4 sm:grid-cols-[1fr_auto]">
+                <li
+                  key={entry.id}
+                  className="grid gap-2 p-4 sm:grid-cols-[1fr_auto]"
+                >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium">{entry.merchant}</p>
@@ -259,10 +320,14 @@ function AgentDetail() {
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {entry.description}
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">{entry.reason}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {entry.reason}
+                    </p>
                   </div>
                   <div className="sm:text-right">
-                    <p className="amount font-medium">{formatINR(entry.amount)}</p>
+                    <p className="amount font-medium">
+                      {formatINR(entry.amount)}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {formatDateTime(entry.at)}
                     </p>
@@ -279,9 +344,9 @@ function AgentDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke {agent.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              {formatINR(remainingFor(agent))} of remaining authority is withdrawn
-              immediately and any pending approval for this agent is cancelled. You can
-              restore the mandate later.
+              {formatINR(remainingFor(agent))} of remaining authority is
+              withdrawn immediately and any pending approval for this agent is
+              cancelled. You can restore the mandate later.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -21,10 +21,12 @@ function NotFoundComponent() {
     <div className="flex min-h-[60vh] items-center justify-center px-4">
       <div className="max-w-md text-center">
         <p className="label-caps">Error 404</p>
-        <h1 className="mt-2 text-3xl font-semibold text-foreground">Page not found</h1>
+        <h1 className="mt-2 text-3xl font-semibold text-foreground">
+          Page not found
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          This route is not part of the KavachPay console. Return to the overview to see
-          agent authority and pending approvals.
+          This route is not part of the KavachPay console. Return to the
+          overview to see agent authority and pending approvals.
         </p>
         <div className="mt-6">
           <Link
@@ -53,7 +55,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           This screen didn't load
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Agent authority was not changed. You can retry or return to the overview.
+          Agent authority was not changed. You can retry or return to the
+          overview.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -77,42 +80,48 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "KavachPay — Control What AI Agents Can Spend" },
-      {
-        name: "description",
-        content:
-          "KavachPay gives every AI agent a scoped payment mandate with spending rules, step-up approvals and instant revocation.",
-      },
-      { property: "og:site_name", content: "KavachPay" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap",
-      },
-      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
-    ],
-    scripts: [{ children: themeBootstrapScript }],
-  }),
-  shellComponent: RootShell,
-  component: RootComponent,
-  notFoundComponent: NotFoundComponent,
-  errorComponent: ErrorComponent,
-});
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
+  {
+    head: () => ({
+      meta: [
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: "KavachPay — Control What AI Agents Can Spend" },
+        {
+          name: "description",
+          content:
+            "KavachPay gives every AI agent a scoped payment mandate with spending rules, step-up approvals and instant revocation.",
+        },
+        { property: "og:site_name", content: "KavachPay" },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary_large_image" },
+      ],
+      links: [
+        { rel: "stylesheet", href: appCss },
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        {
+          rel: "preconnect",
+          href: "https://fonts.gstatic.com",
+          crossOrigin: "anonymous",
+        },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap",
+        },
+        { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      ],
+      scripts: [{ children: themeBootstrapScript }],
+    }),
+    shellComponent: RootShell,
+    component: RootComponent,
+    notFoundComponent: NotFoundComponent,
+    errorComponent: ErrorComponent,
+  },
+);
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

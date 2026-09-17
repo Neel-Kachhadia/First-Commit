@@ -36,7 +36,9 @@ export function StatusPill({
         className,
       )}
     >
-      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotStyles[tone])} />
+      <span
+        className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotStyles[tone])}
+      />
       {label}
     </span>
   );
@@ -76,12 +78,22 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="grid gap-4 border-b border-border pb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+    <header className="grid gap-5 border-b border-border pb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold sm:text-3xl">{title}</h1>
-        <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{description}</p>
+        <div className="mb-3 flex items-center gap-2 text-[11px] font-medium text-success">
+          <span className="h-1.5 w-1.5 rounded-full bg-success" />
+          Live workspace
+        </div>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-[2rem]">
+          {title}
+        </h1>
+        <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
       </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      {actions ? (
+        <div className="flex flex-wrap gap-2 sm:justify-end">{actions}</div>
+      ) : null}
     </header>
   );
 }
@@ -95,7 +107,8 @@ export function AuthorityBar({
   limit: number;
   muted?: boolean;
 }) {
-  const pct = limit > 0 ? Math.min(100, Math.round((consumed / limit) * 100)) : 0;
+  const pct =
+    limit > 0 ? Math.min(100, Math.round((consumed / limit) * 100)) : 0;
   return (
     <div
       className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
@@ -131,10 +144,21 @@ export function Metric({
     stepup: "text-stepup",
   }[tone];
   return (
-    <div className="surface-card p-5">
+    <div className="surface-card metric-card min-h-32 p-5">
       <p className="label-caps">{label}</p>
-      <p className={cn("amount mt-2 text-2xl font-medium", valueTone)}>{value}</p>
-      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+      <p
+        className={cn(
+          "amount mt-3 text-2xl font-medium tracking-tight",
+          valueTone,
+        )}
+      >
+        {value}
+      </p>
+      {hint ? (
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

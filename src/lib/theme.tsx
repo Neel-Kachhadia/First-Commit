@@ -4,14 +4,14 @@ import type { ReactNode } from "react";
 type Theme = "light" | "dark";
 
 const ThemeContext = createContext<{ theme: Theme; toggle: () => void }>({
-  theme: "light",
+  theme: "dark",
   toggle: () => {},
 });
 
-export const themeBootstrapScript = `try{var t=localStorage.getItem('kavachpay-theme');if(t==='dark'){document.documentElement.classList.add('dark')}}catch(e){}`;
+export const themeBootstrapScript = `try{var t=localStorage.getItem('kavachpay-theme');if(t!=='light'){document.documentElement.classList.add('dark')}}catch(e){document.documentElement.classList.add('dark')}`;
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("dark");
 
   useEffect(() => {
     const stored = localStorage.getItem("kavachpay-theme");

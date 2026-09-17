@@ -1,21 +1,32 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Metric, PageHeader } from "@/components/kavach/primitives";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  ArrowDownRight,
+  Bot,
+  GitBranch,
+  History,
+  Network,
+  ShieldCheck,
+} from "lucide-react";
+import {
+  AuthorityBar,
+  Metric,
+  PageHeader,
+  StatusPill,
+  agentTone,
+} from "@/components/kavach/primitives";
+import { Button } from "@/components/ui/button";
+import { ExposureChart } from "@/components/kavach/exposure-chart";
 import { useKavach } from "@/lib/kavach-store";
 import { formatDateTime, formatINR } from "@/lib/kavach-data";
 
 export const Route = createFileRoute("/authority")({
   head: () => ({
     meta: [
-      { title: "Authority graph — KavachPay exposure over time" },
+      { title: "Authority universe — KavachPay" },
       {
         name: "description",
         content:
-          "Track how much your AI agents could possibly spend at any moment, and every event that raised or lowered that exposure.",
-      },
-      { property: "og:title", content: "Authority graph — KavachPay exposure over time" },
-      {
-        property: "og:description",
-        content: "How much your agents could possibly spend, and every event that moved it.",
+          "Inspect live financial authority, maximum reachable exposure, and the events that changed it.",
       },
     ],
   }),
@@ -23,113 +34,207 @@ export const Route = createFileRoute("/authority")({
 });
 
 function AuthorityPage() {
-  const { history, maxPossibleSpend, totalAuthority, agents, frozen, remainingFor } =
-    useKavach();
-
-  const points = [...history].map((e) => e.maxSpend);
+  const {
+    history,
+    maxPossibleSpend,
+    totalAuthority,
+    agents,
+    frozen,
+    remainingFor,
+  } = useKavach();
+  const points = history.map((event) => event.maxSpend);
   const peak = Math.max(...points, maxPossibleSpend, 1);
-  const series = [...history, { maxSpend: maxPossibleSpend }];
-  const width = 100;
-  const height = 100;
-  const step = series.length > 1 ? width / (series.length - 1) : width;
-  const coords = series.map((p, i) => {
-    const x = i * step;
-    const y = height - (p.maxSpend / peak) * (height - 6) - 3;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  });
-  const line = coords.join(" ");
-  const area = `0,${height} ${line} ${width},${height}`;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
       <PageHeader
-        title="Authority graph"
-        description="Maximum possible spend is the worst case: what every live agent could still spend right now."
+        title="Authority universe"
+        description="A live map of who can spend, how much remains, and every event that changed your financial blast radius."
+        actions={
+          <Button variant="outline" asChild>
+            <Link to="/rules">Create child mandate</Link>
+          </Button>
+        }
       />
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Metric
-          label="Maximum possible spend"
+          label="Maximum reachable exposure"
           value={formatINR(maxPossibleSpend)}
-          hint={frozen ? "Suspended by emergency stop" : "Current worst-case exposure"}
+          hint={
+            frozen
+              ? "All authority suspended"
+              : "Current worst-case autonomous spend"
+          }
           tone={frozen ? "stepup" : "primary"}
         />
         <Metric
           label="Authority granted"
           value={formatINR(totalAuthority)}
-          hint="Total monthly limits across live mandates"
+          hint="Across every live mandate"
         />
         <Metric
-          label="Peak exposure"
-          value={formatINR(peak)}
-          hint="Highest point recorded this month"
+          label="Exposure withdrawn"
+          value={formatINR(Math.max(0, peak - maxPossibleSpend))}
+          hint="Consumed or revoked since this month's peak"
+          tone="success"
         />
       </section>
 
-      <section className="surface-card p-5 sm:p-6">
-        <h2 className="text-lg font-semibold">Exposure over time</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Each step down is authority you took back or an agent consumed.
-        </p>
-        <div className="mt-5">
-          <svg
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
-            className="h-48 w-full sm:h-64"
-            role="img"
-            aria-label={`Maximum possible spend moved from ${formatINR(series[0]?.maxSpend ?? 0)} to ${formatINR(maxPossibleSpend)}`}
-          >
-            <polygon points={area} fill="var(--color-primary)" opacity="0.12" />
-            <polyline
-              points={line}
-              fill="none"
-              stroke="var(--color-primary)"
-              strokeWidth="1.2"
-              vectorEffect="non-scaling-stroke"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-            <span className="amount">{formatINR(series[0]?.maxSpend ?? 0)}</span>
-            <span className="amount">{formatINR(maxPossibleSpend)}</span>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.8fr)]">
+        <div className="surface-card overflow-hidden">
+          <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <Network className="h-4 w-4 text-primary" />
+                <h2 className="text-base font-semibold">Authority lineage</h2>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Every mandate derives from the account owner's authority.
+              </p>
+            </div>
+            <span className="rounded-md border border-success/25 bg-success/10 px-2 py-1 text-[10px] font-medium text-success">
+              Live graph
+            </span>
+          </div>
+
+          <div className="relative min-h-[390px] overflow-hidden p-5 sm:p-8">
+            <div className="authority-grid absolute inset-0 opacity-35" />
+            <div className="relative mx-auto flex max-w-3xl flex-col items-center">
+              <div className="rounded-lg border border-primary/35 bg-primary/8 px-5 py-3 text-center">
+                <p className="text-sm font-semibold">Ananya Iyer</p>
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                  Principal · 100% control
+                </p>
+              </div>
+              <div className="h-8 w-px bg-border" />
+              <div className="relative h-px w-[76%] bg-border before:absolute before:left-0 before:top-0 before:h-5 before:w-px before:bg-border after:absolute after:right-0 after:top-0 after:h-5 after:w-px after:bg-border" />
+              <div className="mt-5 grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {agents.map((agent) => {
+                  const tone = agentTone(agent.status);
+                  return (
+                    <Link
+                      key={agent.id}
+                      to="/agents/$agentId"
+                      params={{ agentId: agent.id }}
+                      className="group rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/35"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="grid h-7 w-7 place-items-center rounded-md bg-muted text-muted-foreground group-hover:text-primary">
+                          <Bot className="h-3.5 w-3.5" />
+                        </span>
+                        <StatusPill
+                          tone={tone.tone}
+                          label={tone.label}
+                          className="px-2 text-[10px]"
+                        />
+                      </div>
+                      <p className="mt-4 text-sm font-medium">{agent.name}</p>
+                      <p className="amount mt-1 text-lg font-medium">
+                        {formatINR(remainingFor(agent))}
+                      </p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        remaining authority
+                      </p>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="surface-card overflow-hidden">
+          <div className="border-b border-border p-5">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-success" />
+              <h2 className="text-base font-semibold">Exposure by agent</h2>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Contribution to current blast radius.
+            </p>
+          </div>
+          <div>
+            {agents.map((agent) => (
+              <div
+                key={agent.id}
+                className="border-b border-border p-4 last:border-b-0"
+              >
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="font-medium">{agent.name}</span>
+                  <span className="amount">
+                    {formatINR(remainingFor(agent))}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <AuthorityBar
+                    consumed={remainingFor(agent)}
+                    limit={maxPossibleSpend || 1}
+                    muted={agent.status === "revoked"}
+                  />
+                </div>
+                <p className="mt-2 text-[10px] text-muted-foreground">
+                  {maxPossibleSpend
+                    ? Math.round((remainingFor(agent) / maxPossibleSpend) * 100)
+                    : 0}
+                  % of reachable exposure
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Remaining authority by agent</h2>
-        <ul className="surface-card divide-y divide-border">
-          {agents.map((agent) => (
-            <li
-              key={agent.id}
-              className="flex flex-wrap items-center justify-between gap-2 p-4"
-            >
-              <span className="min-w-0 truncate font-medium">{agent.name}</span>
-              <span className="amount text-sm">{formatINR(remainingFor(agent))}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(340px,.75fr)]">
+        <div className="surface-card overflow-hidden">
+          <div className="border-b border-border p-5">
+            <div className="flex items-center gap-2">
+              <GitBranch className="h-4 w-4 text-primary" />
+              <h2 className="text-base font-semibold">Exposure over time</h2>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Step-downs show authority consumed or withdrawn.
+            </p>
+          </div>
+          <div className="p-4 sm:p-5">
+            <ExposureChart
+              history={history}
+              currentExposure={maxPossibleSpend}
+            />
+          </div>
+        </div>
 
-      <section className="space-y-4">
-        <h2 className="text-lg font-semibold">Authority timeline</h2>
-        <ol className="surface-card divide-y divide-border">
-          {[...history].reverse().map((event) => (
-            <li key={event.id} className="grid gap-1 p-4 sm:grid-cols-[1fr_auto]">
-              <div className="min-w-0">
-                <p className="font-medium">{event.label}</p>
-                <p className="text-sm text-muted-foreground">{event.detail}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {formatDateTime(event.at)}
-                </p>
-              </div>
-              <div className="sm:text-right">
-                <p className="label-caps">Max possible spend</p>
-                <p className="amount text-sm font-medium">{formatINR(event.maxSpend)}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <div className="surface-card overflow-hidden">
+          <div className="flex items-center gap-2 border-b border-border p-5">
+            <History className="h-4 w-4 text-stepup" />
+            <h2 className="text-base font-semibold">Authority timeline</h2>
+          </div>
+          <ol>
+            {[...history]
+              .reverse()
+              .slice(0, 5)
+              .map((event) => (
+                <li
+                  key={event.id}
+                  className="relative border-b border-border p-4 pl-10 last:border-b-0"
+                >
+                  <span className="absolute left-4 top-[1.15rem] grid h-4 w-4 place-items-center rounded-full border border-primary/30 bg-primary/10 text-primary">
+                    <ArrowDownRight className="h-2.5 w-2.5" />
+                  </span>
+                  <p className="text-xs font-medium">{event.label}</p>
+                  <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+                    {event.detail}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-muted-foreground">
+                    <span>{formatDateTime(event.at)}</span>
+                    <span className="amount text-foreground">
+                      {formatINR(event.maxSpend)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+          </ol>
+        </div>
       </section>
     </div>
   );
