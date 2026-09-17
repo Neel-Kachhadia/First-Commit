@@ -162,8 +162,11 @@ describe("PaymentService", () => {
 
     // Find the PutCommand call with our expected key.
     const putCall = mockDynamoSend.mock.calls.find((args) => {
-      const cmd = args[0] as { input?: { Item?: { PK?: string } } };
-      return cmd.input?.Item?.PK === "PAYMENT#i_test-pay-001";
+      const cmd = args[0] as { input?: { Item?: { PK?: string; SK?: string } } };
+      return (
+        cmd.input?.Item?.PK === "PAYMENT#i_test-pay-001" &&
+        cmd.input?.Item?.SK === "META"
+      );
     });
 
     expect(putCall).toBeDefined();

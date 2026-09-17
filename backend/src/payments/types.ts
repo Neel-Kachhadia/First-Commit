@@ -18,6 +18,15 @@ export type PaymentStatus =
   | "EXECUTED"
   | "FAILED";
 
+export type PaymentLockStatus = "CREATING" | "COMPLETED" | "FAILED";
+
+export interface PaymentExecutionLock {
+  intentId: string;
+  status: PaymentLockStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Core interface — what the Authority Engine will eventually call.
 // ---------------------------------------------------------------------------
@@ -100,6 +109,7 @@ export interface RazorpayWebhookPayload {
       entity: {
         id: string;
         amount: number;
+        currency: string;
         notes?: Record<string, string>;
       };
     };

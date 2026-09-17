@@ -69,30 +69,32 @@ export class IntentRepository {
    */
   async updateStatus(
     intentId: string,
-    status: Intent["status"]
+    status: Intent["status"],
+    expectedStatus?: Intent["status"]
   ): Promise<void> {
+    let conditionExpression = "attribute_exists(PK)";
+    const expressionAttributeValues: Record<string, unknown> = {
+      ":status": status,
+    };
+
+    if (expectedStatus) {
+      conditionExpression += " AND #status = :expectedStatus";
+      expressionAttributeValues[":expectedStatus"] = expectedStatus;
+    }
+
     await dynamo.send(
       new UpdateCommand({
         TableName: TABLE_NAME,
-
         Key: {
           PK: `INTENT#${intentId}`,
           SK: "META",
         },
-
-        UpdateExpression:
-          "SET #status = :status",
-
+        UpdateExpression: "SET #status = :status",
         ExpressionAttributeNames: {
           "#status": "status",
         },
-
-        ExpressionAttributeValues: {
-          ":status": status,
-        },
-
-        ConditionExpression:
-          "attribute_exists(PK)",
+        ExpressionAttributeValues: expressionAttributeValues,
+        ConditionExpression: conditionExpression,
       })
     );
   }

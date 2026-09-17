@@ -166,19 +166,45 @@ export class ReservationRepository {
       },
     });
 
-    try {
-      await dynamo.send(
-        new TransactWriteCommand({
-          TransactItems: transactItems,
-        })
-      );
-    } catch (error) {
-      console.error(
-        "KAVACHPAY RESERVATION TRANSACTION FAILED:",
-        JSON.stringify(error, null, 2)
-      );
+    const MAX_RETRIES = 3;
+    let attempt = 0;
 
-      throw error;
+    while (attempt <= MAX_RETRIES) {
+      try {
+        await dynamo.send(
+          new TransactWriteCommand({
+            TransactItems: transactItems,
+          })
+        );
+        return "RESERVED";
+      } catch (error: any) {
+        const isConflict =
+          error.name === "TransactionCanceledException" &&
+          error.CancellationReasons?.some(
+            (r: any) => r.Code === "TransactionConflict"
+          );
+
+        if (isConflict && attempt < MAX_RETRIES) {
+          attempt++;
+          // Exponential backoff with jitter
+          const delay = Math.pow(2, attempt) * 50 + Math.random() * 50;
+          console.warn(`[ReservationRepository] TransactionConflict on reserve. Retrying attempt ${attempt}...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        if (isConflict) {
+          console.warn(`[ReservationRepository] KAVACHPAY RESERVATION TRANSACTION CONFLICT LIMIT REACHED.`);
+        } else {
+          console.error(
+            "[ReservationRepository] KAVACHPAY RESERVATION TRANSACTION FAILED:",
+            error.name,
+            error.message
+          );
+        }
+
+        throw error;
+      }
     }
 
     return "RESERVED";
@@ -220,6 +246,122 @@ export class ReservationRepository {
       status: string;
       createdAt: string;
     };
+  }
+
+  /**
+   * Atomically release a reservation, restoring authority to the grants.
+   * If the reservation does not exist or is already RELEASED, this is a no-op (returns true).
+   */
+  async release(intentId: string): Promise<boolean> {
+    const reservation = await this.getReservation(intentId);
+    
+    if (!reservation) {
+      return true; // Nothing to release
+    }
+
+    if (reservation.status === "RELEASED") {
+      return true; // Already released
+    }
+
+    if (reservation.status !== "RESERVED") {
+      throw new Error(`Cannot release reservation with status ${reservation.status}`);
+    }
+
+    const now = new Date().toISOString();
+    const transactItems: NonNullable<TransactWriteCommandInput["TransactItems"]> = [];
+
+    // Compensate all grants atomically
+    for (const grantId of reservation.grantIds) {
+      transactItems.push({
+        Update: {
+          TableName: TABLE_NAME,
+          Key: {
+            PK: `USER#${reservation.userId}`,
+            SK: `GRANT#${grantId}`,
+          },
+          UpdateExpression: `
+            SET #consumed = #consumed - :amount,
+                updatedAt = :updatedAt
+          `,
+          ConditionExpression: `
+            attribute_exists(PK)
+            AND #consumed >= :amount
+          `,
+          ExpressionAttributeNames: {
+            "#consumed": "consumed",
+          },
+          ExpressionAttributeValues: {
+            ":amount": reservation.amount,
+            ":updatedAt": now,
+          },
+        },
+      });
+    }
+
+    // Update the reservation to RELEASED atomically
+    transactItems.push({
+      Update: {
+        TableName: TABLE_NAME,
+        Key: {
+          PK: `INTENT#${intentId}`,
+          SK: "RESERVATION",
+        },
+        UpdateExpression: `
+          SET #status = :released
+        `,
+        ConditionExpression: `
+          attribute_exists(PK)
+          AND #status = :reserved
+        `,
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":released": "RELEASED",
+          ":reserved": "RESERVED",
+        },
+      },
+    });
+
+    const MAX_RETRIES = 3;
+    let attempt = 0;
+
+    while (attempt <= MAX_RETRIES) {
+      try {
+        await dynamo.send(
+          new TransactWriteCommand({
+            TransactItems: transactItems,
+          })
+        );
+        return true;
+      } catch (error: any) {
+        const isConflict =
+          error.name === "TransactionCanceledException" &&
+          error.CancellationReasons?.some(
+            (r: any) => r.Code === "TransactionConflict"
+          );
+
+        if (isConflict && attempt < MAX_RETRIES) {
+          attempt++;
+          const delay = Math.pow(2, attempt) * 50 + Math.random() * 50;
+          console.warn(`[ReservationRepository] TransactionConflict on release. Retrying attempt ${attempt}...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        if (
+          error.name === "TransactionCanceledException" ||
+          error.name === "ConditionalCheckFailedException"
+        ) {
+          console.warn(`[ReservationRepository] release transaction canceled for intent ${intentId}. Possibly already released concurrently.`);
+          return false;
+        }
+
+        throw error;
+      }
+    }
+
+    return false;
   }
 }
 

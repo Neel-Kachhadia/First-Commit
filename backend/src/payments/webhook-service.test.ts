@@ -84,28 +84,40 @@ function buildPayload(
   amountPaise = 185000,
   currency = "INR"
 ): RazorpayWebhookPayload {
+  const isOrderPaid = eventType === "order.paid";
   return {
     event: eventType,
     payload: {
-      payment: {
-        entity: {
-          id: paymentId,
-          order_id: orderId,
-          amount: amountPaise,
-          currency,
-          status: eventType === "payment.failed" ? "failed" : "captured",
-          notes: {
-            intentId,
-            kavachpay: "true",
+      ...(isOrderPaid ? {
+        order: {
+          entity: {
+            id: orderId,
+            amount: amountPaise,
+            currency,
+            notes: { intentId, kavachpay: "true" }
+          }
+        }
+      } : {
+        payment: {
+          entity: {
+            id: paymentId,
+            order_id: orderId,
+            amount: amountPaise,
+            currency,
+            status: eventType === "payment.failed" ? "failed" : "captured",
+            notes: {
+              intentId,
+              kavachpay: "true",
+            },
+            ...(eventType === "payment.failed"
+              ? {
+                  error_code: "BAD_REQUEST_ERROR",
+                  error_description: "Payment failed",
+                }
+              : {}),
           },
-          ...(eventType === "payment.failed"
-            ? {
-                error_code: "BAD_REQUEST_ERROR",
-                error_description: "Payment failed",
-              }
-            : {}),
         },
-      },
+      })
     },
   };
 }
@@ -342,7 +354,8 @@ describe("WebhookService", () => {
 
     expect(vi.mocked(intentRepository.updateStatus)).toHaveBeenCalledWith(
       intentId,
-      "EXECUTED"
+      "EXECUTED",
+      "RESERVED"
     );
   });
 
@@ -358,12 +371,14 @@ describe("WebhookService", () => {
 
     expect(vi.mocked(intentRepository.updateStatus)).toHaveBeenCalledWith(
       intentId,
-      "EXECUTED"
+      "EXECUTED",
+      "RESERVED"
     );
     expect(vi.mocked(paymentService.updatePaymentStatus)).toHaveBeenCalledWith(
       intentId,
       "EXECUTED",
-      "pay_test001"
+      "pay_test001",
+      "PAYMENT_CREATED"
     );
   });
 
@@ -377,12 +392,14 @@ describe("WebhookService", () => {
 
     expect(vi.mocked(intentRepository.updateStatus)).toHaveBeenCalledWith(
       intentId,
-      "FAILED"
+      "FAILED",
+      "RESERVED"
     );
     expect(vi.mocked(paymentService.updatePaymentStatus)).toHaveBeenCalledWith(
       intentId,
       "FAILED",
-      "pay_test001"
+      "pay_test001",
+      "PAYMENT_CREATED"
     );
   });
 
@@ -396,7 +413,8 @@ describe("WebhookService", () => {
 
     expect(vi.mocked(intentRepository.updateStatus)).toHaveBeenCalledWith(
       intentId,
-      "EXECUTED"
+      "EXECUTED",
+      "RESERVED"
     );
   });
 
@@ -438,6 +456,49 @@ describe("WebhookService", () => {
     expect(result.duplicate).toBe(true);
     expect(result.processed).toBe(false);
     expect(vi.mocked(intentRepository.updateStatus)).not.toHaveBeenCalled();
+  });
+
+  // ── 7a. Concurrent different webhooks (order.paid vs payment.captured) ────
+
+  it("handles concurrent order.paid and payment.captured gracefully without erroring", async () => {
+    // Setup intent as EXECUTED (simulating that the first webhook, order.paid, already processed it)
+    const intentId = "i_concurrent-diff";
+    vi.mocked(intentRepository.getIntent).mockResolvedValue(
+      buildIntent(intentId, "EXECUTED")
+    );
+    // Setup payment record to be EXECUTED, but without razorpayPaymentId (since order.paid doesn't provide it)
+    vi.mocked(paymentService.getPaymentRecord).mockResolvedValue({
+      ...buildPaymentRecord(intentId),
+      status: "EXECUTED",
+      razorpayPaymentId: undefined,
+    });
+
+    const payload = buildPayload("payment.captured", intentId);
+    const rawBody = JSON.stringify(payload);
+    const signature = buildSignature(rawBody);
+
+    // This webhook is payment.captured, different from the order.paid that theoretically just finished
+    const result = await webhookService.processWebhook(
+      rawBody,
+      signature,
+      "evt_concurrent_payment",
+      payload
+    );
+
+    // Should process successfully (idempotent path)
+    expect(result.processed).toBe(true);
+    expect(result.duplicate).toBe(false);
+
+    // intent update should NOT be called because intent is already EXECUTED
+    expect(vi.mocked(intentRepository.updateStatus)).not.toHaveBeenCalled();
+
+    // payment status SHOULD be called to backfill razorpayPaymentId, since it was missing
+    expect(vi.mocked(paymentService.updatePaymentStatus)).toHaveBeenCalledWith(
+      intentId,
+      "EXECUTED",
+      "pay_test001",
+      "EXECUTED"
+    );
   });
 
   // ── 8. Test E: Amount mismatch ────────────────────────────────────────────
@@ -540,7 +601,6 @@ describe("WebhookService", () => {
 
   it.each([
     "PENDING",
-    "EXECUTED",
     "DENIED",
     "FAILED",
     "STEP_UP_REQUIRED",
@@ -563,4 +623,33 @@ describe("WebhookService", () => {
       expect(vi.mocked(intentRepository.updateStatus)).not.toHaveBeenCalled();
     }
   );
+
+  it("treats webhook as idempotent success when intent is already EXECUTED", async () => {
+    const intentId = "i_already-exec";
+    vi.mocked(intentRepository.getIntent).mockResolvedValue(
+      buildIntent(intentId, "EXECUTED")
+    );
+    // Setup payment record to be EXECUTED as well
+    vi.mocked(paymentService.getPaymentRecord).mockResolvedValue({
+      ...buildPaymentRecord(intentId),
+      status: "EXECUTED",
+      razorpayPaymentId: "pay_test001",
+    });
+
+    const payload = buildPayload("payment.captured", intentId);
+    const rawBody = JSON.stringify(payload);
+    const signature = buildSignature(rawBody);
+
+    const result = await webhookService.processWebhook(
+      rawBody,
+      signature,
+      "evt_idempotent",
+      payload
+    );
+
+    expect(result.processed).toBe(true);
+    expect(result.duplicate).toBe(false);
+    expect(vi.mocked(intentRepository.updateStatus)).not.toHaveBeenCalled();
+    expect(vi.mocked(paymentService.updatePaymentStatus)).not.toHaveBeenCalled();
+  });
 });

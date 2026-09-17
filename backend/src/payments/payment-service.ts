@@ -20,13 +20,25 @@
  */
 
 import { randomUUID } from "crypto";
-import { PutCommand, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import {
+  PutCommand,
+  GetCommand,
+  UpdateCommand,
+} from "@aws-sdk/lib-dynamodb";
 
 import { dynamo } from "../store/dynamodb.js";
 import { TABLE_NAME } from "../store/table.js";
 import { intentRepository } from "../store/intent-repository.js";
+import { reservationRepository } from "../store/reservation-repository.js";
 import { getRazorpayAdapter } from "./razorpay-adapter.js";
-import type { IPaymentService, PaymentRecord, PaymentResult, PaymentStatus } from "./types.js";
+import type {
+  IPaymentService,
+  PaymentRecord,
+  PaymentResult,
+  PaymentStatus,
+  PaymentLockStatus,
+  PaymentExecutionLock,
+} from "./types.js";
 
 export class PaymentService implements IPaymentService {
   /**
@@ -43,8 +55,7 @@ export class PaymentService implements IPaymentService {
    * @param intentId The KavachPay intent ID
    */
   async execute(intentId: string): Promise<PaymentResult> {
-    // 1. Idempotency pre-check: If a payment record already exists for this intent,
-    //    do NOT create another Razorpay order. Return the canonical record.
+    // 1. Idempotency pre-check
     const existingPayment = await this.getPaymentRecord(intentId);
     if (existingPayment) {
       console.log(
@@ -58,7 +69,7 @@ export class PaymentService implements IPaymentService {
       };
     }
 
-    // 2. Load the intent
+    // 2. Load the intent and validate BEFORE acquiring lock
     const intent = await intentRepository.getIntent(intentId);
 
     if (!intent) {
@@ -67,8 +78,6 @@ export class PaymentService implements IPaymentService {
       );
     }
 
-    // 3. Only RESERVED intents can be executed.
-    //    The Authority Engine is responsible for reaching this state.
     if (intent.status !== "RESERVED") {
       throw new Error(
         `PaymentService.execute: Intent ${intentId} cannot be executed because ` +
@@ -76,10 +85,45 @@ export class PaymentService implements IPaymentService {
       );
     }
 
+    // 3. Acquire lock
+    const lockAcquired = await this.acquireExecutionLock(intentId);
+
+    if (!lockAcquired) {
+      const lock = await this.getExecutionLock(intentId);
+      
+      // Handle stale locks
+      if (lock && lock.status === "CREATING") {
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        if (lock.updatedAt < fiveMinutesAgo) {
+          console.warn(`[PaymentService] Lock for intent ${intentId} is stale. Failing lock and releasing reservation.`);
+          await this.updateExecutionLock(intentId, "FAILED");
+          await reservationRepository.release(intentId);
+          await intentRepository.updateStatus(intentId, "FAILED");
+          return {
+            success: false,
+            error: "Previous payment execution timed out. Reservation released.",
+          };
+        }
+      }
+
+      // Check if it was successfully completed in the meantime
+      const canonical = await this.getPaymentRecord(intentId);
+      if (canonical) {
+        return {
+          success: true,
+          razorpayOrderId: canonical.razorpayOrderId,
+          razorpayPaymentId: canonical.razorpayPaymentId,
+        };
+      }
+
+      throw new Error(
+        `PaymentService.execute: Payment execution already in progress for intent ${intentId}.`
+      );
+    }
+
+    // 4. We hold the lock. Create Razorpay order and payment record.
     const adapter = getRazorpayAdapter();
     const now = new Date().toISOString();
-
-    // 4. Create the Razorpay order
     let razorpayOrderId: string;
 
     try {
@@ -91,13 +135,48 @@ export class PaymentService implements IPaymentService {
       });
 
       razorpayOrderId = order.id;
-    } catch (error) {
-      console.error(
-        `[PaymentService] Razorpay order creation failed for intent ${intentId}:`,
-        error
-      );
 
-      // Mark intent as FAILED
+      const paymentRecord: PaymentRecord = {
+        intentId,
+        userId: intent.userId,
+        amount: intent.amount,
+        currency: intent.currency,
+        razorpayOrderId,
+        status: "PAYMENT_CREATED",
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      try {
+        await this.createPaymentRecord(paymentRecord);
+        await this.updateExecutionLock(intentId, "COMPLETED");
+      } catch (err: unknown) {
+        const isConditionalFail =
+          err instanceof Error &&
+          err.name === "ConditionalCheckFailedException";
+
+        if (isConditionalFail) {
+          console.log(
+            `[PaymentService] Race condition detected for intent ${intentId}. Retrieving canonical payment record.`
+          );
+          const canonical = await this.getPaymentRecord(intentId);
+          if (canonical) {
+            return {
+              success: true,
+              razorpayOrderId: canonical.razorpayOrderId,
+              razorpayPaymentId: canonical.razorpayPaymentId,
+            };
+          }
+        }
+        throw err;
+      }
+
+    } catch (error: unknown) {
+      console.error(`[PaymentService] Execution failed for intent ${intentId}:`, error);
+
+      // Explicit failure handling
+      await this.updateExecutionLock(intentId, "FAILED");
+      await reservationRepository.release(intentId);
       await intentRepository.updateStatus(intentId, "FAILED");
 
       return {
@@ -106,51 +185,8 @@ export class PaymentService implements IPaymentService {
       };
     }
 
-    // 5. Persist the payment record with atomic conditional guard
-    const paymentRecord: PaymentRecord = {
-      intentId,
-      userId: intent.userId,
-      amount: intent.amount,
-      currency: intent.currency,
-      razorpayOrderId,
-      status: "PAYMENT_CREATED",
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    try {
-      await this.createPaymentRecord(paymentRecord);
-    } catch (err: unknown) {
-      const isConditionalFail =
-        err instanceof Error &&
-        err.name === "ConditionalCheckFailedException";
-
-      if (isConditionalFail) {
-        // Another concurrent execution won the race to write the PAYMENT record.
-        // Return the canonical existing payment/order.
-        console.log(
-          `[PaymentService] Race condition detected for intent ${intentId}. ` +
-            `Retrieving canonical payment record.`
-        );
-        const canonical = await this.getPaymentRecord(intentId);
-        if (canonical) {
-          return {
-            success: true,
-            razorpayOrderId: canonical.razorpayOrderId,
-            razorpayPaymentId: canonical.razorpayPaymentId,
-          };
-        }
-      }
-
-      throw err;
-    }
-
-    // 6. Keep intent status at RESERVED until webhook confirmation
-    await intentRepository.updateStatus(intentId, "RESERVED");
-
     console.log(
-      `[PaymentService] Payment created for intent ${intentId}. ` +
-        `Razorpay order: ${razorpayOrderId}`
+      `[PaymentService] Payment created for intent ${intentId}. Razorpay order: ${razorpayOrderId}`
     );
 
     return {
@@ -187,7 +223,8 @@ export class PaymentService implements IPaymentService {
   async updatePaymentStatus(
     intentId: string,
     status: PaymentStatus,
-    razorpayPaymentId?: string
+    razorpayPaymentId?: string,
+    expectedStatus?: PaymentStatus
   ): Promise<void> {
     const now = new Date().toISOString();
 
@@ -204,6 +241,20 @@ export class PaymentService implements IPaymentService {
       expressionValues[":paymentId"] = razorpayPaymentId;
     }
 
+    let conditionExpression = "attribute_exists(PK)";
+    const expressionAttributeNames: Record<string, string> = {
+      "#status": "status",
+    };
+
+    if (expectedStatus) {
+      conditionExpression += " AND #status = :expectedStatus";
+      expressionValues[":expectedStatus"] = expectedStatus;
+    }
+
+    if (razorpayPaymentId) {
+      conditionExpression += " AND (attribute_not_exists(razorpayPaymentId) OR razorpayPaymentId = :paymentId)";
+    }
+
     await dynamo.send(
       new UpdateCommand({
         TableName: TABLE_NAME,
@@ -212,11 +263,9 @@ export class PaymentService implements IPaymentService {
           SK: "META",
         },
         UpdateExpression: updateExpression,
-        ExpressionAttributeNames: {
-          "#status": "status",
-        },
+        ExpressionAttributeNames: expressionAttributeNames,
         ExpressionAttributeValues: expressionValues,
-        ConditionExpression: "attribute_exists(PK)",
+        ConditionExpression: conditionExpression,
       })
     );
   }
@@ -224,6 +273,24 @@ export class PaymentService implements IPaymentService {
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  private async getExecutionLock(intentId: string): Promise<PaymentExecutionLock | null> {
+    const result = await dynamo.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: `PAYMENT#${intentId}`,
+          SK: "LOCK",
+        },
+      })
+    );
+
+    if (!result.Item) {
+      return null;
+    }
+
+    return result.Item as PaymentExecutionLock;
+  }
 
   private async createPaymentRecord(
     record: PaymentRecord
@@ -239,6 +306,70 @@ export class PaymentService implements IPaymentService {
         },
         // Prevent overwriting an existing payment record for this intent.
         ConditionExpression: "attribute_not_exists(PK)",
+      })
+    );
+  }
+
+  private async acquireExecutionLock(
+    intentId: string
+  ): Promise<boolean> {
+    const now = new Date().toISOString();
+
+    const lock: PaymentExecutionLock = {
+      intentId,
+      status: "CREATING",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    try {
+      await dynamo.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: {
+            PK: `PAYMENT#${intentId}`,
+            SK: "LOCK",
+            entityType: "PAYMENT_LOCK",
+            ...lock,
+          },
+          ConditionExpression: "attribute_not_exists(PK)",
+        })
+      );
+
+      return true;
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.name === "ConditionalCheckFailedException"
+      ) {
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
+  private async updateExecutionLock(
+    intentId: string,
+    status: PaymentLockStatus
+  ): Promise<void> {
+    await dynamo.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: `PAYMENT#${intentId}`,
+          SK: "LOCK",
+        },
+        UpdateExpression:
+          "SET #status = :status, updatedAt = :updatedAt",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":status": status,
+          ":updatedAt": new Date().toISOString(),
+        },
+        ConditionExpression: "attribute_exists(PK)",
       })
     );
   }

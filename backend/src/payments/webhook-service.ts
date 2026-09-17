@@ -31,6 +31,7 @@ import { TABLE_NAME } from "../store/table.js";
 import { intentRepository } from "../store/intent-repository.js";
 import { getRazorpayAdapter } from "./razorpay-adapter.js";
 import { paymentService } from "./payment-service.js";
+import { reservationRepository } from "../store/reservation-repository.js";
 import type {
   RazorpayWebhookPayload,
   WebhookRecord,
@@ -148,12 +149,18 @@ export class WebhookService {
     try {
       switch (eventType) {
         case "payment.captured":
-        case "order.paid":
           await this.handlePaymentCaptured(
             intentId,
             razorpayPaymentId,
             eventId,
-            eventType,
+            payload
+          );
+          break;
+
+        case "order.paid":
+          await this.handleOrderPaid(
+            intentId,
+            eventId,
             payload
           );
           break;
@@ -205,29 +212,26 @@ export class WebhookService {
     intentId: string | undefined,
     razorpayPaymentId: string | undefined,
     eventId: string,
-    eventType: string,
     payload: RazorpayWebhookPayload
   ): Promise<void> {
     if (!intentId) {
-      throw new Error(
-        `[WebhookService] ${eventType} event ${eventId} has no intentId ` +
-          `in order notes. Cannot update intent status.`
-      );
+      throw new Error(`[WebhookService] payment.captured event ${eventId} has no intentId in order notes.`);
+    }
+    if (!razorpayPaymentId) {
+      throw new Error(`[WebhookService] payment.captured event ${eventId} missing payment entity id.`);
     }
 
-    // Check 1 — Payment record exists
     const paymentRecord = await paymentService.getPaymentRecord(intentId);
     if (!paymentRecord) {
-      throw new Error(
-        `[WebhookService] Payment record PAYMENT#${intentId} not found. Rejecting webhook.`
-      );
+      throw new Error(`[WebhookService] Payment record PAYMENT#${intentId} not found. Rejecting webhook.`);
     }
 
     const paymentEntity = payload.payload.payment?.entity;
-    const orderEntity = payload.payload.order?.entity;
+    if (!paymentEntity) {
+      throw new Error(`[WebhookService] payment.captured missing payment entity.`);
+    }
 
-    // Check 2 — Razorpay order ID matches
-    const webhookOrderId = paymentEntity?.order_id ?? orderEntity?.id;
+    const webhookOrderId = paymentEntity.order_id;
     if (!webhookOrderId || webhookOrderId !== paymentRecord.razorpayOrderId) {
       throw new Error(
         `[WebhookService] Razorpay order ID mismatch for intent ${intentId}. ` +
@@ -235,8 +239,7 @@ export class WebhookService {
       );
     }
 
-    // Check 3 — Amount matches (Razorpay paise vs KavachPay Math.round(amount * 100))
-    const webhookAmount = paymentEntity?.amount ?? orderEntity?.amount;
+    const webhookAmount = paymentEntity.amount;
     const expectedPaise = Math.round(paymentRecord.amount * 100);
     if (webhookAmount === undefined || webhookAmount !== expectedPaise) {
       throw new Error(
@@ -245,8 +248,7 @@ export class WebhookService {
       );
     }
 
-    // Check 4 — Currency matches
-    const webhookCurrency = paymentEntity?.currency;
+    const webhookCurrency = paymentEntity.currency;
     if (
       webhookCurrency &&
       paymentRecord.currency &&
@@ -258,35 +260,113 @@ export class WebhookService {
       );
     }
 
-    // Check 5 — Intent state: must be RESERVED before transitioning to EXECUTED
+    // Pre-check intent state
     const intent = await intentRepository.getIntent(intentId);
     if (!intent) {
-      throw new Error(
-        `[WebhookService] Intent ${intentId} not found in repository. Rejecting webhook.`
-      );
+      throw new Error(`[WebhookService] Intent ${intentId} not found in repository. Rejecting webhook.`);
     }
-
-    if (intent.status !== "RESERVED") {
+    if (intent.status !== "RESERVED" && intent.status !== "EXECUTED") {
       throw new Error(
         `[WebhookService] Invalid intent status transition for ${intentId}. ` +
           `Current status is "${intent.status}". Expected "RESERVED". Rejecting webhook.`
       );
     }
 
-    // All 5 checks passed — update payment record status → EXECUTED
-    await paymentService.updatePaymentStatus(
-      intentId,
-      "EXECUTED",
-      razorpayPaymentId
-    );
+    // Try transitioning intent to EXECUTED conditionally
+    if (intent.status === "RESERVED") {
+      try {
+        await intentRepository.updateStatus(intentId, "EXECUTED", "RESERVED");
+      } catch (error: any) {
+        if (error.name !== "ConditionalCheckFailedException") throw error;
+        console.log(`[WebhookService] Intent ${intentId} already EXECUTED or no longer RESERVED.`);
+      }
+    }
 
-    // Update intent status → EXECUTED
-    await intentRepository.updateStatus(intentId, "EXECUTED");
+    // Try transitioning payment to EXECUTED conditionally
+    const needsPaymentUpdate = 
+      paymentRecord.status === "PAYMENT_CREATED" || 
+      (paymentRecord.status === "EXECUTED" && paymentRecord.razorpayPaymentId !== razorpayPaymentId);
 
-    console.log(
-      `[WebhookService] Intent ${intentId} → EXECUTED ` +
-        `(payment ${razorpayPaymentId ?? "unknown"}).`
-    );
+    if (needsPaymentUpdate) {
+      try {
+        await paymentService.updatePaymentStatus(
+          intentId,
+          "EXECUTED",
+          razorpayPaymentId,
+          paymentRecord.status === "PAYMENT_CREATED" ? "PAYMENT_CREATED" : "EXECUTED"
+        );
+      } catch (error: any) {
+        if (error.name !== "ConditionalCheckFailedException") throw error;
+        console.log(`[WebhookService] Payment ${intentId} status condition failed. Likely processed concurrently or payment ID conflict.`);
+      }
+    }
+
+    console.log(`[WebhookService] Intent ${intentId} processed (payment ${razorpayPaymentId}).`);
+  }
+
+  private async handleOrderPaid(
+    intentId: string | undefined,
+    eventId: string,
+    payload: RazorpayWebhookPayload
+  ): Promise<void> {
+    if (!intentId) {
+      throw new Error(`[WebhookService] order.paid event ${eventId} has no intentId.`);
+    }
+
+    const paymentRecord = await paymentService.getPaymentRecord(intentId);
+    if (!paymentRecord) {
+      throw new Error(`[WebhookService] Payment record not found. Rejecting webhook.`);
+    }
+
+    const orderEntity = payload.payload.order?.entity;
+    if (!orderEntity) {
+      throw new Error(`[WebhookService] order.paid missing order entity.`);
+    }
+
+    const webhookOrderId = orderEntity.id;
+    if (!webhookOrderId || webhookOrderId !== paymentRecord.razorpayOrderId) {
+      throw new Error(`[WebhookService] Razorpay order ID mismatch.`);
+    }
+
+    const webhookAmount = orderEntity.amount;
+    const expectedPaise = Math.round(paymentRecord.amount * 100);
+    if (webhookAmount === undefined || webhookAmount !== expectedPaise) {
+      throw new Error(`[WebhookService] Payment amount mismatch.`);
+    }
+
+    // Pre-check intent state
+    const intent = await intentRepository.getIntent(intentId);
+    if (!intent) {
+      throw new Error(`[WebhookService] Intent ${intentId} not found in repository. Rejecting webhook.`);
+    }
+    if (intent.status !== "RESERVED" && intent.status !== "EXECUTED") {
+      throw new Error(
+        `[WebhookService] Invalid intent status transition for ${intentId}. ` +
+          `Current status is "${intent.status}". Expected "RESERVED". Rejecting webhook.`
+      );
+    }
+
+    // Conditionally transition intent
+    if (intent.status === "RESERVED") {
+      try {
+        await intentRepository.updateStatus(intentId, "EXECUTED", "RESERVED");
+      } catch (error: any) {
+        if (error.name !== "ConditionalCheckFailedException") throw error;
+        console.log(`[WebhookService] Intent ${intentId} already EXECUTED or no longer RESERVED.`);
+      }
+    }
+
+    // Conditionally transition payment
+    if (paymentRecord.status === "PAYMENT_CREATED") {
+      try {
+        await paymentService.updatePaymentStatus(intentId, "EXECUTED", undefined, "PAYMENT_CREATED");
+      } catch (error: any) {
+        if (error.name !== "ConditionalCheckFailedException") throw error;
+        console.log(`[WebhookService] Payment ${intentId} status condition failed. Likely processed concurrently.`);
+      }
+    }
+
+    console.log(`[WebhookService] Intent ${intentId} processed (order.paid).`);
   }
 
   private async handlePaymentFailed(
@@ -296,44 +376,82 @@ export class WebhookService {
     payload: RazorpayWebhookPayload
   ): Promise<void> {
     if (!intentId) {
-      throw new Error(
-        `[WebhookService] payment.failed event ${eventId} has no intentId ` +
-          `in order notes. Cannot update intent status.`
-      );
+      throw new Error(`[WebhookService] payment.failed event ${eventId} has no intentId.`);
     }
 
-    // Validate payment record exists
     const paymentRecord = await paymentService.getPaymentRecord(intentId);
     if (!paymentRecord) {
-      throw new Error(
-        `[WebhookService] Payment record PAYMENT#${intentId} not found on payment.failed. Rejecting webhook.`
-      );
+      throw new Error(`[WebhookService] Payment record PAYMENT#${intentId} not found on payment.failed.`);
     }
 
     const paymentEntity = payload.payload.payment?.entity;
-    const orderEntity = payload.payload.order?.entity;
-    const webhookOrderId = paymentEntity?.order_id ?? orderEntity?.id;
+    if (!paymentEntity) {
+      throw new Error(`[WebhookService] payment.failed missing payment entity.`);
+    }
 
-    if (webhookOrderId && webhookOrderId !== paymentRecord.razorpayOrderId) {
+    const webhookOrderId = paymentEntity.order_id;
+    if (!webhookOrderId) {
+      throw new Error(`[WebhookService] payment.failed missing order ID.`);
+    }
+    if (webhookOrderId !== paymentRecord.razorpayOrderId) {
+      throw new Error(`[WebhookService] Razorpay order ID mismatch on payment.failed.`);
+    }
+
+    const webhookAmount = paymentEntity.amount;
+    if (webhookAmount !== undefined) {
+      const expectedPaise = Math.round(paymentRecord.amount * 100);
+      if (webhookAmount !== expectedPaise) {
+        throw new Error(`[WebhookService] Payment amount mismatch on payment.failed.`);
+      }
+    }
+
+    const webhookCurrency = paymentEntity.currency;
+    if (
+      webhookCurrency &&
+      paymentRecord.currency &&
+      webhookCurrency.toUpperCase() !== paymentRecord.currency.toUpperCase()
+    ) {
+      throw new Error(`[WebhookService] Payment currency mismatch on payment.failed.`);
+    }
+
+    // Try transitioning payment to FAILED conditionally
+    if (paymentRecord.status !== "FAILED") {
+      try {
+        await paymentService.updatePaymentStatus(intentId, "FAILED", razorpayPaymentId, paymentRecord.status);
+      } catch (error: any) {
+        if (error.name !== "ConditionalCheckFailedException") throw error;
+        console.log(`[WebhookService] Payment ${intentId} already FAILED or status changed concurrently.`);
+      }
+    }
+
+    // Pre-check intent state
+    const intent = await intentRepository.getIntent(intentId);
+    if (!intent) {
+      throw new Error(`[WebhookService] Intent ${intentId} not found in repository. Rejecting webhook.`);
+    }
+    if (intent.status !== "RESERVED" && intent.status !== "FAILED") {
       throw new Error(
-        `[WebhookService] Razorpay order ID mismatch on payment.failed for intent ${intentId}. ` +
-          `Expected "${paymentRecord.razorpayOrderId}", received "${webhookOrderId}". Rejecting webhook.`
+        `[WebhookService] Invalid intent status transition for ${intentId}. ` +
+          `Current status is "${intent.status}". Expected "RESERVED". Rejecting webhook.`
       );
     }
 
-    // Update payment record status → FAILED
-    await paymentService.updatePaymentStatus(
-      intentId,
-      "FAILED",
-      razorpayPaymentId
-    );
+    // Try transitioning intent to FAILED conditionally
+    if (intent.status !== "FAILED") {
+      try {
+        await intentRepository.updateStatus(intentId, "FAILED", intent.status);
+      } catch (error: any) {
+        if (error.name !== "ConditionalCheckFailedException") throw error;
+        console.log(`[WebhookService] Intent ${intentId} already FAILED or status changed concurrently.`);
+      }
+    }
 
-    // Update intent status → FAILED (existing IntentStatusSchema value)
-    await intentRepository.updateStatus(intentId, "FAILED");
+    // Release reservation unconditionally (atomic release is idempotent)
+    await reservationRepository.release(intentId);
 
     console.log(
       `[WebhookService] Intent ${intentId} → FAILED ` +
-        `(payment ${razorpayPaymentId ?? "unknown"}).`
+        `(payment ${razorpayPaymentId ?? "unknown"}). Reservation released.`
     );
   }
 
