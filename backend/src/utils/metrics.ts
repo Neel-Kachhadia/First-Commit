@@ -39,6 +39,10 @@ export const metrics = {
     if (metric === "INVARIANT_VIOLATION" || metric === "PAYMENT_FAILED" || metric === "RECONCILIATION_FAILURE") {
       console.error(JSON.stringify(logEntry));
     } else {
+      // Suppress RECONCILIATION_RETRY spam in local development terminal
+      if (metric === "RECONCILIATION_RETRY" && process.env.AWS_LAMBDA_FUNCTION_NAME === undefined) {
+        return;
+      }
       console.log(JSON.stringify(logEntry));
     }
   }

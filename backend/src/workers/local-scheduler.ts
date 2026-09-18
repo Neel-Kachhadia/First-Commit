@@ -26,35 +26,35 @@ export function startLocalWorkers() {
   console.log("Starting Local Workers (EventBridge mock)");
   console.log("-----------------------------------------");
 
-  // Run once immediately on startup so you see state in the first sweep,
-  // then every 5 minutes thereafter (300 seconds).
+  // Run reconciliation only on interval (every 5 minutes)
   const reconciliationInterval = 5 * 60 * 1000;
-
-  const runReconciliation = async () => {
+  setInterval(async () => {
     try {
       await runReconciliationSweep();
     } catch (e) {
       console.error("[LocalScheduler] Reconciliation error:", e);
     }
-  };
+  }, reconciliationInterval);
 
-  setInterval(runReconciliation, reconciliationInterval);
-
-  // Sweep for expired grants every 20 seconds
-  setInterval(async () => {
+  // Expiry sweep: run immediately, then every 20 seconds
+  const runExpiry = async () => {
     try {
       await runExpirySweep();
     } catch (e) {
       console.error("[LocalScheduler] Expiry sweep error:", e);
     }
-  }, 20000);
+  };
+  runExpiry();
+  setInterval(runExpiry, 20000);
 
-  // Run invariant monitor every 60 seconds
-  setInterval(async () => {
+  // Invariant monitor: run immediately, then every 60 seconds
+  const runInvariant = async () => {
     try {
       await runInvariantMonitor();
     } catch (e) {
       console.error("[LocalScheduler] Invariant monitor error:", e);
     }
-  }, 60000);
+  };
+  runInvariant();
+  setInterval(runInvariant, 60000);
 }

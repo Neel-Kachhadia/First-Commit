@@ -36,9 +36,7 @@ export async function runReconciliationSweep(): Promise<void> {
       return;
     }
 
-    console.log(
-      `[ReconciliationWorker] Found ${stuckPayments.length} eligible stuck payment(s). Processing...`
-    );
+
 
     let successCount = 0;
     let retryCount = 0;
@@ -78,7 +76,7 @@ export async function runReconciliationSweep(): Promise<void> {
     }
 
     console.log(
-      `[ReconciliationWorker] Sweep complete. Repaired: ${successCount}, Pending/Retry: ${retryCount}, Unknown: ${unknownCount}, Error: ${failCount}`
+      `[ReconciliationWorker] Sweep complete: ${stuckPayments.length} checked, ${successCount} resolved, ${retryCount + unknownCount} pending.`
     );
   } catch (err: any) {
     console.error("[ReconciliationWorker] Critical error during sweep:", err);
