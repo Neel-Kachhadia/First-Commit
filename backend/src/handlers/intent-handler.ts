@@ -8,7 +8,7 @@ export async function createIntentHandler(
   res: Response
 ): Promise<void> {
   try {
-    const userId = req.user?.sub || req.body.userId || "u_demo";
+    const userId = req.user!.sub;
     const result = await intentService.createIntent({ ...req.body, userId });
 
     const statusCode =

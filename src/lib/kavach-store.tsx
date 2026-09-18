@@ -16,10 +16,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
-  seedAgents,
-  seedApprovals,
-  seedHistory,
-  seedLedger,
   type Agent,
   type ApprovalRequest,
   type AuthorityEvent,
@@ -105,42 +101,39 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
 
   // Data processing
   const agents: Agent[] = useMemo(() => {
-    if (grantsError || !grantsData?.grants || grantsData.grants.length === 0) {
-      return seedAgents;
+    if (grantsError || !grantsData?.grants) {
+      return [];
     }
     return grantsData.grants.map(grantToAgent);
   }, [grantsData, grantsError]);
 
   const ledger: LedgerEntry[] = useMemo(() => {
-    if (ledgerError || !ledgerData?.intents || ledgerData.intents.length === 0) {
-      return seedLedger;
+    if (ledgerError || !ledgerData?.intents) {
+      return [];
     }
     return ledgerData.intents.map(intentToLedgerEntry);
   }, [ledgerData, ledgerError]);
 
-  const usingSeedApprovals =
-    ledgerError || !ledgerData?.intents || ledgerData.intents.length === 0;
-
   const approvals: ApprovalRequest[] = useMemo(() => {
-    const pending =
-      usingSeedApprovals
-        ? seedApprovals
-        : ledgerData.intents
-            .map(intentToApproval)
-            .filter(
-              (approval: ApprovalRequest | null): approval is ApprovalRequest =>
-                approval !== null,
-            );
+    if (ledgerError || !ledgerData?.intents) {
+      return [];
+    }
+    const pending = ledgerData.intents
+      .map(intentToApproval)
+      .filter(
+        (approval: ApprovalRequest | null): approval is ApprovalRequest =>
+          approval !== null,
+      );
 
     return pending.filter(
       (approval: ApprovalRequest) => !resolvedApprovalIds.has(approval.id),
     );
-  }, [ledgerData, resolvedApprovalIds, usingSeedApprovals]);
+  }, [ledgerData, resolvedApprovalIds, ledgerError]);
 
 
   // Derived state
   const frozen = false; // Add frozen logic back if needed via DB or local override
-  const history: AuthorityEvent[] = seedHistory;
+  const history: AuthorityEvent[] = [];
 
   const remainingFor = useCallback(
     (agent: Agent) => remainingAuthority(agent, frozen),
@@ -234,7 +227,6 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
 
   const approveRequest = useCallback(async (id: string) => {
     markApprovalResolved(id);
-    if (usingSeedApprovals) return;
     try {
       const res = await approveMutation.mutateAsync(id);
       if (res.intent?.status === "RESERVED") {
@@ -244,18 +236,17 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
       restoreApproval(id);
       throw error;
     }
-  }, [approveMutation, executeOrderMutation, markApprovalResolved, restoreApproval, usingSeedApprovals]);
+  }, [approveMutation, executeOrderMutation, markApprovalResolved, restoreApproval]);
 
   const denyRequest = useCallback(async (id: string) => {
     markApprovalResolved(id);
-    if (usingSeedApprovals) return;
     try {
       await denyMutation.mutateAsync(id);
     } catch (error) {
       restoreApproval(id);
       throw error;
     }
-  }, [denyMutation, markApprovalResolved, restoreApproval, usingSeedApprovals]);
+  }, [denyMutation, markApprovalResolved, restoreApproval]);
 
   const revokeAgent = async (id: string) => {
     await revokeMutation.mutateAsync(id);

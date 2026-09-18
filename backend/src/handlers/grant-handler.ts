@@ -9,7 +9,7 @@ export async function createGrantHandler(
   res: Response
 ): Promise<void> {
   try {
-    const userId = req.user?.sub || req.body.userId || "u_frontend_demo";
+    const userId = req.user!.sub;
     const grant =
       await grantService.createGrant({
         ...req.body,
