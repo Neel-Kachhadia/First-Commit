@@ -2,11 +2,13 @@
 
 import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
-import { delegationDemo } from "@/lib/experience/demo-state";
+import { decisionsDemo, delegationDemo } from "@/lib/experience/demo-state";
 import { experienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
 import { AuthorityPass } from "@/components/documents/AuthorityPass";
+import { TransactionReceipt } from "@/components/documents/TransactionReceipt";
+import { DecisionStamp } from "@/components/graphics/DecisionStamp";
 import styles from "./DelegationScene.module.css";
 
 type DelegationSceneProps = {
@@ -36,37 +38,13 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
 
       const prefersReduced = experienceStore.getState().reducedMotion;
       if (prefersReduced) {
-        if (!root.current || !stageRef.current) return;
-
-        // KP-MOTION-006: reduced motion changes animation behavior, not scene ownership --
-        // this used to force visibility/pointer-events on unconditionally, staying true
-        // (and interactive) even while a different scene owned the stage.
-        const reducedTriggerEl = trackRef?.current ?? "[data-track='delegation']";
-        const applyReducedVisibility = (visible: boolean) => {
-          if (!root.current || !stageRef.current) return;
-          root.current.style.visibility = visible ? "visible" : "hidden";
-          root.current.style.pointerEvents = visible ? "auto" : "none";
-          root.current.setAttribute("aria-hidden", visible ? "false" : "true");
-          stageRef.current.style.visibility = visible ? "visible" : "hidden";
-        };
-        applyReducedVisibility(false);
-
-        const reducedVisibilityTrigger = ScrollTrigger.create({
-          trigger: reducedTriggerEl,
-          start: "top top+=1px",
-          end: "bottom top",
-          onEnter: () => {
-            applyReducedVisibility(true);
-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "delegation" } }));
-          },
-          onEnterBack: () => {
-            applyReducedVisibility(true);
-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "delegation" } }));
-          },
-          onLeave: () => applyReducedVisibility(false),
-          onLeaveBack: () => applyReducedVisibility(false),
-        });
-
+        if (root.current) {
+          root.current.style.visibility = "visible";
+          root.current.style.pointerEvents = "auto";
+        }
+        if (stageRef.current) {
+          stageRef.current.style.visibility = "visible";
+        }
         // Set all elements to resting static layout with proper offsets
         gsap.set("[data-delegation-parent]", { opacity: 1, scale: parentScaleSettle, x: 0, y: 0 });
         gsap.set("[data-delegation-grocery]", { opacity: 1, scale: 1, xPercent: -50, yPercent: -50, x: groceryTargetX, y: groceryTargetY });
@@ -76,6 +54,7 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
         // Coupling rails are a transient detachment cue, not a permanent graph line
         gsap.set("[data-coupling-line='left']", { scaleX: 0 });
         gsap.set("[data-coupling-line='right']", { scaleX: 0 });
+        gsap.set("[data-decision-evidence-incoming]", { opacity: 0 });
         gsap.set("[data-delegation-header]", { opacity: 1, y: 0 });
         gsap.set("[data-delegation-footer]", { opacity: 1, y: 0 });
         gsap.set("[data-registration-frame]", { opacity: 0 });
@@ -89,7 +68,7 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
         if (allocEl) allocEl.textContent = "₹2,500";
         if (remEl) remEl.textContent = "₹1,500";
         if (stockEl) stockEl.textContent = "₹1,500 UNALLOCATED";
-        return () => reducedVisibilityTrigger.kill();
+        return;
       }
 
       if (!root.current || !stageRef.current) return;
@@ -156,20 +135,26 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
         },
       });
 
+      // Boundary-only preview copy of the approved receipt. Now permanently
+      // hidden — the 02 -> 03 boundary is owned by the video transition layer.
+      const evidenceInEl = root.current.querySelector<HTMLElement>("[data-decision-evidence-incoming]");
+      if (evidenceInEl) {
+        gsap.set(evidenceInEl, { visibility: "hidden", opacity: 0, pointerEvents: "none" });
+      }
+
       // Accounting DOM helpers for deterministic scrub
       const allocatedEl = root.current.querySelector<HTMLElement>("[data-accounting-allocated]");
       const remainingEl = root.current.querySelector<HTMLElement>("[data-accounting-remaining]");
       const stockCapacityEl = root.current.querySelector<HTMLElement>("[data-stock-capacity]");
 
-      gsap.set("[data-delegation-header]", { opacity: 1, y: 0 });
-      gsap.set("[data-delegation-footer]", { opacity: 1, y: 0 });
+      gsap.set("[data-delegation-header]", { opacity: 0.85, y: 0 });
+      gsap.set("[data-delegation-footer]", { opacity: 0.85, y: 0 });
 
-      // Parent Pass starts fully unbuilt; the ENTRY beat below (local 0-0.11)
-      // builds it up before BEAT 2 (Grocery derivation) begins at 0.14.
+      // Parent Pass starts centered, undelegated — primed at 0.00 so stage is never dead
       gsap.set("[data-delegation-parent]", {
-        opacity: 0,
-        scale: 0.92,
-        y: 10,
+        opacity: 0.62,
+        scale: 0.98,
+        y: 4,
       });
       gsap.set("[data-parent-accounting]", { opacity: 0, y: 6 });
       gsap.set("[data-allocation-stock]", { opacity: 0, y: 6 });
@@ -219,16 +204,22 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
 
 
       // =========================================================================
-      // ENTRY: local 0.00 - 0.11. Parent Pass builds up (opacity/scale/position),
-      // then ledger + derivation stock register, before any child authority
-      // exists. This is what visually ESTABLISHES Delegation on entry -- scrubbed
-      // directly on Delegation's own local track (no external driver).
+      // BEAT 1: APPROVED EVIDENCE -> PARENT REGISTRATION (0.00 - 0.14)
+      // The approved Grocery receipt resolves into Shopping authority; ledger +
+      // derivation stock then register before any child authority exists.
       // =========================================================================
       timeline
+        // Header and footer reach full registration
+        .to(
+          "[data-delegation-header], [data-delegation-footer]",
+          { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" },
+          0.01,
+        )
+        // Parent settles into full hero rest by 0.04
         .to(
           "[data-delegation-parent]",
-          { opacity: 1, scale: 1, y: 0, duration: 0.03, ease: "power2.out" },
-          0.005,
+          { opacity: 1, scale: 1, y: 0, duration: 0.04, ease: "power2.out" },
+          0.01,
         )
         .call(
           () => {
@@ -237,19 +228,20 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
             if (stockCapacityEl) stockCapacityEl.textContent = "₹4,000 UNALLOCATED";
           },
           undefined,
-          0.035,
+          0.06,
         )
+        // Ledger + continuous derivation stock resolve as one authoritative group
         .fromTo(
           "[data-parent-accounting]",
           { opacity: 0, y: 6 },
-          { opacity: 1, y: 0, duration: 0.03, ease: "power2.out" },
-          0.05,
+          { opacity: 1, y: 0, duration: 0.06, ease: "power2.out" },
+          0.08,
         )
         .fromTo(
           "[data-allocation-stock]",
           { opacity: 0, y: 6 },
-          { opacity: 1, y: 0, duration: 0.03, ease: "power2.out" },
-          0.08,
+          { opacity: 1, y: 0, duration: 0.06, ease: "power2.out" },
+          0.1,
         );
 
       // =========================================================================
@@ -570,8 +562,27 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
         )
         .to("[data-delegation-downstream]", { opacity: 1, duration: 0.04 }, 0.92)
         .to("[data-delegation-footer]", { opacity: 1, duration: 0.04 }, 0.94)
-        // 0.92 - 1.00: Full resting stillness hold sustained to the end of the track.
-        .set({}, {}, 0.94);
+        // 0.92 - 0.94: Full resting stillness hold sustained
+        .set({}, {}, 0.94)
+        // Non-carrier passes compact away. Grocery remains the single physical
+        // perforated-document carrier into Step-Up.
+        .to(
+          "[data-delegation-parent], [data-delegation-delivery], [data-delegation-downstream]",
+          { scale: parentScaleSettle * 0.90, y: -30, opacity: 0.8, duration: 0.04, ease: "power2.inOut" },
+          0.955,
+        )
+        .to(
+          "[data-delegation-header]",
+          { opacity: 0, y: -8, duration: 0.03, ease: "power1.out" },
+          0.955,
+        )
+        // Supporting bodies recede; the Grocery pass alone holds the boundary.
+        .to(
+          "[data-delegation-parent], [data-delegation-delivery], [data-delegation-downstream], [data-delegation-footer], [data-registration-frame]",
+          { opacity: 0, duration: 0.02, ease: "power1.out" },
+          0.98,
+        )
+        .set({}, {}, 1.0);
 
       // Support clean reverse scrubbing for accounting + event-log text
       timeline.eventCallback("onUpdate", () => {
@@ -616,6 +627,23 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
       aria-labelledby="delegation-scene-title"
     >
       <div ref={stageRef} className={styles.stage} data-delegation-stage>
+        {/* Incoming approved receipt: product-native 02 -> 03 evidence carrier. */}
+        <div
+          className={styles.evidenceCarrier}
+          data-decision-evidence-incoming
+          aria-hidden="true"
+        >
+          <TransactionReceipt
+            id={decisionsDemo.allow.id}
+            agent={decisionsDemo.allow.agent}
+            category={decisionsDemo.allow.category}
+            amount={decisionsDemo.allow.amount}
+            mandateRef={decisionsDemo.allow.mandateRef}
+            status="approved"
+            stamp={<DecisionStamp tone="ink">APPROVED</DecisionStamp>}
+          />
+        </div>
+
         {/* Scene title remains scene-owned; no upper metadata bar. */}
         <div className={styles.topArea}>
           {/* Institutional Scene Header Bar */}

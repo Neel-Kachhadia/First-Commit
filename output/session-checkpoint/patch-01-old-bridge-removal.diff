@@ -1,0 +1,592 @@
+diff --git a/src/components/experience/CausalReplay/CausalReplayScene.tsx b/src/components/experience/CausalReplay/CausalReplayScene.tsx
+index 56f80ea..e2468d1 100644
+--- a/src/components/experience/CausalReplay/CausalReplayScene.tsx
++++ b/src/components/experience/CausalReplay/CausalReplayScene.tsx
+@@ -103,7 +103,7 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
+         end: "bottom top",
+         onEnter: () => {
+           applyVisibility(true);
+-          gsap.set("[data-replay-docket]", { visibility: "visible" });
++          gsap.set("[data-replay-docket]", { visibility: "visible", opacity: 1 });
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
+           );
+@@ -116,7 +116,7 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
+         },
+         onEnterBack: () => {
+           applyVisibility(true);
+-          gsap.set("[data-replay-docket]", { visibility: "visible" });
++          gsap.set("[data-replay-docket]", { visibility: "visible", opacity: 1 });
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
+           );
+@@ -141,19 +141,9 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
+         },
+       });
+ 
+-      // 07 -> 08 carrier bridge: Case Docket for canonical transaction TX-1081
+-      // enters over the standard 120px pre-roll window, establishing the archival case.
+-      const carrierEls = "[data-replay-docket]";
+-      gsap.set(carrierEls, { opacity: 0, visibility: "visible", pointerEvents: "none" });
+-      const carrierBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=120px",
+-        end: "top top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(carrierEls, { opacity: self.progress });
+-        },
+-      });
++      // 07 -> 08 has no video transition; Scene 08 uses only its own entrance
++      // (below) once the ownership trigger above reveals it.
++      gsap.set("[data-replay-docket]", { opacity: 0, visibility: "visible", pointerEvents: "none" });
+ 
+       gsap.set("[data-replay-footer]", { opacity: 0 });
+       gsap.set("[data-evidence-exposure]", { opacity: 0, y: 16, scale: 0.98 });
+@@ -226,7 +216,6 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        carrierBridgeIn.kill();
+         timeline.kill();
+       };
+     },
+diff --git a/src/components/experience/Concurrency/ConcurrencyScene.tsx b/src/components/experience/Concurrency/ConcurrencyScene.tsx
+index 23ca196..8342735 100644
+--- a/src/components/experience/Concurrency/ConcurrencyScene.tsx
++++ b/src/components/experience/Concurrency/ConcurrencyScene.tsx
+@@ -137,38 +137,15 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
+         },
+       });
+ 
+-      // Physical carrier only: Scene 06's sealed dossier resolves into the
+-      // authoritative budget ledger. Chapter header waits for scene ownership.
++      // incomingCarrier's boundary is now owned by the 06 -> 07 video transition
++      // layer; outgoingCarrier's 07 -> 08 boundary intentionally has no video
++      // transition, so both carriers now rely only on the ownership trigger above.
+       gsap.set(incomingCarrier, {
+         opacity: 0,
+         visibility: "visible",
+         pointerEvents: "none",
+       });
+ 
+-      // 06 -> 07 Carrier Bridge (incoming half):
+-      // Symmetrically crossfades in over the 120px pre-roll window Split-Defense uses to fade out.
+-      const carrierBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=120px",
+-        end: "top top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(incomingCarrier, { opacity: self.progress });
+-        },
+-      });
+-
+-      // 07 -> 08 Carrier Bridge (outgoing half):
+-      // Symmetrically crossfades out over the 120px pre-roll window Causal Replay uses to fade in.
+-      const carrierBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=120px",
+-        end: "bottom top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(outgoingCarrier, { opacity: 1 - self.progress });
+-        },
+-      });
+-
+       // Initial element positioning
+       const leftStart = isMobile
+         ? { x: 0, y: -75, opacity: 0, scale: 0.95, rotate: -1 }
+@@ -453,8 +430,6 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        carrierBridgeIn.kill();
+-        carrierBridgeOut.kill();
+         timeline.kill();
+       };
+     },
+diff --git a/src/components/experience/Decisions/DecisionsScene.tsx b/src/components/experience/Decisions/DecisionsScene.tsx
+index b36543f..97c4026 100644
+--- a/src/components/experience/Decisions/DecisionsScene.tsx
++++ b/src/components/experience/Decisions/DecisionsScene.tsx
+@@ -110,19 +110,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+         },
+       });
+ 
+-      // Product-native evidence carrier (outgoing half): the approved Grocery
+-      // receipt becomes the physical handoff into Delegation. Only this receipt
+-      // survives the scene boundary; no administrative top bar crosses scenes.
+-      const evidenceBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=100px",
+-        end: "bottom top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set("[data-decision-evidence-outgoing]", { opacity: 1 - self.progress });
+-        },
+-      });
+-
+       const startScale = isMobile ? 2.1 : 2.45;
+ 
+       // Initial setup for deterministic forward and reverse scrub
+@@ -490,7 +477,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        evidenceBridgeOut.kill();
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };
+diff --git a/src/components/experience/Delegation/DelegationScene.tsx b/src/components/experience/Delegation/DelegationScene.tsx
+index 888ac0c..5c2d390 100644
+--- a/src/components/experience/Delegation/DelegationScene.tsx
++++ b/src/components/experience/Delegation/DelegationScene.tsx
+@@ -135,89 +135,18 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
+         },
+       });
+ 
+-      // Product-native 02 -> 03 carrier. Both technical copies render the same
+-      // approved receipt at the same viewport datum. Geometry is read only during
+-      // init/refresh; the scrub hot path performs writes only.
++      // Boundary-only preview copy of the approved receipt. Now permanently
++      // hidden — the 02 -> 03 boundary is owned by the video transition layer.
+       const evidenceInEl = root.current.querySelector<HTMLElement>("[data-decision-evidence-incoming]");
+-      const evidenceOutEl = document.querySelector<HTMLElement>("[data-decision-evidence-outgoing]");
+-      let evidenceGeometry = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+-
+       if (evidenceInEl) {
+-        gsap.set(evidenceInEl, { visibility: "visible", pointerEvents: "none" });
++        gsap.set(evidenceInEl, { visibility: "hidden", opacity: 0, pointerEvents: "none" });
+       }
+ 
+-      const measureEvidenceGeometry = () => {
+-        if (!evidenceInEl || !evidenceOutEl) return;
+-        gsap.set(evidenceInEl, { x: 0, y: 0, scaleX: 1, scaleY: 1 });
+-        const outgoing = evidenceOutEl.getBoundingClientRect();
+-        const incoming = evidenceInEl.getBoundingClientRect();
+-        if (incoming.width === 0 || incoming.height === 0) return;
+-        evidenceGeometry = {
+-          x: outgoing.left - incoming.left,
+-          y: outgoing.top - incoming.top,
+-          scaleX: outgoing.width / incoming.width,
+-          scaleY: outgoing.height / incoming.height,
+-        };
+-        gsap.set(evidenceInEl, evidenceGeometry);
+-      };
+-
+-      measureEvidenceGeometry();
+-      ScrollTrigger.addEventListener("refreshInit", measureEvidenceGeometry);
+-
+-      const evidenceBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=100px",
+-        end: "top top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          if (!evidenceInEl) return;
+-          gsap.set(evidenceInEl, {
+-            ...evidenceGeometry,
+-            opacity: self.progress,
+-          });
+-        },
+-      });
+-
+-      const evidenceSettleIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top",
+-        end: "top top-=120px",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          if (!evidenceInEl) return;
+-          gsap.set(evidenceInEl, {
+-            ...evidenceGeometry,
+-            opacity: 1 - self.progress,
+-          });
+-        },
+-      });
+-
+-      // The Grocery derived pass is the actual 03 -> 04 paper carrier. It keeps
+-      // the approved perforated authority artifact alive; chapter header never
+-      // crosses the boundary.
+-      const derivedCarrierEl = root.current.querySelector<HTMLElement>("[data-delegation-grocery]");
+-      if (derivedCarrierEl) {
+-        gsap.set(derivedCarrierEl, { visibility: "visible", pointerEvents: "none" });
+-      }
+-
+-      const documentBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=100px",
+-        end: "bottom top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          if (derivedCarrierEl) gsap.set(derivedCarrierEl, { opacity: 1 - self.progress });
+-        },
+-      });
+-
+       // Accounting DOM helpers for deterministic scrub
+       const allocatedEl = root.current.querySelector<HTMLElement>("[data-accounting-allocated]");
+       const remainingEl = root.current.querySelector<HTMLElement>("[data-accounting-remaining]");
+       const stockCapacityEl = root.current.querySelector<HTMLElement>("[data-stock-capacity]");
+ 
+-      // Incoming evidence opacity is owned by the bridge until the boundary;
+-      // the scene timeline then resolves the receipt into Shopping authority.
+-      gsap.set("[data-decision-evidence-incoming]", { opacity: 0 });
+       gsap.set("[data-delegation-header]", { opacity: 0.85, y: 0 });
+       gsap.set("[data-delegation-footer]", { opacity: 0.85, y: 0 });
+ 
+@@ -682,11 +611,7 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
+       });
+ 
+       return () => {
+-        ScrollTrigger.removeEventListener("refreshInit", measureEvidenceGeometry);
+         visibilityTrigger.kill();
+-        evidenceBridgeIn.kill();
+-        evidenceSettleIn.kill();
+-        documentBridgeOut.kill();
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };
+diff --git a/src/components/experience/Revocation/RevocationScene.tsx b/src/components/experience/Revocation/RevocationScene.tsx
+index da86b07..85dedce 100644
+--- a/src/components/experience/Revocation/RevocationScene.tsx
++++ b/src/components/experience/Revocation/RevocationScene.tsx
+@@ -106,24 +106,17 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
+       const travelLineage = root.current.querySelector<HTMLElement>(
+         "[data-independent-register='travel']",
+       );
+-      const setTravelCarrierMode = (mode: "hidden" | "bridge" | "scene") => {
++      const setTravelRecordOwned = (owned: boolean) => {
+         if (!travelRecord) return;
+-        if (mode === "hidden") {
+-          gsap.set([travelRecord, travelLineage], { visibility: "hidden", opacity: 0 });
+-          travelRecord.setAttribute("aria-hidden", "true");
+-          return;
+-        }
+-        gsap.set(travelRecord, {
+-          visibility: mode === "bridge" ? "visible" : "inherit",
+-          opacity: 1,
++        gsap.set([travelRecord, travelLineage], {
++          visibility: owned ? "inherit" : "hidden",
++          opacity: owned ? 1 : 0,
+         });
+-        gsap.set(travelLineage, { visibility: "inherit", opacity: 1 });
+-        if (mode === "bridge") travelRecord.setAttribute("aria-hidden", "true");
+-        else travelRecord.removeAttribute("aria-hidden");
++        if (owned) travelRecord.removeAttribute("aria-hidden");
++        else travelRecord.setAttribute("aria-hidden", "true");
+       };
+ 
+-      // Body visibility stays exact. Only the independent Travel record may appear
+-      // in the incoming bridge; chapter chrome remains scene-owned.
++      // Body visibility stays exact. Chapter chrome remains scene-owned.
+       // start uses a 1px epsilon (not an authored overlap) — GSAP's onEnter for a
+       // non-scrubbed trigger requires progress to strictly exceed 0, so landing
+       // exactly on the boundary pixel would otherwise leave the body hidden until
+@@ -135,14 +128,14 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
+         end: "bottom top",
+         onEnter: () => {
+           applyVisibility(true);
+-          setTravelCarrierMode("scene");
++          setTravelRecordOwned(true);
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "revocation" } }),
+           );
+         },
+         onEnterBack: () => {
+           applyVisibility(true);
+-          setTravelCarrierMode("scene");
++          setTravelRecordOwned(true);
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "revocation" } }),
+           );
+@@ -150,47 +143,20 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
+         onLeave: () => {
+           if (isPersistent) {
+             applyVisibility(false);
+-            setTravelCarrierMode("hidden");
++            setTravelRecordOwned(false);
+           }
+         },
+         onLeaveBack: () => {
+           applyVisibility(false);
+-          setTravelCarrierMode("bridge");
++          setTravelRecordOwned(false);
+         },
+       });
+ 
+       gsap.set("[data-revocation-header]", { opacity: 1, y: 0 });
+       gsap.set("[data-record]:not([data-record='TX-1082'])", { opacity: 0 });
+-      setTravelCarrierMode("hidden");
++      setTravelRecordOwned(false);
+       gsap.set(travelRecord, { pointerEvents: "none" });
+ 
+-      // Incoming 04 -> 05 bridge. Step-Up's terminal compact request is measured
+-      // against this record, so the late cross-dissolve swaps copies at <=1px.
+-      const travelBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=120px",
+-        end: "top top",
+-        scrub: true,
+-        onEnter: () => setTravelCarrierMode("bridge"),
+-        onEnterBack: () => setTravelCarrierMode("bridge"),
+-        onLeave: () => setTravelCarrierMode("scene"),
+-        onLeaveBack: () => setTravelCarrierMode("hidden"),
+-        onUpdate: (self) => {
+-          gsap.set(travelRecord, { opacity: Math.pow(self.progress, 8) });
+-        },
+-      });
+-
+-      const syncTravelCarrierVisibility = () => {
+-        if (visibilityTrigger.isActive) {
+-          setTravelCarrierMode("scene");
+-        } else if (travelBridgeIn.isActive) {
+-          setTravelCarrierMode("bridge");
+-        } else {
+-          setTravelCarrierMode("hidden");
+-        }
+-      };
+-      ScrollTrigger.addEventListener("refresh", syncTravelCarrierVisibility);
+-
+       // =========================================================================
+       // BEAT 1: TRAVEL RECORD LANDING & REGISTER UNFOLDING (0.00 - 0.16)
+       // TX-1082 lands into its independent register before sibling records establish.
+@@ -505,8 +471,6 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        travelBridgeIn.kill();
+-        ScrollTrigger.removeEventListener("refresh", syncTravelCarrierVisibility);
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };
+diff --git a/src/components/experience/SplitDefense/SplitDefenseScene.tsx b/src/components/experience/SplitDefense/SplitDefenseScene.tsx
+index af1ecb2..c06e294 100644
+--- a/src/components/experience/SplitDefense/SplitDefenseScene.tsx
++++ b/src/components/experience/SplitDefense/SplitDefenseScene.tsx
+@@ -135,45 +135,6 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
+         },
+       });
+ 
+-      // Physical carriers only: Revocation's source datum resolves into the
+-      // temporal aperture; the sealed dossier hands into Scene 07's ledger.
+-      const incomingCarrier = "[data-temporal-aperture]";
+-      const outgoingCarrier = "[data-dossier-backing]";
+-      gsap.set(incomingCarrier, {
+-        opacity: 0,
+-        visibility: "visible",
+-        pointerEvents: "none",
+-      });
+-
+-      // 05 -> 06 Carrier Bridge (incoming half):
+-      // Symmetrically crossfades in over the same 120px pre-roll window Revocation uses to crossfade out.
+-      const carrierBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=120px",
+-        end: "top top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(incomingCarrier, { opacity: self.progress });
+-        },
+-        onLeave: () => {
+-          // Carrier completes at ownership; Scene 06's authored timeline then
+-          // re-engages the full aperture at the established correlation beat.
+-          gsap.set(incomingCarrier, { opacity: 0 });
+-        },
+-      });
+-
+-      // 06 -> 07 Carrier Bridge (outgoing half):
+-      // Symmetrically crossfades out over the 120px pre-roll window Concurrency uses to crossfade in.
+-      const carrierBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=120px",
+-        end: "bottom top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(outgoingCarrier, { opacity: 1 - self.progress });
+-        },
+-      });
+-
+       // Initial Receipt Spatial Coordinates
+       const rec1Start = isMobile
+         ? { x: -20, y: -40, rotate: -2, opacity: 0 }
+@@ -492,8 +453,6 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        carrierBridgeIn.kill();
+-        carrierBridgeOut.kill();
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };
+diff --git a/src/components/experience/StepUp/StepUpScene.tsx b/src/components/experience/StepUp/StepUpScene.tsx
+index 18157dc..ac0e86c 100644
+--- a/src/components/experience/StepUp/StepUpScene.tsx
++++ b/src/components/experience/StepUp/StepUpScene.tsx
+@@ -94,20 +94,15 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+       const travelCarrier = root.current.querySelector<HTMLElement>(
+         "[data-stepup-travel-carrier]",
+       );
+-      function setTravelCarrierMode(mode: "hidden" | "bridge" | "scene") {
++      function setTravelCarrierOwned(owned: boolean) {
+         if (!travelCarrier) return;
+-        if (mode === "hidden") {
+-          gsap.set(travelCarrier, { visibility: "hidden", opacity: 0 });
+-          return;
+-        }
+         gsap.set(travelCarrier, {
+-          visibility: mode === "bridge" ? "visible" : "inherit",
+-          opacity: 1,
++          visibility: owned ? "inherit" : "hidden",
++          opacity: owned ? 1 : 0,
+         });
+       }
+ 
+-      // Body visibility stays exact. Only the physical Travel request carrier may
+-      // cross the adjacent ownership boundaries; chapter chrome remains scene-owned.
++      // Body visibility stays exact; chapter chrome remains scene-owned.
+       // start uses a 1px epsilon (not an authored overlap) — GSAP's onEnter for a
+       // non-scrubbed trigger requires progress to strictly exceed 0, so landing
+       // exactly on the boundary pixel would otherwise leave the body hidden until
+@@ -119,14 +114,14 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+         end: "bottom top",
+         onEnter: () => {
+           applyVisibility(true);
+-          setTravelCarrierMode("scene");
++          setTravelCarrierOwned(true);
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "stepUp" } }),
+           );
+         },
+         onEnterBack: () => {
+           applyVisibility(true);
+-          setTravelCarrierMode("scene");
++          setTravelCarrierOwned(true);
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "stepUp" } }),
+           );
+@@ -134,17 +129,19 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+         onLeave: () => {
+           if (isPersistent) {
+             applyVisibility(false);
+-            setTravelCarrierMode("hidden");
++            setTravelCarrierOwned(false);
+           }
+         },
+         onLeaveBack: () => {
+           applyVisibility(false);
+-          setTravelCarrierMode("bridge");
++          setTravelCarrierOwned(false);
+         },
+       });
+ 
+-      const incomingTravel = document.querySelector<HTMLElement>("[data-delegation-grocery]");
+-      const downstreamTravel = document.querySelector<HTMLElement>("[data-record='TX-1082']");
++      // Self-contained entry/exit offsets. Previously measured against sibling
++      // scenes' DOM rects to fly the artifact across the boundary; the video
++      // transition layer now owns that boundary, so this scene's own entrance/
++      // exit motion uses fixed offsets instead.
+       const travelGeometry = {
+         entryX: entryStartX,
+         entryY: entryStartY,
+@@ -155,88 +152,7 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+         exitScaleX: 1,
+         exitScaleY: 1,
+       };
+-
+-      const cacheTravelGeometry = () => {
+-        if (!travelCarrier) return;
+-
+-        gsap.set(travelCarrier, {
+-          x: 0,
+-          y: 0,
+-          scaleX: 1,
+-          scaleY: 1,
+-          transformOrigin: "top left",
+-        });
+-        const base = travelCarrier.getBoundingClientRect();
+-        if (base.width <= 0 || base.height <= 0) return;
+-
+-        if (incomingTravel) {
+-          const source = incomingTravel.getBoundingClientRect();
+-          travelGeometry.entryX = source.left - base.left;
+-          travelGeometry.entryY = source.top - base.top;
+-          travelGeometry.entryScaleX = source.width / base.width;
+-          travelGeometry.entryScaleY = source.height / base.height;
+-        }
+-
+-        if (downstreamTravel) {
+-          const target = downstreamTravel.getBoundingClientRect();
+-          travelGeometry.exitX = target.left - base.left;
+-          travelGeometry.exitY = target.top - base.top;
+-          travelGeometry.exitScaleX = target.width / base.width;
+-          travelGeometry.exitScaleY = target.height / base.height;
+-        }
+-      };
+-
+-      cacheTravelGeometry();
+-      ScrollTrigger.addEventListener("refreshInit", cacheTravelGeometry);
+-
+-      // Incoming 03 -> 04 bridge. Geometry is measured only at init/refresh; the
+-      // compact TX-1082 copy occupies the outgoing pass's exact stage rectangle.
+-      gsap.set("[data-stepup-travel-carrier]", {
+-        opacity: 0,
+-        visibility: "hidden",
+-        pointerEvents: "none",
+-        transformOrigin: "top left",
+-      });
+-      const artifactBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=100px",
+-        end: "top top",
+-        scrub: true,
+-        onEnter: () => setTravelCarrierMode("bridge"),
+-        onEnterBack: () => setTravelCarrierMode("bridge"),
+-        onLeave: () => setTravelCarrierMode("scene"),
+-        onLeaveBack: () => setTravelCarrierMode("hidden"),
+-        onUpdate: (self) => {
+-          gsap.set("[data-stepup-travel-carrier]", { opacity: self.progress });
+-        },
+-      });
+-
+-      // Outgoing 04 -> 05 bridge. Incoming Revocation copy is registered to this
+-      // terminal rectangle, making the technical DOM swap visually invisible.
+-      const artifactBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=120px",
+-        end: "bottom top",
+-        scrub: true,
+-        onEnter: () => setTravelCarrierMode("bridge"),
+-        onEnterBack: () => setTravelCarrierMode("bridge"),
+-        onLeave: () => setTravelCarrierMode("hidden"),
+-        onLeaveBack: () => setTravelCarrierMode("scene"),
+-        onUpdate: (self) => {
+-          gsap.set("[data-stepup-travel-carrier]", { opacity: 1 - self.progress });
+-        },
+-      });
+-
+-      const syncTravelCarrierVisibility = () => {
+-        if (visibilityTrigger.isActive) {
+-          setTravelCarrierMode("scene");
+-        } else if (artifactBridgeIn.isActive || artifactBridgeOut.isActive) {
+-          setTravelCarrierMode("bridge");
+-        } else {
+-          setTravelCarrierMode("hidden");
+-        }
+-      };
+-      ScrollTrigger.addEventListener("refresh", syncTravelCarrierVisibility);
++      setTravelCarrierOwned(false);
+ 
+       // Dynamic text targets for status bar
+       const barStatusEl = root.current.querySelector<HTMLElement>("[data-bar-status]");
+@@ -636,10 +552,6 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        artifactBridgeIn.kill();
+-        artifactBridgeOut.kill();
+-        ScrollTrigger.removeEventListener("refreshInit", cacheTravelGeometry);
+-        ScrollTrigger.removeEventListener("refresh", syncTravelCarrierVisibility);
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };

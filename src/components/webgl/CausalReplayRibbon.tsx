@@ -30,7 +30,6 @@ import { progressBus } from "@/lib/experience/progress-bus";
 import {
   CAUSAL_REPLAY_STAGE_COUNT,
   CAUSAL_REPLAY_STAGE_WINDOWS,
-  CAUSAL_REPLAY_TRANSITION_FRACTION,
 } from "@/lib/experience/causal-replay";
 
 const MATERIALS = {
@@ -70,7 +69,7 @@ function continuousFrameProgress(p: number): number {
 
   for (let i = 0; i < STAGE_WINDOWS.length; i += 1) {
     const [start, end] = STAGE_WINDOWS[i];
-    const holdEnd = start + (end - start) * (1 - CAUSAL_REPLAY_TRANSITION_FRACTION);
+    const holdEnd = start + (end - start) * 0.72;
     if (p <= holdEnd) return i;
     if (p <= end) {
       const t = (p - holdEnd) / (end - holdEnd);
@@ -508,14 +507,7 @@ export function CausalReplayRibbon({
 
     const currentFrameProg = continuousFrameProgress(p);
     const activeIndex = Math.floor(currentFrameProg);
-    // Transport must derive from the held/eased frame progress, not raw scroll progress --
-    // otherwise the physical film keeps sliding underneath a DOM evidence card that is
-    // supposed to be seated/registered in the gate. currentFrameProg already holds at each
-    // integer index for the mechanical dwell and only advances during the eased transition,
-    // so this single value now drives every moving contact surface AND the DOM fade timing
-    // (see CausalReplayScene.tsx, which shares CAUSAL_REPLAY_TRANSITION_FRACTION).
-    const transportDistance =
-      (currentFrameProg / (CAUSAL_REPLAY_STAGE_COUNT - 1)) * TRANSPORT.distance;
+    const transportDistance = p * TRANSPORT.distance;
 
     // One physical transport value drives every moving contact surface.
     if (supplyReelRef.current) {

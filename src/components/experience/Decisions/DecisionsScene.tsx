@@ -22,43 +22,13 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
     () => {
       const prefersReduced = experienceStore.getState().reducedMotion;
       if (prefersReduced) {
-        if (!root.current || !stageRef.current) return;
-
-        // KP-MOTION-006: reduced motion changes animation behavior, not scene ownership --
-        // this used to force visibility/pointer-events on unconditionally, which stayed
-        // true (and interactive) even while a different scene owned the stage. Mirror the
-        // same ownership-aware visibility trigger the full-motion branch below uses, just
-        // without the scrubbed timeline driving it.
-        const reducedTriggerEl =
-          trackRef?.current ?? (Boolean(trackRef) ? "[data-track='decisions']" : root.current);
-        const applyReducedVisibility = (visible: boolean) => {
-          if (root.current) {
-            root.current.style.visibility = visible ? "visible" : "hidden";
-            root.current.style.pointerEvents = visible ? "auto" : "none";
-            root.current.setAttribute("aria-hidden", visible ? "false" : "true");
-          }
-          if (stageRef.current) {
-            stageRef.current.style.visibility = visible ? "visible" : "hidden";
-          }
-        };
-        applyReducedVisibility(false);
-
-        const reducedVisibilityTrigger = ScrollTrigger.create({
-          trigger: reducedTriggerEl,
-          start: "top top+=1px",
-          end: "bottom top",
-          onEnter: () => {
-            applyReducedVisibility(true);
-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "decisions" } }));
-          },
-          onEnterBack: () => {
-            applyReducedVisibility(true);
-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "decisions" } }));
-          },
-          onLeave: () => applyReducedVisibility(false),
-          onLeaveBack: () => applyReducedVisibility(false),
-        });
-
+        if (root.current) {
+          root.current.style.visibility = "visible";
+          root.current.style.pointerEvents = "auto";
+        }
+        if (stageRef.current) {
+          stageRef.current.style.visibility = "visible";
+        }
         gsap.set(
           "[data-lane-tag='allow'], [data-lane-tag='stepup'], [data-lane-tag='deny']",
           {
@@ -70,7 +40,7 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
             letterSpacing: "-0.025em",
           },
         );
-        return () => reducedVisibilityTrigger.kill();
+        return;
       }
       if (!root.current || !stageRef.current) return;
 
@@ -109,11 +79,12 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         },
       });
 
-      // Body visibility trigger scoped exactly to Decisions' own pinned window --
-      // no overlap into Mandate or Delegation.
+      // Body visibility trigger scoped to Decisions' own true pinned window.
+      // Trailing edge is exact (no bleed into Delegation) — only the approved
+      // receipt evidence carrier survives via its independent bridge trigger.
       const visibilityTrigger = ScrollTrigger.create({
         trigger: triggerEl,
-        start: "top top+=1px",
+        start: "top top+=100px",
         end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
@@ -168,6 +139,15 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
       gsap.set("[data-barrier='deny']", { opacity: 0, scaleX: 0 });
       gsap.set("[data-stamp]", { opacity: 0 });
       gsap.set("[data-note]", { opacity: 0, x: 12 });
+      // No explicit visibility override: this element is an ordinary descendant
+      // of the scene root now, and must inherit the root's hidden/visible state
+      // like everything else — the old boundary crossfade that needed it to
+      // stay visible while the root was hidden is gone.
+      gsap.set("[data-decision-evidence-outgoing]", {
+        display: "block",
+        opacity: 0,
+        pointerEvents: "none",
+      });
 
 
       // =========================================================================
@@ -431,44 +411,70 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         );
 
       // =========================================================================
-      // BEAT 5: FINAL RESTING COMPOSITION (0.89 - 1.00)
+      // BEAT 5: FINAL EVIDENCE HARMONIZATION & ARCHIVE FILING (0.89 - 1.00)
       // All three lanes settle into their authentic resting positions:
       // A = clear exit / continued
       // B = suspended / held with open path ahead
       // C = terminated / severed with dead end
-      // 0.89 - 0.93: Completed Decisions operating state holds in clear readable
-      // rest. The scene stays in this resting composition through the end of its
-      // own track; the scene root is hidden by the visibility trigger once the
-      // viewer scrolls past it, so no separate release/fade-out is needed here.
+      // 0.89 - 0.93: Completed Decisions operating state holds in clear readable rest.
+      // 0.93 - 0.965: Evidence files into the approved Grocery receipt docket;
+      // other receipts recede while the successful receipt becomes the carrier.
+      // 0.965 - 1.00: the docket holds alone for Delegation handoff.
       // =========================================================================
       timeline
         .to("[data-lane='allow']", { opacity: 0.9, duration: 0.04 }, 0.89)
         .to("[data-lane='stepup']", { opacity: 0.95, duration: 0.04 }, 0.89)
         .to("[data-lane='deny']", { opacity: 0.95, duration: 0.04 }, 0.89)
+        .to("[data-receipt-wrap='allow']", { opacity: 0.95, duration: 0.04 }, 0.88)
+        .to("[data-decisions-footer]", { opacity: 1, duration: 0.04 }, 0.90)
         // Sustained terminal hold through 0.93
         .set({}, {}, 0.93)
-        // Geometry-only: collapses the track line width without touching its
-        // now boundary-owned opacity.
+        // 0.93 - 0.965: Lanes relinquish dominance; non-carrier receipts file away.
+        .to(
+          "[data-lane-tag='allow'], [data-lane-tag='stepup'], [data-lane-tag='deny'], [data-lane-sprockets], [data-gate='stepup'], [data-barrier='deny'], [data-note]",
+          { opacity: 0, duration: 0.035, ease: "power1.out" },
+          0.93,
+        )
         .to(
           "[data-lane-track-line]",
-          { scaleX: 0.3, duration: 0.035, ease: "power1.in" },
+          { scaleX: 0.3, opacity: 0, duration: 0.035, ease: "power1.in" },
           0.935,
         )
-        // Geometry-only: scale/position, opacity owned by the boundary.
+        // The original lane receipt yields to an identical physical evidence
+        // docket at viewport datum. The docket, not a metadata bar, crosses scenes.
+        .set("[data-decision-evidence-outgoing]", { display: "block" }, 0.90)
+        .fromTo(
+          "[data-decision-evidence-outgoing]",
+          { opacity: 0 },
+          { opacity: 1, duration: 0.065, ease: "power2.out" },
+          0.90,
+        )
         .to(
           "[data-receipt-wrap='allow']",
-          { scale: 0.94, duration: 0.035, ease: "power1.out" },
+          { opacity: 0, scale: 0.94, duration: 0.035, ease: "power1.out" },
           0.93,
         )
         .to(
           "[data-receipt-wrap='stepup']",
-          { yPercent: -180, scale: 0.7, duration: 0.035, ease: "power2.in" },
+          { yPercent: -180, scale: 0.7, opacity: 0.5, duration: 0.035, ease: "power2.in" },
           0.935,
         )
         .to(
           "[data-receipt-wrap='deny']",
-          { yPercent: -240, scale: 0.7, duration: 0.035, ease: "power2.in" },
+          { yPercent: -240, scale: 0.7, opacity: 0.5, duration: 0.035, ease: "power2.in" },
           0.94,
+        )
+        // Non-carrier receipts dock and dissolve as approved evidence takes over.
+        .to(
+          "[data-receipt-wrap='stepup'], [data-receipt-wrap='deny']",
+          { opacity: 0, duration: 0.015, ease: "power1.out" },
+          0.965,
+        )
+        // Lane board fades down cleanly so only the physical receipt remains.
+        .to(
+          "[data-lanes-board], [data-decisions-header], [data-decisions-footer]",
+          { opacity: 0, duration: 0.03, ease: "power1.out" },
+          0.965,
         )
         .set({}, {}, 1.00);
 
@@ -489,6 +495,23 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
       aria-labelledby="decisions-scene-title"
     >
       <div ref={stageRef} className={styles.stage} data-decisions-stage>
+        {/* Approved transaction evidence becomes the 02 → 03 physical carrier. */}
+        <div
+          className={styles.evidenceCarrier}
+          data-decision-evidence-outgoing
+          aria-hidden="true"
+        >
+          <TransactionReceipt
+            id={decisionsDemo.allow.id}
+            agent={decisionsDemo.allow.agent}
+            category={decisionsDemo.allow.category}
+            amount={decisionsDemo.allow.amount}
+            mandateRef={decisionsDemo.allow.mandateRef}
+            status="approved"
+            stamp={<DecisionStamp tone="ink">APPROVED</DecisionStamp>}
+          />
+        </div>
+
         {/* Top Institutional Header Bar */}
         <header className={styles.sceneHeader} data-decisions-header>
           <div className={styles.headerLeft}>

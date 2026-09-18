@@ -30,9 +30,12 @@ export function DebugStageHUD() {
       const activeScene = progressBus.getActiveScene();
       const progress = progressBus.get(activeScene);
 
-      // Scene ownership audit: under the isolated-scene model, exactly one
-      // section root should ever compute visibility:visible. Anything else
-      // (0 or 2+) is a hard ownership regression.
+      // Scene ownership audit: a scene "body" counts as visibly active when its
+      // section root computes visibility:visible. Ordinarily exactly 1. During a
+      // boundary handoff, at most 2 may briefly compute visible (one collapsing,
+      // one establishing) — 3+ is a hard ownership regression (two complete
+      // scenes stacked). Carriers are read independently since they intentionally
+      // override an invisible root during a bridge pre-roll window.
       const sceneRoots = Array.from(
         document.querySelectorAll<HTMLElement>("[data-scene]"),
       ).map((el) => ({
@@ -42,7 +45,21 @@ export function DebugStageHUD() {
       }));
       const visibleRoots = sceneRoots.filter((s) => s.visible);
 
-      const ownershipFail = visibleRoots.length !== 1;
+      const carrierSelectors: Array<[string, string]> = [
+        ["decisionRegisterOut", "[data-decision-register-outgoing]"],
+        ["decisionRegisterIn", "[data-decision-register]"],
+        ["authorityFolioOut", "[data-authority-folio-outgoing]"],
+        ["authorityFolioIn", "[data-authority-folio]"],
+        ["revocationFolio", "[data-revocation-folio]"],
+      ];
+      const carrierOpacities = carrierSelectors.map(([label, selector]) => {
+        const el = document.querySelector<HTMLElement>(selector);
+        const opacity = el ? parseFloat(window.getComputedStyle(el).opacity) : 0;
+        return { label, opacity };
+      });
+      const visibleCarriers = carrierOpacities.filter((c) => c.opacity > 0.05);
+
+      const ownershipFail = visibleRoots.length > 2;
 
       if (hudRef.current) {
         hudRef.current.innerHTML = `
@@ -56,6 +73,11 @@ export function DebugStageHUD() {
             VISIBLE_ROOTS: ${visibleRoots.length} [${visibleRoots.map((s) => s.id).join(", ") || "none"}]
             ${ownershipFail ? " ⚠ OWNERSHIP FAIL" : ""}
           </div>
+          <div>VISIBLE_CARRIERS: ${
+            visibleCarriers.length
+              ? visibleCarriers.map((c) => `${c.label}=${c.opacity.toFixed(2)}`).join(", ")
+              : "none"
+          }</div>
         `;
       }
 

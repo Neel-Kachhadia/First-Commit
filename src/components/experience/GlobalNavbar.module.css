@@ -19,6 +19,10 @@
   pointer-events: none;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .nav { transition: none; }
+}
+
 .nav::after {
   background: var(--kp-red);
   bottom: -1px;
@@ -278,7 +282,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav,
   .chapter,
   .controlIndex { transition: none; }
 }

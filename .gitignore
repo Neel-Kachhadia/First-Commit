@@ -23,7 +23,9 @@
 # misc
 .DS_Store
 *.pem
-
+*.yml
+*.log
+*.txt
 # debug
 npm-debug.log*
 yarn-debug.log*

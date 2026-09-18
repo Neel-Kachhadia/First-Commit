@@ -433,11 +433,26 @@
   }
 }
 
+/* Approved receipt carrier: same viewport datum in Decisions and Delegation. */
+.evidenceCarrier {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 25;
+  width: max-content;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
 /* -------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .section {
     height: auto;
     margin-top: 0;
+    visibility: visible !important;
+    pointer-events: auto !important;
   }
 
   .stage {

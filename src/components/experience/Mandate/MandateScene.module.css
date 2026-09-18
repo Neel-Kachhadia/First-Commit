@@ -173,6 +173,10 @@
   z-index: -1;
 }
 
+.documentWrap {
+  filter: drop-shadow(0 24px 34px rgba(0,0,0,.38));
+}
+
 .measure {
   align-items: center;
   bottom: 2.8vh;
@@ -426,5 +430,6 @@
 @media (prefers-reduced-motion: reduce) {
   .section { height: auto; min-height: 100svh; }
   .stage { min-height: 100svh; position: relative; }
+  .transitionRule,
   .spliceGeometry { display: none; }
 }

@@ -11,11 +11,3 @@ export const CAUSAL_REPLAY_STAGE_WINDOWS = [
 ] as const satisfies ReadonlyArray<readonly [number, number]>;
 
 export const CAUSAL_REPLAY_STAGE_COUNT = CAUSAL_REPLAY_STAGE_WINDOWS.length;
-
-/**
- * Fraction of each stage window spent physically transporting film from one frame to the
- * next (the remainder is the mechanical hold with the evidence seated in the gate). Shared
- * by the WebGL transport (reel/roller/UV travel) and the DOM evidence fade so both slide
- * and fade across the exact same progress span -- neither can move while the other holds.
- */
-export const CAUSAL_REPLAY_TRANSITION_FRACTION = 0.28;

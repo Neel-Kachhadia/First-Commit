@@ -10,19 +10,6 @@ import {
 import { Canvas } from "@react-three/fiber";
 import { SRGBColorSpace } from "three";
 
-if (typeof window !== "undefined") {
-  const originalWarn = console.warn;
-  console.warn = (...args: unknown[]) => {
-    if (
-      typeof args[0] === "string" &&
-      args[0].includes("THREE.Clock: This module has been deprecated")
-    ) {
-      return;
-    }
-    originalWarn.apply(console, args);
-  };
-}
-
 import {
   experienceStore,
   useExperienceStore,
@@ -120,44 +107,6 @@ export function ExperienceCanvas({ className }: ExperienceCanvasProps) {
   const [compactViewport, setCompactViewport] = useState(false);
   const [performanceTier, setPerformanceTier] =
     useState<PerformanceTier>("mid");
-  const activeScene = useExperienceStore((state) => state.activeScene);
-  const introComplete = useExperienceStore((state) => state.introComplete);
-  const [heavyContentReady, setHeavyContentReady] = useState(false);
-
-  // Stage Mandate's physical stage a beat after FilmIntro releases rather than in the exact
-  // same commit -- doing it in the same tick as `introComplete` flipping would dump that
-  // construction cost into FilmIntro's own release crossfade (0.28s opacity tween), trading
-  // a countdown stall for a crossfade stall. An idle callback lets that cheap tween finish
-  // first. (A per-scene staggered/shared-chain version of this was tried and reverted --
-  // see the comment in KavachExperience.tsx for why.)
-  useEffect(() => {
-    if (!introComplete) return;
-    if (typeof window.requestIdleCallback !== "function") {
-      const timeout = window.setTimeout(() => setHeavyContentReady(true), 120);
-      return () => window.clearTimeout(timeout);
-    }
-    const handle = window.requestIdleCallback(() => setHeavyContentReady(true), { timeout: 1500 });
-    return () => window.cancelIdleCallback(handle);
-  }, [introComplete]);
-
-  // Causal Replay's ribbon (reels, rollers, procedural film texture, earcut-triangulated
-  // flange geometry) is a much heavier one-time build than Mandate's. Rather than paying
-  // that cost right after intro release -- still close enough to the crossfade to risk a
-  // visible hitch -- defer it until the visitor is actually approaching Scene 08 (entering
-  // Concurrency, the scene immediately before it). That gives a full scene's worth of scroll
-  // as lead time, and the construction cost lands while nothing else is mid-transition.
-  // Latched with the "adjust state during render" pattern (react.dev/learn/you-might-not
-  // -need-an-effect#adjusting-some-state-when-a-prop-changes) rather than an effect, so it
-  // updates in the same render `activeScene` changes and permanently remembers reaching that
-  // point -- scrolling back away from it afterward must not tear the ribbon down/rebuild it.
-  const [prevActiveScene, setPrevActiveScene] = useState(activeScene);
-  const [ribbonReady, setRibbonReady] = useState(false);
-  if (activeScene !== prevActiveScene) {
-    setPrevActiveScene(activeScene);
-    if (!ribbonReady && (activeScene === "concurrency" || activeScene === "causalReplay")) {
-      setRibbonReady(true);
-    }
-  }
 
   useEffect(() => {
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -238,16 +187,10 @@ export function ExperienceCanvas({ className }: ExperienceCanvasProps) {
               shadow-mapSize-height={1024}
               shadow-mapSize-width={1024}
             />
-            {heavyContentReady ? (
-              <Suspense fallback={null}>
-                <MandatePhysicalStage shadowsEnabled={shadowsEnabled} tier={performanceTier} />
-              </Suspense>
-            ) : null}
-            {ribbonReady ? (
-              <Suspense fallback={null}>
-                <CausalReplayRibbon shadowsEnabled={shadowsEnabled} tier={performanceTier} />
-              </Suspense>
-            ) : null}
+            <Suspense fallback={null}>
+              <MandatePhysicalStage shadowsEnabled={shadowsEnabled} tier={performanceTier} />
+              <CausalReplayRibbon shadowsEnabled={shadowsEnabled} tier={performanceTier} />
+            </Suspense>
           </Canvas>
         ) : (
           fallback

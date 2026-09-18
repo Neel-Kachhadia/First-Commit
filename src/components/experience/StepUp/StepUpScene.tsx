@@ -22,43 +22,18 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       const isMobile = window.matchMedia("(max-width: 48rem)").matches;
       const prefersReduced = experienceStore.getState().reducedMotion;
 
-      // Coordinate targets for entry and exit
-      const entryStartX = isMobile ? 0 : -550;
-      const entryStartY = isMobile ? -320 : 0;
+      // Coordinate target for the outgoing 04->05 exit only (see travelGeometry).
       const fallbackExitX = isMobile ? 0 : 550;
       const fallbackExitY = isMobile ? 320 : 0;
 
       if (prefersReduced) {
-        if (!root.current || !stageRef.current) return;
-
-        // KP-MOTION-006: reduced motion changes animation behavior, not scene ownership --
-        // this used to force visibility/pointer-events on unconditionally, staying true
-        // (and interactive) even while a different scene owned the stage.
-        const reducedTriggerEl = trackRef?.current ?? "[data-track='step-up']";
-        const applyReducedVisibility = (visible: boolean) => {
-          if (!root.current || !stageRef.current) return;
-          root.current.style.visibility = visible ? "visible" : "hidden";
-          root.current.style.pointerEvents = visible ? "auto" : "none";
-          root.current.setAttribute("aria-hidden", visible ? "false" : "true");
-          stageRef.current.style.visibility = visible ? "visible" : "hidden";
-        };
-        applyReducedVisibility(false);
-
-        const reducedVisibilityTrigger = ScrollTrigger.create({
-          trigger: reducedTriggerEl,
-          start: "top top+=1px",
-          end: "bottom top",
-          onEnter: () => {
-            applyReducedVisibility(true);
-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "stepUp" } }));
-          },
-          onEnterBack: () => {
-            applyReducedVisibility(true);
-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "stepUp" } }));
-          },
-          onLeave: () => applyReducedVisibility(false),
-          onLeaveBack: () => applyReducedVisibility(false),
-        });
+        if (root.current) {
+          root.current.style.visibility = "visible";
+          root.current.style.pointerEvents = "auto";
+        }
+        if (stageRef.current) {
+          stageRef.current.style.visibility = "visible";
+        }
 
         // Reduced motion: Show complete static record with full document, stamps, and route
         gsap.set("[data-stepup-header]", { opacity: 1, y: 0 });
@@ -80,7 +55,7 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
         gsap.set("[data-referral-notice]", { opacity: 1 });
         gsap.set("[data-action-controls]", { opacity: 1 });
         gsap.set("[data-clear-seal]", { opacity: 1, scale: 1 });
-        return () => reducedVisibilityTrigger.kill();
+        return;
       }
 
       if (!root.current || !stageRef.current) return;
@@ -117,19 +92,15 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       const travelCarrier = root.current.querySelector<HTMLElement>(
         "[data-stepup-travel-carrier]",
       );
-      // Sole opacity/visibility writer for Step-Up's travel document, scoped to
-      // this scene's own ownership window.
-      function setTravelCarrierMode(mode: "hidden" | "scene") {
+      function setTravelCarrierOwned(owned: boolean) {
         if (!travelCarrier) return;
-        if (mode === "hidden") {
-          gsap.set(travelCarrier, { visibility: "hidden", opacity: 0 });
-          return;
-        }
-        gsap.set(travelCarrier, { visibility: "inherit", opacity: 1 });
+        gsap.set(travelCarrier, {
+          visibility: owned ? "inherit" : "hidden",
+          opacity: owned ? 1 : 0,
+        });
       }
 
-      // Body visibility stays exact. Only the physical Travel request carrier may
-      // cross the adjacent ownership boundaries; chapter chrome remains scene-owned.
+      // Body visibility stays exact; chapter chrome remains scene-owned.
       // start uses a 1px epsilon (not an authored overlap) — GSAP's onEnter for a
       // non-scrubbed trigger requires progress to strictly exceed 0, so landing
       // exactly on the boundary pixel would otherwise leave the body hidden until
@@ -141,14 +112,14 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
         end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
-          setTravelCarrierMode("scene");
+          setTravelCarrierOwned(true);
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "stepUp" } }),
           );
         },
         onEnterBack: () => {
           applyVisibility(true);
-          setTravelCarrierMode("scene");
+          setTravelCarrierOwned(true);
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "stepUp" } }),
           );
@@ -156,32 +127,27 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
         onLeave: () => {
           if (isPersistent) {
             applyVisibility(false);
-            setTravelCarrierMode("hidden");
+            setTravelCarrierOwned(false);
           }
         },
         onLeaveBack: () => {
           applyVisibility(false);
-          setTravelCarrierMode("hidden");
+          setTravelCarrierOwned(false);
         },
       });
 
+      // Exit offset only: the incoming 03->04 transition already lands with
+      // the compact travel slip arrived and centered at the clearance datum
+      // (its own terminal content) — the live scene begins there, not
+      // off-screen. Only the OUTGOING 04->05 hop still uses a fixed offset,
+      // since that boundary's own video owns the departure look.
       const travelGeometry = {
-        entryX: entryStartX,
-        entryY: entryStartY,
         exitX: fallbackExitX,
         exitY: fallbackExitY,
+        exitScaleX: 1,
+        exitScaleY: 1,
       };
-
-      gsap.set("[data-stepup-travel-carrier]", {
-        opacity: 0,
-        visibility: "hidden",
-        transformOrigin: "top left",
-      });
-
-      const syncTravelCarrierVisibility = () => {
-        setTravelCarrierMode(visibilityTrigger.isActive ? "scene" : "hidden");
-      };
-      ScrollTrigger.addEventListener("refresh", syncTravelCarrierVisibility);
+      setTravelCarrierOwned(false);
 
       // Dynamic text targets for status bar
       const barStatusEl = root.current.querySelector<HTMLElement>("[data-bar-status]");
@@ -200,11 +166,15 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       gsap.set("[data-registration-bar]", { opacity: 1, y: 0 });
       gsap.set("[data-clearance-bracket]", { opacity: 1, y: 0 });
 
-      // Single Travel Artifact: Starts as crisp, fully opaque compact request slip
+      // Single Travel Artifact: incoming 03->04 transition already lands with
+      // the compact slip arrived and centered at the clearance datum — start
+      // there, matching the transition's terminal frame exactly.
       gsap.set("[data-travel-artifact]", { opacity: 1, width: compactWidth });
       gsap.set("[data-stepup-travel-carrier]", {
-        x: travelGeometry.entryX,
-        y: travelGeometry.entryY,
+        x: isMobile ? 0 : -80,
+        y: isMobile ? -60 : 0,
+        scaleX: 1,
+        scaleY: 1,
       });
 
       // Top and bottom extensions start collapsed into the compact slip format
@@ -243,141 +213,82 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       gsap.set("[data-referral-notice]", { opacity: 0, y: 4 });
       gsap.set("[data-clear-seal]", { opacity: 0, scale: 1.25 });
 
+      // Incoming 03->04 transition already lands with the compact slip
+      // arrived at the clearance datum (its own terminal content) — no entry
+      // animation to replay. Live scene begins at the physical interception.
+      //
       // =========================================================================
-      // BEAT 1-4 (local 0.00 - 0.52): carrier slide-in, clearance interception,
-      // and document-backing expansion -- everything needed to visually
-      // ESTABLISH Step-Up on entry. Scrubbed on Step-Up's own local track.
+      // STAGE A — OPENING HOLD (0.00 - 0.05)
       // =========================================================================
+      timeline.set({}, {}, 0.05);
 
-      // BEAT 1: SCENE ENTRY REGISTRATION (0.00 - 0.04)
-      timeline
-        .to(
-          "[data-registration-bar]",
-          { borderColor: "rgba(169, 42, 36, 0.75)", duration: 0.04, ease: "power1.out" },
-          0.01,
-        );
-
-      // BEAT 2: TRAVEL REQUEST ENTERS WITH MOMENTUM (0.00 - 0.22)
-      // Compact execution slip enters along upstream rail with crisp visibility and momentum.
-      timeline
-        .fromTo(
-          "[data-stepup-travel-carrier]",
-          { x: () => travelGeometry.entryX, y: () => travelGeometry.entryY },
-          {
-            x: isMobile ? 0 : -80,
-            y: isMobile ? -60 : 0,
-            duration: 0.22,
-            ease: "power1.inOut",
-          },
-          0.00,
-        )
-        .call(
-          () => {
-            if (barStatusEl) barStatusEl.textContent = "CLEARANCE DATUM // READY";
-          },
-          undefined,
-          0.06,
-        );
-
-      // BEAT 3: CLEARANCE BOUNDARY ENCOUNTER & PHYSICAL INTERCEPTION (0.22 - 0.32)
+      // =========================================================================
+      // STAGE B — CLEARANCE BOUNDARY ENCOUNTER & PHYSICAL INTERCEPTION (0.05 - 0.15)
       // Controlled deceleration into datum. Physical catch: registration bar engages.
+      // =========================================================================
       timeline
         .to(
           "[data-stepup-travel-carrier]",
-          { x: 0, y: 0, duration: 0.08, ease: "power3.out" },
-          0.22,
+          { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: 0.08, ease: "power3.out" },
+          0.05,
         )
         .to(
           "[data-registration-bar]",
-          {
-            borderColor: "rgba(169, 42, 36, 0.95)",
-            boxShadow: "0 0 12px rgba(169, 42, 36, 0.35)",
-            duration: 0.05,
-          },
-          0.26,
+          { borderColor: "rgba(169, 42, 36, 0.95)", boxShadow: "0 0 12px rgba(169, 42, 36, 0.35)", duration: 0.05 },
+          0.09,
         )
         .call(
           () => {
             if (barStatusEl) barStatusEl.textContent = "HELD AT DATUM // LIMIT EXCEEDED";
           },
           undefined,
-          0.28,
-        );
-
-      // BEAT 4: DOCUMENT BACKING EXPANSION AROUND OPTICALLY FIXED SPINE (0.32 - 0.54)
-      // Official backing stock unrolls above and below the shared identity spine
-      // (TRAVEL AGENT, TX-1082, ₹4,900), which stays optically fixed and centered.
-      // By 0.52, the backing stock is completely settled before stamp impact.
-      timeline
-        .to(
-          "[data-travel-artifact]",
-          {
-            width: expandedWidth,
-            duration: 0.18,
-            ease: "power2.inOut",
-          },
-          0.32,
-        )
-        .to(
-          "[data-doc-top-extension]",
-          {
-            height: topTargetHeight,
-            opacity: 1,
-            duration: 0.16,
-            ease: "power2.inOut",
-          },
-          0.33,
-        )
-        .to(
-          "[data-doc-bottom-extension]",
-          {
-            height: bottomTargetHeight,
-            opacity: 1,
-            duration: 0.18,
-            ease: "power2.inOut",
-          },
-          0.33,
-        )
-        .to(
-          "[data-compact-doc-type]",
-          {
-            opacity: 0,
-            duration: 0.06,
-          },
-          0.34,
-        )
-        .to(
-          "[data-doc-header-title], [data-doc-pictogram], [data-doc-divider]",
-          {
-            opacity: 1,
-            y: 0,
-            duration: 0.10,
-            ease: "power2.out",
-          },
-          0.38,
-        )
-        .to(
-          "[data-comparison-ledger]",
-          {
-            opacity: 1,
-            y: 0,
-            duration: 0.10,
-            ease: "power2.out",
-          },
-          0.40,
-        )
-        .to(
-          "[data-doc-footer], [data-corner-mark]",
-          {
-            opacity: 1,
-            duration: 0.08,
-            ease: "power1.out",
-          },
-          0.44,
+          0.11,
         );
 
       // =========================================================================
-      // BEAT 5: HOLD STAMP IMPACT ON SETTLED BACKING STOCK (0.54 - 0.62)
+      // STAGE C — DOCUMENT BACKING EXPANSION AROUND OPTICALLY FIXED SPINE (0.15 - 0.37)
+      // Official backing stock unrolls above and below the shared identity spine
+      // (TRAVEL AGENT, TX-1082, ₹4,900), which stays optically fixed and centered.
+      // =========================================================================
+      timeline
+        .to(
+          "[data-travel-artifact]",
+          { width: expandedWidth, duration: 0.18, ease: "power2.inOut" },
+          0.15,
+        )
+        .to(
+          "[data-doc-top-extension]",
+          { height: topTargetHeight, opacity: 1, duration: 0.16, ease: "power2.inOut" },
+          0.16,
+        )
+        .to(
+          "[data-doc-bottom-extension]",
+          { height: bottomTargetHeight, opacity: 1, duration: 0.18, ease: "power2.inOut" },
+          0.16,
+        )
+        .to(
+          "[data-compact-doc-type]",
+          { opacity: 0, duration: 0.06 },
+          0.17,
+        )
+        .to(
+          "[data-doc-header-title], [data-doc-pictogram], [data-doc-divider]",
+          { opacity: 1, y: 0, duration: 0.10, ease: "power2.out" },
+          0.21,
+        )
+        .to(
+          "[data-comparison-ledger]",
+          { opacity: 1, y: 0, duration: 0.10, ease: "power2.out" },
+          0.23,
+        )
+        .to(
+          "[data-doc-footer], [data-corner-mark]",
+          { opacity: 1, duration: 0.08, ease: "power1.out" },
+          0.27,
+        );
+
+      // =========================================================================
+      // STAGE D — HOLD STAMP IMPACT ON SETTLED BACKING STOCK (0.37 - 0.45)
       // Stamp impacts firmly. Backing stock is already physically resting.
       // =========================================================================
       timeline
@@ -385,24 +296,24 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
           "[data-hold-stamp]",
           { opacity: 0, scale: 1.35, rotation: -6 },
           { opacity: 1, scale: 1, rotation: -3, duration: 0.04, ease: "power3.out" },
-          0.54,
+          0.37,
         )
         .fromTo(
           "[data-referral-notice]",
           { opacity: 0, y: 4 },
           { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" },
-          0.58,
+          0.41,
         )
         .call(
           () => {
             if (barStatusEl) barStatusEl.textContent = "HELD FOR CLEARANCE // ₹4,900 > ₹3,000";
           },
           undefined,
-          0.56,
+          0.39,
         );
 
       // =========================================================================
-      // BEAT 6: ACTION CONTROLS & CLEAR ONCE AUTHORIZATION (0.62 - 0.80)
+      // STAGE E — ACTION CONTROLS & CLEAR ONCE AUTHORIZATION (0.45 - 0.63)
       // Controls resolve. CLEAR ONCE seal strikes onto the document.
       // =========================================================================
       timeline
@@ -410,148 +321,110 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
           "[data-action-controls]",
           { opacity: 0, y: 6 },
           { opacity: 1, y: 0, duration: 0.08, ease: "power2.out" },
-          0.62,
+          0.45,
         )
         .call(
           () => {
             if (barStatusEl) barStatusEl.textContent = "REFER FOR APPROVAL // ROUTE OPEN";
           },
           undefined,
-          0.68,
+          0.51,
         )
         .fromTo(
           "[data-clear-seal]",
           { opacity: 0, scale: 1.3 },
           { opacity: 1, scale: 1, duration: 0.06, ease: "power2.out" },
-          0.72,
+          0.55,
         )
         .to(
           "[data-action-clear-box]",
-          {
-            backgroundColor: "rgba(169, 42, 36, 0.14)",
-            borderColor: "var(--kp-red)",
-            duration: 0.04,
-          },
-          0.76,
+          { backgroundColor: "rgba(169, 42, 36, 0.14)", borderColor: "var(--kp-red)", duration: 0.04 },
+          0.59,
         )
         .call(
           () => {
             if (barStatusEl) barStatusEl.textContent = "ONE-TIME CLEARANCE GRANTED // RELEASED";
           },
           undefined,
-          0.78,
+          0.61,
         );
 
       // =========================================================================
-      // BEAT 7: RELEASE CAUSALITY & RECONTRACTION (0.80 - 0.90)
+      // STAGE F — RELEASE CAUSALITY & RECONTRACTION (0.63 - 0.73)
       // 1. Bracket unlocks & lifts
       // 2. Secondary administrative fields retract
       // 3. Backing stock recedes back around the identity spine into compact slip
       // 4. Stamped clearance badge appears on the compact slip
       // =========================================================================
       timeline
-        // 1. Bracket unlocks & lifts
         .to(
           "[data-registration-bar]",
-          {
-            y: -14,
-            opacity: 0.35,
-            borderColor: "rgba(235, 225, 201, 0.2)",
-            duration: 0.05,
-            ease: "power2.in",
-          },
-          0.80,
+          { y: -14, opacity: 0.35, borderColor: "rgba(235, 225, 201, 0.2)", duration: 0.05, ease: "power2.in" },
+          0.63,
         )
         .to(
           "[data-clearance-bracket]",
-          {
-            y: 14,
-            opacity: 0.35,
-            borderColor: "rgba(235, 225, 201, 0.2)",
-            duration: 0.05,
-            ease: "power2.in",
-          },
-          0.80,
+          { y: 14, opacity: 0.35, borderColor: "rgba(235, 225, 201, 0.2)", duration: 0.05, ease: "power2.in" },
+          0.63,
         )
-        // 2. Secondary fields retract
         .to(
           "[data-doc-header-title], [data-doc-pictogram], [data-doc-divider], [data-comparison-ledger], [data-action-controls], [data-doc-footer], [data-corner-mark], [data-referral-notice]",
-          {
-            opacity: 0,
-            y: -4,
-            duration: 0.04,
-            ease: "power1.in",
-          },
-          0.81,
+          { opacity: 0, y: -4, duration: 0.04, ease: "power1.in" },
+          0.64,
         )
-        // 3. Extensions collapse & width contracts back
         .to(
           "[data-doc-top-extension]",
-          {
-            height: 0,
-            opacity: 0,
-            duration: 0.07,
-            ease: "power2.inOut",
-          },
-          0.83,
+          { height: 0, opacity: 0, duration: 0.07, ease: "power2.inOut" },
+          0.66,
         )
         .to(
           "[data-doc-bottom-extension]",
-          {
-            height: 0,
-            opacity: 0,
-            duration: 0.07,
-            ease: "power2.inOut",
-          },
-          0.83,
+          { height: 0, opacity: 0, duration: 0.07, ease: "power2.inOut" },
+          0.66,
         )
         .to(
           "[data-travel-artifact]",
-          {
-            width: compactWidth,
-            duration: 0.07,
-            ease: "power2.inOut",
-          },
-          0.83,
+          { width: compactWidth, duration: 0.07, ease: "power2.inOut" },
+          0.66,
         )
-        // 4. Stamped clearance badge appears on the compact slip
         .to(
           "[data-compact-cleared-badge]",
-          {
-            height: 28,
-            opacity: 1,
-            duration: 0.04,
-            ease: "power2.out",
-          },
-          0.87,
+          { height: 28, opacity: 1, duration: 0.04, ease: "power2.out" },
+          0.70,
         );
 
       // =========================================================================
-      // BEAT 8: DOWNSTREAM ACCELERATION (0.90 - 1.00)
-      // Retained tension releases -> SAME compact card accelerates downstream!
+      // STAGE G — DOWNSTREAM ACCELERATION (0.73 - 0.83)
+      // Retained tension releases -> SAME compact card accelerates downstream
+      // toward the 04->05 transition's own opening frame.
       // =========================================================================
-      timeline
-        .to(
-          "[data-stepup-travel-carrier]",
-          {
-            x: () => travelGeometry.exitX,
-            y: () => travelGeometry.exitY,
-            duration: 0.10,
-            ease: "power2.in",
-          },
-          0.90,
-        )
-        .set({}, {}, 1.0);
+      timeline.to(
+        "[data-stepup-travel-carrier]",
+        {
+          x: () => travelGeometry.exitX,
+          y: () => travelGeometry.exitY,
+          scaleX: () => travelGeometry.exitScaleX,
+          scaleY: () => travelGeometry.exitScaleY,
+          duration: 0.10,
+          ease: "power2.in",
+        },
+        0.73,
+      );
+
+      // =========================================================================
+      // STAGE H — TERMINAL HOLD (0.83 - 1.00)
+      // =========================================================================
+      timeline.set({}, {}, 1.0);
 
       // Deterministic reverse scrub status text updates
       timeline.eventCallback("onUpdate", () => {
         const p = timeline.progress();
         if (barStatusEl) {
-          if (p < 0.24) {
+          if (p < 0.07) {
             barStatusEl.textContent = "CLEARANCE DATUM // READY";
-          } else if (p < 0.54) {
+          } else if (p < 0.37) {
             barStatusEl.textContent = "HELD AT DATUM // LIMIT EXCEEDED";
-          } else if (p < 0.72) {
+          } else if (p < 0.55) {
             barStatusEl.textContent = "REFER FOR APPROVAL // ROUTE OPEN";
           } else {
             barStatusEl.textContent = "ONE-TIME CLEARANCE GRANTED // RELEASED";
@@ -561,7 +434,6 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
 
       return () => {
         visibilityTrigger.kill();
-        ScrollTrigger.removeEventListener("refresh", syncTravelCarrierVisibility);
         timeline.scrollTrigger?.kill();
         timeline.kill();
       };

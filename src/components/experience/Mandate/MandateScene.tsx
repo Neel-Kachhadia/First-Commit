@@ -42,42 +42,15 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
     const triggerEl = trackRef?.current ?? (isPersistent ? "[data-track='mandate']" : root.current);
     const motion = gsap.matchMedia();
     motion.add("(prefers-reduced-motion: reduce)", () => {
-      if (!root.current) return;
-
-      // KP-MOTION-006: reduced motion changes animation behavior, not scene ownership --
-      // this used to force visibility/pointer-events on unconditionally, staying true (and
-      // interactive) even while a different scene owned the stage. Mirror the same
-      // ownership-aware visibility trigger used below for the no-preference case.
-      const applyReducedVisibility = (visible: boolean) => {
-        if (!root.current) return;
-        root.current.style.visibility = visible ? "visible" : "hidden";
-        root.current.style.pointerEvents = visible ? "auto" : "none";
-        root.current.setAttribute("aria-hidden", visible ? "false" : "true");
-      };
-      applyReducedVisibility(false);
-
-      const reducedVisibilityTrigger = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=1px",
-        end: "bottom top",
-        onEnter: () => {
-          applyReducedVisibility(true);
-          window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "mandate" } }));
-        },
-        onEnterBack: () => {
-          applyReducedVisibility(true);
-          window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "mandate" } }));
-        },
-        onLeave: () => applyReducedVisibility(false),
-        onLeaveBack: () => applyReducedVisibility(false),
-      });
-
+      if (root.current) {
+        root.current.style.visibility = "visible";
+        root.current.style.pointerEvents = "auto";
+        root.current.setAttribute("aria-hidden", "false");
+      }
       gsap.set("[data-mandate-header]", { clipPath: "inset(0 0% 0 0)" });
       gsap.set("[data-mandate-category]", { opacity: 1, y: 0, clipPath: "inset(0 0% 0 0)" });
       gsap.set("[data-mandate-paper-carrier]", { opacity: 1, y: 0 });
       gsap.set("[data-mandate-intent]", { opacity: 1, xPercent: 0 });
-
-      return () => reducedVisibilityTrigger.kill();
     });
 
     motion.add("(prefers-reduced-motion: no-preference)", () => {
@@ -206,7 +179,7 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
       const visibilityTrigger = ScrollTrigger.create({
         trigger: triggerEl,
         start: "top top+=1px",
-        end: "bottom top",
+        end: "bottom top-=120px",
         onEnter: () => {
           applyVisibility(true);
           window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "mandate" } }));

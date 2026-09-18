@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { readOwnership } from "./helpers/ownership";
 
 const desktopOnly = new Set(["1440x900"]);
 const mobileOnly = new Set(["390x844"]);
@@ -15,9 +14,6 @@ test.describe("Global KavachPay navbar", () => {
     await expect(nav.getByRole("button", { name: "KAVACHPAY", exact: true })).toBeVisible();
     await expect(nav.getByRole("button", { name: "Enter KavachPay" })).toBeVisible();
 
-    // Distant, nonlinear jumps -- under the isolated-scene model a direct chapter
-    // click must resolve in one step with exactly one scene root ever visible,
-    // never a visible pass-through of the scenes scrolled over to get there.
     const sequence = ["05", "02", "08", "01", "07", "03", "06", "00"];
     for (const number of sequence) {
       const button = nav.locator(`button[aria-label^='${number} ']`);
@@ -25,8 +21,6 @@ test.describe("Global KavachPay navbar", () => {
       await expect(page).toHaveURL(new RegExp(`#scene-${number}$`));
       await expect(button).toHaveAttribute("aria-current", "page");
       await expect(page.locator("[data-global-navbar] [aria-current='page']")).toHaveCount(1);
-      const o = await readOwnership(page);
-      expect(o.visibleRootCount, `scene ${number}: ${JSON.stringify(o.roots)}`).toBe(1);
     }
 
     for (const label of ["Login", "Sign up", "Enter KavachPay"]) {

@@ -7,6 +7,8 @@ import { FilmLeader } from "./FilmLeader";
 import { DirectorSlate } from "./DirectorSlate";
 import styles from "./FilmIntro.module.css";
 
+const SESSION_KEY = "kp:intro-seen:v1";
+
 type ResolvedMode = "skip" | "reduced" | "full";
 
 type FilmIntroProps = {
@@ -16,25 +18,37 @@ type FilmIntroProps = {
   onRelease: () => void;
 };
 
-/** In-memory lifetime tracker: allows browser reload / hard refresh to replay, but blocks SPA remount replay. */
-let introCompletedInSession = false;
+function readSessionSeen(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
+function markSessionSeen() {
+  try {
+    sessionStorage.setItem(SESSION_KEY, "1");
+  } catch {
+    // sessionStorage unavailable (private mode / blocked) — replay next load, harmless.
+  }
+}
+
+/** Decided once per mount from URL/hash/sessionStorage/matchMedia — none of which exist during SSR. */
 function decideMode(): ResolvedMode {
   const params = new URLSearchParams(window.location.search);
   const forced = params.get("intro");
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const hash = window.location.hash;
-  const hasDeepLink = hash !== "" && hash !== "#scene-00";
 
-  let mode: ResolvedMode;
-  if (forced === "0") mode = "skip";
-  else if (forced === "1") mode = reducedMotion ? "reduced" : "full";
-  else if (hasDeepLink) mode = "skip";
-  else if (params.has("visualTest")) mode = "skip";
-  else if (introCompletedInSession) mode = "skip";
-  else mode = reducedMotion ? "reduced" : "full";
+  if (forced === "0") return "skip";
+  if (forced === "1") return reducedMotion ? "reduced" : "full";
 
-  return mode;
+  const hasDeepLink = window.location.hash !== "" && window.location.hash !== "#scene-00";
+  if (hasDeepLink) return "skip";
+  if (params.has("visualTest")) return "skip";
+  if (readSessionSeen()) return "skip";
+
+  return reducedMotion ? "reduced" : "full";
 }
 
 const noopSubscribe = () => () => {};
@@ -62,7 +76,6 @@ export function FilmIntro({ onLock, onRelease }: FilmIntroProps) {
   const release = useCallback(() => {
     if (releasedRef.current) return;
     releasedRef.current = true;
-    introCompletedInSession = true;
     onRelease();
     setIntroComplete(true);
   }, [onRelease, setIntroComplete]);
@@ -70,8 +83,8 @@ export function FilmIntro({ onLock, onRelease }: FilmIntroProps) {
   const finish = useCallback(() => {
     if (finishedRef.current) return;
     finishedRef.current = true;
-    introCompletedInSession = true;
     release();
+    markSessionSeen();
     setDone(true);
   }, [release]);
 
@@ -226,14 +239,14 @@ export function FilmIntro({ onLock, onRelease }: FilmIntroProps) {
         3.52,
       );
 
-      // 3.65: Slate and ACTION letters clear smoothly, leaving the red stroke
-      tl.to([board, clapper, strokes, period], { opacity: 0, duration: 0.18, ease: "power1.out" }, 3.65);
-
-      // 3.70: Seamless release onto Scene 00 without white flash or stroke jump
-      tl.addLabel("release", 3.70)
+      // 3.65 - 4.15 the underline becomes a registration rule; frame opens onto Scene 00
+      tl.addLabel("release", 3.65)
         .call(release, [], "release")
+        .to(rule, { scaleX: 1, duration: 0.16, ease: "power1.inOut" }, "release")
         .set(root, { pointerEvents: "none" }, "release")
-        .to(root, { opacity: 0, duration: 0.28, ease: "power1.inOut" }, "release");
+        .to(flash, { opacity: 0.9, duration: 0.08, ease: "none" }, "release+=0.14")
+        .to(flash, { opacity: 0, duration: 0.12, ease: "none" }, "release+=0.22")
+        .to(root, { opacity: 0, duration: 0.3, ease: "power1.in" }, "release+=0.2");
     }, root);
 
     const handleKeyDown = (event: KeyboardEvent) => {

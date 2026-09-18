@@ -33,6 +33,7 @@ export const progressBus = {
   set(scene: ExperienceSceneId, value: number): void {
     const clamped = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
     progressRegistry[scene] = clamped;
+    currentActiveScene = scene;
     for (const listener of listeners) {
       listener(scene, clamped);
     }

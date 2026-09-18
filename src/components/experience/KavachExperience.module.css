@@ -18,6 +18,21 @@
   pointer-events: none;
 }
 
+/* Scroll distance dedicated to a cinematic inter-scene video transition.
+   Collapsed on mobile: the video layer is bypassed there (responsive
+   policy), so the dedicated scroll distance collapses too rather than
+   leaving a dead blank gap between scenes' own hard-cut boundaries. */
+.transitionTrack {
+  width: 100%;
+  pointer-events: none;
+}
+
+@media (max-width: 48rem) {
+  .transitionTrack {
+    height: 0 !important;
+  }
+}
+
 /* Fixed Cinematic Stage: inset: 0 defines the actual fixed viewport plane */
 .cinematicStage {
   position: fixed;
@@ -26,6 +41,21 @@
   isolation: isolate;
   background: transparent;
   z-index: 3;
+}
+
+.sceneLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Temporary legacy container for fallback comparison (?stage=legacy) */
+.editorialLayerLegacy {
+  position: relative;
+  z-index: 3;
+  background: var(--kp-black);
 }
 
 .grain {

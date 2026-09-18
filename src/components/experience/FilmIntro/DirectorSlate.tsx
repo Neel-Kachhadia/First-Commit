@@ -91,7 +91,7 @@ export function DirectorSlate({ containerRef }: DirectorSlateProps) {
           className={styles.actionUnderline}
           data-action-underline
           pathLength={1}
-          d="M 18 178 C 110 180, 210 181, 310 181 C 365 181, 395 186, 420 191 C 430 193, 418 183, 410 181 C 430 180, 480 179, 535 177 C 600 174, 650 170, 680 167"
+          d="M 18 180 L 656 180"
         />
       </svg>
     </div>
