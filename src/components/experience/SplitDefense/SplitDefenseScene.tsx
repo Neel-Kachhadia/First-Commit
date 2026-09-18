@@ -111,66 +111,21 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
         end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
-          gsap.set("[data-temporal-aperture]", { visibility: "visible" });
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "splitDefense" } }),
           );
         },
         onEnterBack: () => {
           applyVisibility(true);
-          gsap.set("[data-temporal-aperture]", { visibility: "visible" });
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "splitDefense" } }),
           );
         },
         onLeave: () => {
-          if (isPersistent) {
-            applyVisibility(false);
-            gsap.set("[data-temporal-aperture]", { opacity: 0, visibility: "hidden" });
-          }
+          if (isPersistent) applyVisibility(false);
         },
         onLeaveBack: () => {
           applyVisibility(false);
-          gsap.set("[data-temporal-aperture]", { opacity: 0, visibility: "hidden" });
-        },
-      });
-
-      // Physical carriers only: Revocation's source datum resolves into the
-      // temporal aperture; the sealed dossier hands into Scene 07's ledger.
-      const incomingCarrier = "[data-temporal-aperture]";
-      const outgoingCarrier = "[data-dossier-backing]";
-      gsap.set(incomingCarrier, {
-        opacity: 0,
-        visibility: "visible",
-        pointerEvents: "none",
-      });
-
-      // 05 -> 06 Carrier Bridge (incoming half):
-      // Symmetrically crossfades in over the same 120px pre-roll window Revocation uses to crossfade out.
-      const carrierBridgeIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=120px",
-        end: "top top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(incomingCarrier, { opacity: self.progress });
-        },
-        onLeave: () => {
-          // Carrier completes at ownership; Scene 06's authored timeline then
-          // re-engages the full aperture at the established correlation beat.
-          gsap.set(incomingCarrier, { opacity: 0 });
-        },
-      });
-
-      // 06 -> 07 Carrier Bridge (outgoing half):
-      // Symmetrically crossfades out over the 120px pre-roll window Concurrency uses to crossfade in.
-      const carrierBridgeOut = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "bottom top+=120px",
-        end: "bottom top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(outgoingCarrier, { opacity: 1 - self.progress });
         },
       });
 
@@ -492,8 +447,6 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
 
       return () => {
         visibilityTrigger.kill();
-        carrierBridgeIn.kill();
-        carrierBridgeOut.kill();
         timeline.scrollTrigger?.kill();
         timeline.kill();
       };

@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Lenis from "lenis";
 import { OpeningScene } from "./Opening/OpeningScene";
 import { MandateScene } from "./Mandate/MandateScene";
@@ -17,11 +17,6 @@ import { GlobalNavbar } from "./GlobalNavbar";
 import { FilmIntro } from "./FilmIntro/FilmIntro";
 import { experienceStore, useExperienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
-import {
-  applyPrototypeMotion,
-  isPrototypeBoundaryActive,
-  readMotionGeometry,
-} from "@/lib/experience/motion-runtime";
 import {
   SCENE_BY_KEY,
   SCENE_REGISTRY,
@@ -75,18 +70,15 @@ export function KavachExperience() {
     );
     window.history.replaceState(window.history.state, "", `#scene-${scene.number}`);
 
-    const visualTest = new URLSearchParams(window.location.search).has("visualTest");
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (lenisRef.current && !visualTest && !reducedMotion) {
-      lenisRef.current.scrollTo(target, {
-        duration: 0.72,
-        force: true,
-        onComplete: () => ScrollTrigger.update(),
-      });
+    // Direct chapter navigation resolves in one synchronous jump, not an animated
+    // scroll -- an animated tween would visibly traverse every intermediate scene's
+    // ownership window on the way to the target (Step 10 of the isolated-scene model).
+    if (lenisRef.current) {
+      lenisRef.current.scrollTo(target, { immediate: true, force: true });
     } else {
       window.scrollTo({ top: target, left: 0, behavior: "auto" });
-      ScrollTrigger.update();
     }
+    ScrollTrigger.update();
   }, []);
 
   const handleMenuOpenChange = useCallback((open: boolean) => {
@@ -184,7 +176,7 @@ export function KavachExperience() {
 
     const handleScene = (event: Event) => {
       const { id } = (event as SceneEvent).detail;
-      if (id !== "none" && !isPrototypeBoundaryActive()) setActiveScene(id);
+      if (id !== "none") setActiveScene(id);
     };
 
     window.addEventListener("kp:scene", handleScene);
@@ -387,124 +379,48 @@ export function KavachExperience() {
     return () => window.cancelIdleCallback(handle);
   }, [introComplete]);
 
-  const isLegacy = useSyncExternalStore(
-    () => () => {},
-    () => new URLSearchParams(window.location.search).get("stage") === "legacy",
-    () => false,
-  );
-  const migrationStep = useSyncExternalStore(
-    () => () => {},
-    () => new URLSearchParams(window.location.search).get("migration"),
-    () => null,
-  );
-
-  // Global motion architecture prototype. One ScrollTrigger reads the cached
-  // physical track geometry and publishes the same deterministic snapshot to
-  // semantic ownership, carriers, diagnostics, and WebGL consumers. The first
-  // migration is intentionally limited to 03→04 until its visual proof passes.
-  useEffect(() => {
-    if (!heavyScenesReady || isLegacy) return;
-
-    let geometry = readMotionGeometry();
-    const apply = () => applyPrototypeMotion(window.scrollY, geometry);
-    let applyQueued = false;
-    const queueApply = () => {
-      if (applyQueued) return;
-      applyQueued = true;
-      queueMicrotask(() => {
-        applyQueued = false;
-        apply();
-      });
-    };
-    const measure = () => {
-      geometry = readMotionGeometry();
-    };
-
-    const globalTrigger = ScrollTrigger.create({
-      id: "kp-global-motion",
-      start: 0,
-      end: () => ScrollTrigger.maxScroll(window),
-      onUpdate: queueApply,
-      onRefreshInit: measure,
-      onRefresh: apply,
-    });
-
-    apply();
-    return () => {
-      globalTrigger.kill();
-    };
-  }, [heavyScenesReady, isLegacy]);
-
   return (
     <main className={styles.experience}>
       <FilmIntro onLock={lockForIntro} onRelease={releaseFromIntro} />
       <GlobalNavbar onNavigate={navigateScene} onMenuOpenChange={handleMenuOpenChange} />
       {introComplete && <ExperienceCanvas />}
-      {isLegacy ? (
-        <div className={styles.editorialLayerLegacy}>
-          <OpeningScene />
-          <MandateScene />
-          <DecisionsScene />
-          <DelegationScene />
-          <StepUpScene />
-          <RevocationScene />
-          <SplitDefenseScene />
-          <ConcurrencyScene />
-          <CausalReplayScene />
-        </div>
-      ) : (
-        <>
-          {/* Invisible scroll track to provide scroll height without rendering visuals */}
-          <div className={styles.scrollTrack} aria-hidden="true">
-            <div ref={prologueTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.prologue.trackVh}vh` }} data-track="prologue" />
-            <div ref={mandateTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.mandate.trackVh}vh` }} data-track="mandate" />
-            <div ref={decisionsTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.decisions.trackVh}vh` }} data-track="decisions" />
-            <div ref={delegationTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.delegation.trackVh}vh` }} data-track="delegation" />
-            <div ref={stepUpTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.stepUp.trackVh}vh` }} data-track="step-up" />
-            <div ref={revocationTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.revocation.trackVh}vh` }} data-track="revocation" />
-            <div ref={splitDefenseTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.splitDefense.trackVh}vh` }} data-track="split-defense" />
-            <div ref={concurrencyTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.concurrency.trackVh}vh` }} data-track="concurrency" />
-            <div ref={causalReplayTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.causalReplay.trackVh}vh` }} data-track="causal-replay" />
-          </div>
+      {/* Invisible scroll track to provide scroll height without rendering visuals */}
+      <div className={styles.scrollTrack} aria-hidden="true">
+        <div ref={prologueTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.prologue.trackVh}vh` }} data-track="prologue" />
+        <div ref={mandateTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.mandate.trackVh}vh` }} data-track="mandate" />
+        <div ref={decisionsTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.decisions.trackVh}vh` }} data-track="decisions" />
+        <div ref={delegationTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.delegation.trackVh}vh` }} data-track="delegation" />
+        <div ref={stepUpTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.stepUp.trackVh}vh` }} data-track="step-up" />
+        <div ref={revocationTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.revocation.trackVh}vh` }} data-track="revocation" />
+        <div ref={splitDefenseTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.splitDefense.trackVh}vh` }} data-track="split-defense" />
+        <div ref={concurrencyTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.concurrency.trackVh}vh` }} data-track="concurrency" />
+        <div ref={causalReplayTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.causalReplay.trackVh}vh` }} data-track="causal-replay" />
+      </div>
 
-          {/* Persistent Fixed Cinematic Stage: inset: 0 defines the actual fixed viewport plane */}
-          <div className={styles.cinematicStage} data-cinematic-stage>
-            <OpeningScene trackRef={prologueTrackRef} />
-            {/* KP-MOTION-001: FilmIntro locks scroll (inert stage) until it releases, so
-                nothing past Opening is reachable or visible during the countdown. Mounting
-                every downstream scene's GSAP/ScrollTrigger setup eagerly at initial hydration
-                competed with FilmIntro on the same ticker for main-thread time. Deferring
-                mount until the intro actually releases costs nothing perceptually (scroll
-                unlocks in the same store update that flips this flag) and removes that
-                competing work from the countdown's critical path. */}
-            {heavyScenesReady && (
-              <>
-                <MandateScene trackRef={mandateTrackRef} />
-                {migrationStep !== "A" && (
-                  <>
-                    <DecisionsScene trackRef={decisionsTrackRef} />
-                    {migrationStep !== "B" && (
-                      <>
-                        <DelegationScene trackRef={delegationTrackRef} />
-                        {migrationStep !== "C" && (
-                          <>
-                            <StepUpScene trackRef={stepUpTrackRef} />
-                            <RevocationScene trackRef={revocationTrackRef} />
-                            <SplitDefenseScene trackRef={splitDefenseTrackRef} />
-                            <ConcurrencyScene trackRef={concurrencyTrackRef} />
-                            <CausalReplayScene trackRef={causalReplayTrackRef} />
-                          </>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-          </div>
-          <DebugStageHUD />
-        </>
-      )}
+      {/* Persistent Fixed Cinematic Stage: inset: 0 defines the actual fixed viewport plane */}
+      <div className={styles.cinematicStage} data-cinematic-stage>
+        <OpeningScene trackRef={prologueTrackRef} />
+        {/* KP-MOTION-001: FilmIntro locks scroll (inert stage) until it releases, so
+            nothing past Opening is reachable or visible during the countdown. Mounting
+            every downstream scene's GSAP/ScrollTrigger setup eagerly at initial hydration
+            competed with FilmIntro on the same ticker for main-thread time. Deferring
+            mount until the intro actually releases costs nothing perceptually (scroll
+            unlocks in the same store update that flips this flag) and removes that
+            competing work from the countdown's critical path. */}
+        {heavyScenesReady && (
+          <>
+            <MandateScene trackRef={mandateTrackRef} />
+            <DecisionsScene trackRef={decisionsTrackRef} />
+            <DelegationScene trackRef={delegationTrackRef} />
+            <StepUpScene trackRef={stepUpTrackRef} />
+            <RevocationScene trackRef={revocationTrackRef} />
+            <SplitDefenseScene trackRef={splitDefenseTrackRef} />
+            <ConcurrencyScene trackRef={concurrencyTrackRef} />
+            <CausalReplayScene trackRef={causalReplayTrackRef} />
+          </>
+        )}
+      </div>
+      <DebugStageHUD />
       <div className={styles.grain} aria-hidden="true" />
     </main>
   );

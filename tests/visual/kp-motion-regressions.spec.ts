@@ -169,7 +169,7 @@ test.describe("KP-MOTION-003 — navbar and visual stage share one ownership sou
         );
         return { owner, visibleCount: visible.length, visibleIsOwner: visible.length === 1 };
       });
-      expect(consistent.visibleCount, `at step ${i}, owner=${consistent.owner}`).toBeLessThanOrEqual(1);
+      expect(consistent.visibleCount, `at step ${i}, owner=${consistent.owner}`).toBe(1);
     }
   });
 });

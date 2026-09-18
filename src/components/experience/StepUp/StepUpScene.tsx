@@ -6,7 +6,6 @@ import { stepUpDemo } from "@/lib/experience/demo-state";
 import { experienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
-import { isPrototypeBoundaryActive } from "@/lib/experience/motion-runtime";
 import { ClearanceDocument } from "@/components/documents/ClearanceDocument";
 import styles from "./StepUpScene.module.css";
 
@@ -118,21 +117,15 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       const travelCarrier = root.current.querySelector<HTMLElement>(
         "[data-stepup-travel-carrier]",
       );
-      // While the shared 03→04 boundary owns this element (motion-runtime.ts
-      // applyBoundary0304's incomingCarrierWeight), it is the sole opacity
-      // writer. This mode switcher still owns opacity for the 04→05 boundary
-      // (unmigrated) and for the fully-settled/fully-departed resting states.
-      function setTravelCarrierMode(mode: "hidden" | "bridge" | "scene") {
+      // Sole opacity/visibility writer for Step-Up's travel document, scoped to
+      // this scene's own ownership window.
+      function setTravelCarrierMode(mode: "hidden" | "scene") {
         if (!travelCarrier) return;
-        const boundaryOwned = isPrototypeBoundaryActive();
         if (mode === "hidden") {
-          gsap.set(travelCarrier, boundaryOwned ? { visibility: "hidden" } : { visibility: "hidden", opacity: 0 });
+          gsap.set(travelCarrier, { visibility: "hidden", opacity: 0 });
           return;
         }
-        gsap.set(travelCarrier, {
-          visibility: mode === "bridge" ? "visible" : "inherit",
-          ...(boundaryOwned ? {} : { opacity: 1 }),
-        });
+        gsap.set(travelCarrier, { visibility: "inherit", opacity: 1 });
       }
 
       // Body visibility stays exact. Only the physical Travel request carrier may
@@ -168,94 +161,25 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
         },
         onLeaveBack: () => {
           applyVisibility(false);
-          setTravelCarrierMode("bridge");
+          setTravelCarrierMode("hidden");
         },
       });
 
-      const incomingTravel = document.querySelector<HTMLElement>("[data-delegation-grocery]");
-      const downstreamTravel = document.querySelector<HTMLElement>("[data-record='TX-1082']");
       const travelGeometry = {
         entryX: entryStartX,
         entryY: entryStartY,
-        entryScaleX: 1,
-        entryScaleY: 1,
         exitX: fallbackExitX,
         exitY: fallbackExitY,
-        exitScaleX: 1,
-        exitScaleY: 1,
       };
 
-      const cacheTravelGeometry = () => {
-        if (!travelCarrier) return;
-
-        gsap.set(travelCarrier, {
-          x: 0,
-          y: 0,
-          scaleX: 1,
-          scaleY: 1,
-          transformOrigin: "top left",
-        });
-        const base = travelCarrier.getBoundingClientRect();
-        if (base.width <= 0 || base.height <= 0) return;
-
-        if (incomingTravel) {
-          const source = incomingTravel.getBoundingClientRect();
-          travelGeometry.entryX = source.left - base.left;
-          travelGeometry.entryY = source.top - base.top;
-          travelGeometry.entryScaleX = source.width / base.width;
-          travelGeometry.entryScaleY = source.height / base.height;
-        }
-
-        if (downstreamTravel) {
-          const target = downstreamTravel.getBoundingClientRect();
-          travelGeometry.exitX = target.left - base.left;
-          travelGeometry.exitY = target.top - base.top;
-          travelGeometry.exitScaleX = target.width / base.width;
-          travelGeometry.exitScaleY = target.height / base.height;
-        }
-      };
-
-      cacheTravelGeometry();
-      ScrollTrigger.addEventListener("refreshInit", cacheTravelGeometry);
-
-      // Incoming 03 -> 04 bridge. Geometry is measured only at init/refresh; the
-      // compact TX-1082 copy occupies the outgoing pass's exact stage rectangle.
-      // Visibility stays permanently "visible" (matching [data-delegation-grocery]'s
-      // own pattern) so opacity alone controls presence — the shared 03→04
-      // boundary's incomingCarrierWeight (motion-runtime.ts) starts raising
-      // opacity from inside the boundary window, before this scene's own
-      // track-top is reached; a "hidden" visibility here would mask that.
       gsap.set("[data-stepup-travel-carrier]", {
         opacity: 0,
-        visibility: "visible",
-        pointerEvents: "none",
+        visibility: "hidden",
         transformOrigin: "top left",
       });
 
-      // Outgoing 04 -> 05 bridge. Incoming Revocation copy is registered to this
-      // terminal rectangle, making the technical DOM swap visually invisible.
-      const artifactBridgeOut = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "bottom top+=120px",
-        end: "bottom top",
-        scrub: true,
-        onEnter: () => setTravelCarrierMode("bridge"),
-        onEnterBack: () => setTravelCarrierMode("bridge"),
-        onLeave: () => setTravelCarrierMode("hidden"),
-        onLeaveBack: () => setTravelCarrierMode("scene"),
-        onUpdate: (self) => {
-          gsap.set("[data-stepup-travel-carrier]", { opacity: 1 - self.progress });
-        },
-      });
-
       const syncTravelCarrierVisibility = () => {
-        if (visibilityTrigger.isActive) {
-          setTravelCarrierMode("scene");
-        } else if (artifactBridgeOut.isActive) {
-          setTravelCarrierMode("bridge");
-        } else {
-          setTravelCarrierMode("hidden");
-        }
+        setTravelCarrierMode(visibilityTrigger.isActive ? "scene" : "hidden");
       };
       ScrollTrigger.addEventListener("refresh", syncTravelCarrierVisibility);
 
@@ -281,8 +205,6 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       gsap.set("[data-stepup-travel-carrier]", {
         x: travelGeometry.entryX,
         y: travelGeometry.entryY,
-        scaleX: travelGeometry.entryScaleX,
-        scaleY: travelGeometry.entryScaleY,
       });
 
       // Top and bottom extensions start collapsed into the compact slip format
@@ -322,54 +244,28 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       gsap.set("[data-clear-seal]", { opacity: 0, scale: 1.25 });
 
       // =========================================================================
-      // ENTRY CHOREOGRAPHY (formerly BEAT 1-4, local 0.00 - 0.52): carrier
-      // slide-in, clearance interception, and document-backing expansion --
-      // everything needed to visually ESTABLISH Step-Up during the 03->04
-      // handoff. This is no longer scrubbed by Step-Up's own local track
-      // ScrollTrigger (2880px+), which only reached ~0.09 local progress by
-      // the time the shared boundary (motion-model.ts, ~540px) finished --
-      // nowhere near this content's 0.52 completion point, leaving Step-Up a
-      // thin unbuilt card long after Delegation had released the stage.
-      //
-      // Ownership: the shared 03->04 boundary (motion-runtime.ts
-      // applyStepUpEntry) now drives this timeline's .progress() directly
-      // from boundary progress via progressBus.getTimeline("stepUpEntry").
-      // GSAP's .progress()/.totalProgress() is always normalized 0-1 against
-      // a timeline's own duration, so every authored position value below
-      // (0.00, 0.22, 0.32, ...) keeps its original relative proportion --
-      // only the physical scroll distance backing it changed. No tween
-      // target, easing, or duration below was altered from BEAT 1-4.
-      //
-      // Do NOT attach a scrollTrigger to this timeline and do not tween
-      // these same properties/selectors elsewhere -- one owner per property.
+      // BEAT 1-4 (local 0.00 - 0.52): carrier slide-in, clearance interception,
+      // and document-backing expansion -- everything needed to visually
+      // ESTABLISH Step-Up on entry. Scrubbed on Step-Up's own local track.
       // =========================================================================
-      const entryTimeline = gsap.timeline({ paused: true, defaults: { ease: "none" } });
-      progressBus.registerTimeline("stepUpEntry", entryTimeline);
 
-      // BEAT 1: SCENE 03 -> 04 REGISTRATION (0.00 - 0.04)
-      entryTimeline
+      // BEAT 1: SCENE ENTRY REGISTRATION (0.00 - 0.04)
+      timeline
         .to(
           "[data-registration-bar]",
           { borderColor: "rgba(169, 42, 36, 0.75)", duration: 0.04, ease: "power1.out" },
           0.01,
         );
 
-      // BEAT 2: INCOMING TRAVEL REQUEST ENTERS WITH MOMENTUM (0.00 - 0.22)
+      // BEAT 2: TRAVEL REQUEST ENTERS WITH MOMENTUM (0.00 - 0.22)
       // Compact execution slip enters along upstream rail with crisp visibility and momentum.
-      entryTimeline
+      timeline
         .fromTo(
           "[data-stepup-travel-carrier]",
-          {
-            x: () => travelGeometry.entryX,
-            y: () => travelGeometry.entryY,
-            scaleX: () => travelGeometry.entryScaleX,
-            scaleY: () => travelGeometry.entryScaleY,
-          },
+          { x: () => travelGeometry.entryX, y: () => travelGeometry.entryY },
           {
             x: isMobile ? 0 : -80,
             y: isMobile ? -60 : 0,
-            scaleX: 1,
-            scaleY: 1,
             duration: 0.22,
             ease: "power1.inOut",
           },
@@ -385,17 +281,10 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
 
       // BEAT 3: CLEARANCE BOUNDARY ENCOUNTER & PHYSICAL INTERCEPTION (0.22 - 0.32)
       // Controlled deceleration into datum. Physical catch: registration bar engages.
-      entryTimeline
+      timeline
         .to(
           "[data-stepup-travel-carrier]",
-          {
-            x: 0,
-            y: 0,
-            scaleX: 1,
-            scaleY: 1,
-            duration: 0.08,
-            ease: "power3.out",
-          },
+          { x: 0, y: 0, duration: 0.08, ease: "power3.out" },
           0.22,
         )
         .to(
@@ -419,7 +308,7 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       // Official backing stock unrolls above and below the shared identity spine
       // (TRAVEL AGENT, TX-1082, ₹4,900), which stays optically fixed and centered.
       // By 0.52, the backing stock is completely settled before stamp impact.
-      entryTimeline
+      timeline
         .to(
           "[data-travel-artifact]",
           {
@@ -486,8 +375,6 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
           },
           0.44,
         );
-
-      entryTimeline.progress(0);
 
       // =========================================================================
       // BEAT 5: HOLD STAMP IMPACT ON SETTLED BACKING STOCK (0.54 - 0.62)
@@ -649,8 +536,6 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
           {
             x: () => travelGeometry.exitX,
             y: () => travelGeometry.exitY,
-            scaleX: () => travelGeometry.exitScaleX,
-            scaleY: () => travelGeometry.exitScaleY,
             duration: 0.10,
             ease: "power2.in",
           },
@@ -676,11 +561,7 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
 
       return () => {
         visibilityTrigger.kill();
-        artifactBridgeOut.kill();
-        ScrollTrigger.removeEventListener("refreshInit", cacheTravelGeometry);
         ScrollTrigger.removeEventListener("refresh", syncTravelCarrierVisibility);
-        progressBus.unregisterTimeline("stepUpEntry");
-        entryTimeline.kill();
         timeline.scrollTrigger?.kill();
         timeline.kill();
       };

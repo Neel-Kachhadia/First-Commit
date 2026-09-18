@@ -353,16 +353,8 @@
     font-size: 0.68rem;
   }
 
-  .thresholdRow {
-    padding: 0.1rem 0.3rem;
-  }
-
   .thresholdText {
     font-size: 0.48rem;
-  }
-
-  .metaSection {
-    gap: 0.12rem;
   }
 
   .metaRow {

@@ -59,7 +59,7 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
       const reducedVisibilityTrigger = ScrollTrigger.create({
         trigger: triggerEl,
         start: "top top+=1px",
-        end: "bottom top-=120px",
+        end: "bottom top",
         onEnter: () => {
           applyReducedVisibility(true);
           window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "mandate" } }));
@@ -206,7 +206,7 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
       const visibilityTrigger = ScrollTrigger.create({
         trigger: triggerEl,
         start: "top top+=1px",
-        end: "bottom top-=120px",
+        end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
           window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "mandate" } }));

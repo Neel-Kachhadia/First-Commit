@@ -45,7 +45,7 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
 
         const reducedVisibilityTrigger = ScrollTrigger.create({
           trigger: reducedTriggerEl,
-          start: "top top+=100px",
+          start: "top top+=1px",
           end: "bottom top",
           onEnter: () => {
             applyReducedVisibility(true);
@@ -109,12 +109,11 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         },
       });
 
-      // Body visibility trigger scoped to Decisions' own true pinned window.
-      // Trailing edge is exact (no bleed into Delegation) — only the approved
-      // receipt evidence carrier survives via its independent bridge trigger.
+      // Body visibility trigger scoped exactly to Decisions' own pinned window --
+      // no overlap into Mandate or Delegation.
       const visibilityTrigger = ScrollTrigger.create({
         trigger: triggerEl,
-        start: "top top+=100px",
+        start: "top top+=1px",
         end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
@@ -139,13 +138,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
           applyVisibility(false);
         },
       });
-
-      // Product-native evidence carrier (outgoing half): the approved Grocery
-      // receipt becomes the physical handoff into Delegation. Only this receipt
-      // survives the scene boundary; no administrative top bar crosses scenes.
-      // Its opacity is owned by the shared 02→03 boundary (applyBoundary0203,
-      // motion-runtime.ts) via outgoingCarrierWeight -- a local pixel-triggered
-      // fade here used to race BEAT 5's own evidence-outgoing fade-in below.
 
       const startScale = isMobile ? 2.1 : 2.45;
 
@@ -176,12 +168,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
       gsap.set("[data-barrier='deny']", { opacity: 0, scaleX: 0 });
       gsap.set("[data-stamp]", { opacity: 0 });
       gsap.set("[data-note]", { opacity: 0, x: 12 });
-      gsap.set("[data-decision-evidence-outgoing]", {
-        display: "block",
-        opacity: 0,
-        visibility: "visible",
-        pointerEvents: "none",
-      });
 
 
       // =========================================================================
@@ -445,23 +431,15 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         );
 
       // =========================================================================
-      // BEAT 5: FINAL EVIDENCE HARMONIZATION (0.89 - 0.93 local; release beyond
-      // that point is boundary-owned)
+      // BEAT 5: FINAL RESTING COMPOSITION (0.89 - 1.00)
       // All three lanes settle into their authentic resting positions:
       // A = clear exit / continued
       // B = suspended / held with open path ahead
       // C = terminated / severed with dead end
-      // 0.89 - 0.93: Completed Decisions operating state holds in clear readable rest.
-      //
-      // What used to run here from local 0.93-1.00 -- lane-tag/sprockets/gate/
-      // barrier/note fade, lane-track-line opacity, receipt-wrap opacity, the
-      // evidence-outgoing fade-in, and lanes-board/header/footer fade-out --
-      // is now owned by the shared 02→03 boundary (applyBoundary0203,
-      // motion-runtime.ts), which releases this same mass on the shared
-      // physical clock instead of a fixed ~220px local slice, and was racing
-      // a redundant local evidenceBridgeOut carrier fade. Geometry-only
-      // pieces with no opacity conflict (lane-track-line scaleX, receipt-wrap
-      // scale/yPercent) remain local below.
+      // 0.89 - 0.93: Completed Decisions operating state holds in clear readable
+      // rest. The scene stays in this resting composition through the end of its
+      // own track; the scene root is hidden by the visibility trigger once the
+      // viewer scrolls past it, so no separate release/fade-out is needed here.
       // =========================================================================
       timeline
         .to("[data-lane='allow']", { opacity: 0.9, duration: 0.04 }, 0.89)
@@ -511,23 +489,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
       aria-labelledby="decisions-scene-title"
     >
       <div ref={stageRef} className={styles.stage} data-decisions-stage>
-        {/* Approved transaction evidence becomes the 02 → 03 physical carrier. */}
-        <div
-          className={styles.evidenceCarrier}
-          data-decision-evidence-outgoing
-          aria-hidden="true"
-        >
-          <TransactionReceipt
-            id={decisionsDemo.allow.id}
-            agent={decisionsDemo.allow.agent}
-            category={decisionsDemo.allow.category}
-            amount={decisionsDemo.allow.amount}
-            mandateRef={decisionsDemo.allow.mandateRef}
-            status="approved"
-            stamp={<DecisionStamp tone="ink">APPROVED</DecisionStamp>}
-          />
-        </div>
-
         {/* Top Institutional Header Bar */}
         <header className={styles.sceneHeader} data-decisions-header>
           <div className={styles.headerLeft}>

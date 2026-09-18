@@ -102,9 +102,6 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
         },
       });
 
-      const incomingCarrier = "[data-ledger-station]";
-      const outgoingCarrier = "[data-terminal-ledger]";
-
       // Strict Zero-Slack Scene Ownership Trigger
       const visibilityTrigger = ScrollTrigger.create({
         trigger: triggerEl,
@@ -112,62 +109,25 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
         end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
-          gsap.set(incomingCarrier, { opacity: 1, visibility: "visible" });
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "concurrency" } }),
           );
         },
         onEnterBack: () => {
           applyVisibility(true);
-          gsap.set(incomingCarrier, { opacity: 1, visibility: "visible" });
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "concurrency" } }),
           );
         },
         onLeave: () => {
-          if (isPersistent) {
-            applyVisibility(false);
-            gsap.set(incomingCarrier, { opacity: 0, visibility: "hidden" });
-            gsap.set(outgoingCarrier, { opacity: 0 });
-          }
+          if (isPersistent) applyVisibility(false);
         },
         onLeaveBack: () => {
           applyVisibility(false);
-          gsap.set(incomingCarrier, { opacity: 0, visibility: "hidden" });
         },
       });
 
-      // Physical carrier only: Scene 06's sealed dossier resolves into the
-      // authoritative budget ledger. Chapter header waits for scene ownership.
-      gsap.set(incomingCarrier, {
-        opacity: 0,
-        visibility: "visible",
-        pointerEvents: "none",
-      });
-
-      // 06 -> 07 Carrier Bridge (incoming half):
-      // Symmetrically crossfades in over the 120px pre-roll window Split-Defense uses to fade out.
-      const carrierBridgeIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=120px",
-        end: "top top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(incomingCarrier, { opacity: self.progress });
-        },
-      });
-
-      // 07 -> 08 Carrier Bridge (outgoing half):
-      // Symmetrically crossfades out over the 120px pre-roll window Causal Replay uses to fade in.
-      const carrierBridgeOut = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "bottom top+=120px",
-        end: "bottom top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(outgoingCarrier, { opacity: 1 - self.progress });
-        },
-      });
+      gsap.set("[data-ledger-station]", { opacity: 1 });
 
       // Initial element positioning
       const leftStart = isMobile
@@ -453,8 +413,6 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
 
       return () => {
         visibilityTrigger.kill();
-        carrierBridgeIn.kill();
-        carrierBridgeOut.kill();
         timeline.kill();
       };
     },

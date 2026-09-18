@@ -1,5 +1,4 @@
 import type { ExperienceScene as ExperienceSceneId } from "./scene-registry";
-import type { MotionSnapshot } from "./motion-model";
 
 export type { ExperienceSceneId };
 
@@ -19,18 +18,7 @@ const progressRegistry: Record<ExperienceSceneId, number> = {
 };
 
 let currentActiveScene: ExperienceSceneId = "none";
-let currentSnapshot: MotionSnapshot | null = null;
 const listeners = new Set<ProgressListener>();
-const snapshotListeners = new Set<(snapshot: MotionSnapshot) => void>();
-
-/**
- * Minimal GSAP-timeline shape a boundary can drive imperatively. Scenes
- * register a paused, un-scrubbed entry timeline here so a shared boundary
- * (motion-runtime.ts) can own its progress instead of the scene's own
- * ScrollTrigger — the single-writer requirement for boundary-owned beats.
- */
-type BoundaryDrivenTimeline = { progress(value?: number): number };
-const boundaryTimelines = new Map<string, BoundaryDrivenTimeline>();
 
 /**
  * High-frequency imperative progress channel outside React lifecycle.
@@ -58,24 +46,6 @@ export const progressBus = {
     currentActiveScene = scene;
   },
 
-  getSnapshot(): MotionSnapshot | null {
-    return currentSnapshot;
-  },
-
-  publishSnapshot(snapshot: MotionSnapshot): void {
-    currentSnapshot = snapshot;
-    currentActiveScene = snapshot.semanticOwner;
-    for (const scene of Object.keys(snapshot.sceneProgress) as Array<keyof typeof snapshot.sceneProgress>) {
-      progressRegistry[scene] = snapshot.sceneProgress[scene];
-    }
-    for (const listener of snapshotListeners) listener(snapshot);
-  },
-
-  subscribeSnapshot(listener: (snapshot: MotionSnapshot) => void): () => void {
-    snapshotListeners.add(listener);
-    return () => snapshotListeners.delete(listener);
-  },
-
   subscribe(listener: ProgressListener): () => void {
     listeners.add(listener);
     return () => {
@@ -85,17 +55,5 @@ export const progressBus = {
 
   getAll(): Record<ExperienceSceneId, number> {
     return { ...progressRegistry };
-  },
-
-  registerTimeline(key: string, timeline: BoundaryDrivenTimeline): void {
-    boundaryTimelines.set(key, timeline);
-  },
-
-  unregisterTimeline(key: string): void {
-    boundaryTimelines.delete(key);
-  },
-
-  getTimeline(key: string): BoundaryDrivenTimeline | undefined {
-    return boundaryTimelines.get(key);
   },
 };

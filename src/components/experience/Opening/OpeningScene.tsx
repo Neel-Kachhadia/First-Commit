@@ -70,23 +70,16 @@ export function OpeningScene({ trackRef }: OpeningSceneProps) {
         updateVisibility();
         ScrollTrigger.addEventListener("refresh", updateVisibility);
 
-        // Frozen 00 -> 01 carrier initial setups
-        gsap.set("[data-opening-paper]", { clipPath: "inset(48% 0 52% 0)" });
-        gsap.set("[data-opening-bridge]", { opacity: 0, y: 8 });
-
         // Scroll Scrub Timeline:
         // 1. Initial hero state rests at progress 0.0 - 0.20
-        // 2. Hero decorations and red stroke fade before paper takeover (0.20 - 0.44)
-        // 3. Wordmark transforms and clears (0.04 - 0.46)
-        // 4. Frozen carrier paper takeover expands into Mandate (0.52 - 1.00)
+        // 2. Hero decorations and red stroke fade (0.20 - 0.44)
+        // 3. Wordmark transforms and clears, resting in that state through the
+        //    end of the scene's own track (0.04 - 0.64)
         timeline
           .to("[data-opening-decor]", { opacity: 0, duration: 0.24, ease: "power1.out" }, 0.16)
           .to("[data-opening-stroke]", { opacity: 0, duration: 0.2, ease: "power1.out" }, 0.2)
           .to("[data-opening-word]", { yPercent: -8, scale: 0.965, duration: 0.26 }, 0.04)
-          .to("[data-opening-word]", { yPercent: -16, opacity: 0, clipPath: "inset(0 0 45% 0)", duration: 0.2 }, 0.44)
-          .to("[data-opening-paper]", { clipPath: "inset(0% 0 0% 0)", duration: 0.26, ease: "power1.inOut" }, 0.52)
-          .to("[data-opening-bridge]", { opacity: 1, y: 0, duration: 0.18 }, 0.66)
-          .to("[data-opening-meta]", { color: "#15130e", duration: 0.1 }, 0.74);
+          .to("[data-opening-word]", { yPercent: -16, opacity: 0, clipPath: "inset(0 0 45% 0)", duration: 0.2 }, 0.44);
 
         return () => {
           ScrollTrigger.removeEventListener("refresh", updateVisibility);
@@ -216,15 +209,6 @@ export function OpeningScene({ trackRef }: OpeningSceneProps) {
         <div className={styles.baselineBar} data-opening-decor aria-hidden="true">
           <span className={styles.timecode}>00 : 00 : 01 : 00</span>
           <span className={styles.baselineBranding}>KAVACHPAY // 2026</span>
-        </div>
-
-        {/* Preserved 00 -> 01 Carrier Bridge into Mandate */}
-        <div className={styles.paperReveal} data-opening-paper aria-hidden="true">
-          <div className={styles.paperBridge} data-opening-bridge>
-            <span className={styles.bridgeLabel}>01 / MANDATE</span>
-            <strong className={styles.bridgeTitle}>Permission,<br />made exact.</strong>
-            <i className={styles.bridgeMeta}>INTENT → BOUND AUTHORITY</i>
-          </div>
         </div>
       </div>
     </section>

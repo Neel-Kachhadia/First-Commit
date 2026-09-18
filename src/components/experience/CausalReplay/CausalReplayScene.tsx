@@ -106,28 +106,15 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
         end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
-          gsap.set("[data-replay-docket]", { visibility: "visible" });
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
           );
-          // Suppress any lingering carrier elements from earlier scenes during Causal Replay
-          document
-            .querySelectorAll<HTMLElement>("[data-decision-register]")
-            .forEach((el) => {
-              el.style.visibility = "hidden";
-            });
         },
         onEnterBack: () => {
           applyVisibility(true);
-          gsap.set("[data-replay-docket]", { visibility: "visible" });
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
           );
-          document
-            .querySelectorAll<HTMLElement>("[data-decision-register]")
-            .forEach((el) => {
-              el.style.visibility = "hidden";
-            });
         },
         // KP-MOTION-007: Causal Replay is the final registered scene -- there is no
         // incoming Scene 09 that needs the stage, so its terminal composition must stay
@@ -137,37 +124,11 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
         // onLeave -- which used to hide the root at the very last pixel. Only skip the hide
         // for the persistent (in-app, always-last) mount; a standalone/legacy mount still
         // owns its own self-contained track and should hide normally.
-        onLeave: isPersistent
-          ? undefined
-          : () => {
-              applyVisibility(false);
-              gsap.set("[data-replay-docket]", { opacity: 0, visibility: "hidden" });
-            },
-        onLeaveBack: () => {
-          applyVisibility(false);
-          gsap.set("[data-replay-docket]", { opacity: 0, visibility: "hidden" });
-          document
-            .querySelectorAll<HTMLElement>("[data-decision-register]")
-            .forEach((el) => {
-              el.style.visibility = "";
-            });
-        },
+        onLeave: isPersistent ? undefined : () => applyVisibility(false),
+        onLeaveBack: () => applyVisibility(false),
       });
 
-      // 07 -> 08 carrier bridge: Case Docket for canonical transaction TX-1081
-      // enters over the standard 120px pre-roll window, establishing the archival case.
-      const carrierEls = "[data-replay-docket]";
-      gsap.set(carrierEls, { opacity: 0, visibility: "visible", pointerEvents: "none" });
-      const carrierBridgeIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=120px",
-        end: "top top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(carrierEls, { opacity: self.progress });
-        },
-      });
-
+      gsap.set("[data-replay-docket]", { opacity: 1 });
       gsap.set("[data-replay-footer]", { opacity: 0 });
       gsap.set("[data-evidence-exposure]", { opacity: 0, y: 16, scale: 0.98 });
       gsap.set("[data-full-chain]", { opacity: 0, y: 14 });
@@ -248,7 +209,6 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
 
       return () => {
         visibilityTrigger.kill();
-        carrierBridgeIn.kill();
         timeline.kill();
       };
     },

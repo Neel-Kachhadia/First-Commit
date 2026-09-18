@@ -125,28 +125,6 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
         },
       });
 
-      const travelRecord = root.current.querySelector<HTMLElement>("[data-record='TX-1082']");
-      const travelLineage = root.current.querySelector<HTMLElement>(
-        "[data-independent-register='travel']",
-      );
-      const setTravelCarrierMode = (mode: "hidden" | "bridge" | "scene") => {
-        if (!travelRecord) return;
-        if (mode === "hidden") {
-          gsap.set([travelRecord, travelLineage], { visibility: "hidden", opacity: 0 });
-          travelRecord.setAttribute("aria-hidden", "true");
-          return;
-        }
-        gsap.set(travelRecord, {
-          visibility: mode === "bridge" ? "visible" : "inherit",
-          opacity: 1,
-        });
-        gsap.set(travelLineage, { visibility: "inherit", opacity: 1 });
-        if (mode === "bridge") travelRecord.setAttribute("aria-hidden", "true");
-        else travelRecord.removeAttribute("aria-hidden");
-      };
-
-      // Body visibility stays exact. Only the independent Travel record may appear
-      // in the incoming bridge; chapter chrome remains scene-owned.
       // start uses a 1px epsilon (not an authored overlap) — GSAP's onEnter for a
       // non-scrubbed trigger requires progress to strictly exceed 0, so landing
       // exactly on the boundary pixel would otherwise leave the body hidden until
@@ -158,61 +136,26 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
         end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
-          setTravelCarrierMode("scene");
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "revocation" } }),
           );
         },
         onEnterBack: () => {
           applyVisibility(true);
-          setTravelCarrierMode("scene");
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "revocation" } }),
           );
         },
         onLeave: () => {
-          if (isPersistent) {
-            applyVisibility(false);
-            setTravelCarrierMode("hidden");
-          }
+          if (isPersistent) applyVisibility(false);
         },
         onLeaveBack: () => {
           applyVisibility(false);
-          setTravelCarrierMode("bridge");
         },
       });
 
       gsap.set("[data-revocation-header]", { opacity: 1, y: 0 });
-      gsap.set("[data-record]:not([data-record='TX-1082'])", { opacity: 0 });
-      setTravelCarrierMode("hidden");
-      gsap.set(travelRecord, { pointerEvents: "none" });
-
-      // Incoming 04 -> 05 bridge. Step-Up's terminal compact request is measured
-      // against this record, so the late cross-dissolve swaps copies at <=1px.
-      const travelBridgeIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=120px",
-        end: "top top",
-        scrub: true,
-        onEnter: () => setTravelCarrierMode("bridge"),
-        onEnterBack: () => setTravelCarrierMode("bridge"),
-        onLeave: () => setTravelCarrierMode("scene"),
-        onLeaveBack: () => setTravelCarrierMode("hidden"),
-        onUpdate: (self) => {
-          gsap.set(travelRecord, { opacity: Math.pow(self.progress, 8) });
-        },
-      });
-
-      const syncTravelCarrierVisibility = () => {
-        if (visibilityTrigger.isActive) {
-          setTravelCarrierMode("scene");
-        } else if (travelBridgeIn.isActive) {
-          setTravelCarrierMode("bridge");
-        } else {
-          setTravelCarrierMode("hidden");
-        }
-      };
-      ScrollTrigger.addEventListener("refresh", syncTravelCarrierVisibility);
+      gsap.set("[data-record]", { opacity: 0 });
 
       // =========================================================================
       // BEAT 1: TRAVEL RECORD LANDING & REGISTER UNFOLDING (0.00 - 0.16)
@@ -528,8 +471,6 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
 
       return () => {
         visibilityTrigger.kill();
-        travelBridgeIn.kill();
-        ScrollTrigger.removeEventListener("refresh", syncTravelCarrierVisibility);
         timeline.scrollTrigger?.kill();
         timeline.kill();
       };
@@ -545,7 +486,7 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
       aria-labelledby="revocation-scene-title"
     >
       <div ref={stageRef} className={styles.stage} data-revocation-stage>
-        {/* Scene-owned chapter header. Physical continuity lives in TX-1082. */}
+        {/* Scene-owned chapter header. */}
         <div className={styles.topArea}>
           <header className={styles.sceneHeader} data-revocation-header>
             <div className={styles.headerLeft}>

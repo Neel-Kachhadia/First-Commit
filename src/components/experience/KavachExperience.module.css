@@ -28,21 +28,6 @@
   z-index: 3;
 }
 
-.sceneLayer {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* Temporary legacy container for fallback comparison (?stage=legacy) */
-.editorialLayerLegacy {
-  position: relative;
-  z-index: 3;
-  background: var(--kp-black);
-}
-
 .grain {
   animation: grainShift 0.52s steps(2, end) infinite;
   background-image: var(--kp-stock-noise);
