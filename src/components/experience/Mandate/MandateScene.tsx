@@ -8,30 +8,15 @@ import { mandateDemo } from "@/lib/experience/demo-state";
 import { progressBus } from "@/lib/experience/progress-bus";
 import styles from "./MandateScene.module.css";
 
-function getMandateBounds(rootEl: HTMLElement | null) {
-  if (!rootEl) return { top: 11, right: 8, bottom: 10, left: 53 };
-  const stage = rootEl.querySelector<HTMLElement>(`.${styles.stage}`) || rootEl;
-  const sheet = rootEl.querySelector<HTMLElement>("[data-mandate-sheet]");
-  if (!stage || !sheet) return { top: 11, right: 8, bottom: 10, left: 53 };
-
-  const stageRect = stage.getBoundingClientRect();
-  const sheetRect = sheet.getBoundingClientRect();
-
-  if (stageRect.height === 0 || stageRect.width === 0) {
-    return { top: 11, right: 8, bottom: 10, left: 53 };
-  }
-
-  const top = Math.max(0, Math.min(100, ((sheetRect.top - stageRect.top) / stageRect.height) * 100));
-  const bottom = Math.max(0, Math.min(100, ((stageRect.bottom - sheetRect.bottom) / stageRect.height) * 100));
-  const left = Math.max(0, Math.min(100, ((sheetRect.left - stageRect.left) / stageRect.width) * 100));
-  const right = Math.max(0, Math.min(100, ((stageRect.right - sheetRect.right) / stageRect.width) * 100));
-
-  return { top, right, bottom, left };
-}
-
 type MandateSceneProps = {
   trackRef?: React.RefObject<HTMLDivElement | null>;
 };
+
+const CLIP_HIDDEN = "inset(0 100% 0 0)";
+const CLIP_SHOWN = "inset(0 0% 0 0)";
+
+// Authority fields in the order the intent compiles them into the contract.
+const FIELDS = ["limit", "stepup", "blocked", "expires", "delegation"] as const;
 
 export function MandateScene({ trackRef }: MandateSceneProps) {
   const root = useRef<HTMLElement>(null);
@@ -47,10 +32,13 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
         root.current.style.pointerEvents = "auto";
         root.current.setAttribute("aria-hidden", "false");
       }
-      gsap.set("[data-mandate-header]", { clipPath: "inset(0 0% 0 0)" });
-      gsap.set("[data-mandate-category]", { opacity: 1, y: 0, clipPath: "inset(0 0% 0 0)" });
-      gsap.set("[data-mandate-paper-carrier]", { opacity: 1, y: 0 });
-      gsap.set("[data-mandate-intent]", { opacity: 1, xPercent: 0 });
+      gsap.set("[data-mandate-header]", { clipPath: CLIP_SHOWN });
+      gsap.set("[data-mandate-category]", { opacity: 1, y: 0, clipPath: CLIP_SHOWN });
+      gsap.set("[data-mandate-field]", { clipPath: CLIP_SHOWN });
+      gsap.set("[data-mandate-field-val]", { opacity: 1, x: 0, scale: 1 });
+      gsap.set("[data-mandate-stamp]", { opacity: 1, scale: 1, rotate: 0 });
+      gsap.set("[data-mandate-footer]", { opacity: 1, y: 0 });
+      gsap.set("[data-mandate-seal]", { opacity: 1, scale: 1, rotate: -7 });
     });
 
     motion.add("(prefers-reduced-motion: no-preference)", () => {
@@ -61,121 +49,41 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
         root.current.setAttribute("aria-hidden", visible ? "false" : "true");
       };
 
-      const bounds = getMandateBounds(root.current);
-      const boundingPaper = root.current?.querySelector<HTMLElement>("[data-mandate-bounding-paper]");
-
-      const easeInOut = gsap.parseEase("power1.inOut");
-
-      const updateContraction = (p: number) => {
-        if (!boundingPaper) return;
-        let ratio = 0;
-        if (p <= 0.02) {
-          ratio = 0;
-        } else if (p >= 0.16) {
-          ratio = 1;
-        } else {
-          const t = (p - 0.02) / 0.14;
-          ratio = easeInOut(t);
-        }
-
-        const top = bounds.top * ratio;
-        const right = bounds.right * ratio;
-        const bottom = bounds.bottom * ratio;
-        const left = bounds.left * ratio;
-
-        boundingPaper.style.clipPath = `inset(${top.toFixed(2)}% ${right.toFixed(2)}% ${bottom.toFixed(2)}% ${left.toFixed(2)}%)`;
-        boundingPaper.setAttribute("data-paper-top", top.toFixed(2));
-        boundingPaper.setAttribute("data-paper-right", right.toFixed(2));
-        boundingPaper.setAttribute("data-paper-bottom", bottom.toFixed(2));
-        boundingPaper.setAttribute("data-paper-left", left.toFixed(2));
-      };
-
-      let cachedExitY = -window.innerHeight * 1.1;
-
-      const updateTargetBounds = () => {
-        const fresh = getMandateBounds(root.current);
-        bounds.top = fresh.top;
-        bounds.right = fresh.right;
-        bounds.bottom = fresh.bottom;
-        bounds.left = fresh.left;
-        if (boundingPaper) {
-          boundingPaper.setAttribute("data-target-top", bounds.top.toFixed(2));
-          boundingPaper.setAttribute("data-target-right", bounds.right.toFixed(2));
-          boundingPaper.setAttribute("data-target-bottom", bounds.bottom.toFixed(2));
-          boundingPaper.setAttribute("data-target-left", bounds.left.toFixed(2));
-        }
-        if (root.current) {
-          const sheetEl = root.current.querySelector<HTMLElement>("[data-mandate-sheet]");
-          const stageEl = root.current.querySelector<HTMLElement>("[data-scene='mandate']");
-          if (sheetEl && stageEl) {
-            const sheetRect = sheetEl.getBoundingClientRect();
-            const stageRect = stageEl.getBoundingClientRect();
-            const distanceToClear = (sheetRect.bottom - stageRect.top) + 60;
-            cachedExitY = -Math.max(distanceToClear, window.innerHeight * 0.95);
-          } else {
-            cachedExitY = -window.innerHeight * 1.1;
-          }
-        }
-        updateContraction(0);
-      };
-
-      updateTargetBounds();
-      ScrollTrigger.addEventListener("refreshInit", updateTargetBounds);
-
-      gsap.set("[data-mandate-bounding-paper]", {
-        opacity: 1,
-      });
-      updateContraction(0);
-
-      gsap.set("[data-mandate-frame]", { opacity: 0, scale: 0.985 });
-      gsap.set("[data-mandate-sheet]", { opacity: 1, scale: 1 });
-      gsap.set("[data-mandate-shadow]", { opacity: 0 });
-      gsap.set("[data-mandate-hole]", { opacity: 0, scale: 0.8 });
-      gsap.set("[data-mandate-intent]", { opacity: 0, xPercent: -6 });
-      gsap.set("[data-mandate-support]", { opacity: 0 });
-      gsap.set("[data-mandate-truth]", { opacity: 0 });
-      gsap.set("[data-mandate-measure]", { opacity: 0 });
-      // Internal Mandate formation initial states:
-      gsap.set("[data-mandate-header]", { clipPath: "inset(0 100% 0 0)" });
-      gsap.set("[data-mandate-category]", { opacity: 0, y: -5, clipPath: "inset(0 100% 0 0)" });
-      gsap.set("[data-mandate-field]", { clipPath: "inset(0 100% 0 0)" });
+      // ---- Initial state: exactly the 00->01 film's last frame ---------------
+      // Already established by the film and untouched here: scene label,
+      // headline, support and truth copy, the intent ticket, the blank sheet with
+      // its eyelet and stacked shadow, and the 0 - 4,000 measure. Only the
+      // contract itself (everything printed ON the sheet) is still to be compiled.
+      gsap.set("[data-mandate-frame]", { opacity: 0 });
+      gsap.set("[data-mandate-header]", { clipPath: CLIP_HIDDEN });
+      gsap.set("[data-mandate-category]", { opacity: 0, y: -5, clipPath: CLIP_HIDDEN });
+      gsap.set("[data-mandate-field]", { clipPath: CLIP_HIDDEN });
       gsap.set("[data-mandate-field-val]", { opacity: 0, x: 6 });
       gsap.set("[data-mandate-field='blocked'] [data-mandate-field-val]", { opacity: 0, scale: 1.06, x: 0 });
       gsap.set("[data-mandate-stamp]", { opacity: 0, scale: 0.78, rotate: -8 });
       gsap.set("[data-mandate-footer]", { opacity: 0, y: 4 });
       gsap.set("[data-mandate-seal]", { opacity: 0, scale: 1.14, rotate: -12 });
-      // Editorial splice initial states:
-      const isMobile = window.matchMedia("(max-width: 900px)").matches;
-      gsap.set("[data-mandate-paper-carrier]", { y: 0, opacity: 1 });
-      gsap.set("[data-mandate-copy-stage]", { y: 0, opacity: 1 });
-      gsap.set("[data-mandate-splice-geom]", { opacity: 0 });
-      gsap.set("[data-mandate-splice-rule]", {
-        scaleX: 0,
-        transformOrigin: isMobile ? "center center" : "75% center",
-      });
 
       const timeline = gsap.timeline({
         defaults: { ease: "none" },
         scrollTrigger: {
           trigger: triggerEl,
           start: "top top",
-          end: isPersistent ? "bottom top" : "+=160%",
+          end: isPersistent ? "bottom top" : "+=240%",
           pin: !isPersistent,
           scrub: true,
           invalidateOnRefresh: true,
           onUpdate: (self) => {
             progressBus.set("mandate", self.progress);
-            updateContraction(self.progress);
           },
         },
       });
 
-      // Dedicated visibility ScrollTrigger with authored boundary overlap:
-      // Visible from start of Mandate to 120px past Mandate end into Decisions.
-      // start uses a 1px epsilon (not part of the authored overlap) — GSAP's
-      // onEnter for a non-scrubbed trigger requires progress to strictly exceed 0,
-      // so landing exactly on the boundary pixel (e.g. scroll-restored deep link)
-      // would otherwise leave the body hidden until 1px of further scroll.
+      // Visibility. start uses a 1px epsilon (not an authored overlap): GSAP's
+      // onEnter for a non-scrubbed trigger needs progress strictly > 0, so a
+      // scroll-restored deep link on the boundary pixel would otherwise leave
+      // the body hidden until 1px more scroll. The body deliberately lingers
+      // 120px past its end so it stays under the desktop 01->02 film's fade-in.
       const visibilityTrigger = ScrollTrigger.create({
         trigger: triggerEl,
         start: "top top+=1px",
@@ -196,110 +104,68 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
         },
       });
 
+      // =========================================================================
+      // A — INTENT RECEIVED (0.00 - 0.05): hold the film's frame untouched.
+      // The intent ticket and the blank contract stock are already on stage.
+      //
+      // B — STOCK BOUNDED (0.05 - 0.10): registration corners fix the region of
+      // the sheet the intent is about to be compiled into.
+      // =========================================================================
+      // Desktop only: the mobile frame geometry runs a rule straight through the
+      // ticket's quote, so on mobile the frame is never shown.
+      const showFrame = !window.matchMedia("(max-width: 900px)").matches;
+      if (showFrame) timeline.to("[data-mandate-frame]", { opacity: 1, duration: 0.05, ease: "power1.out" }, 0.05);
+
+      // =========================================================================
+      // C — SCOPE ASSIGNED (0.10 - 0.25): the contract header prints, then the
+      // category the intent named ("groceries") is set as the spending scope.
+      // =========================================================================
       timeline
-
-        // -------------------------------------------------------------
-        // STAGE 1 — INTENT RECEIVED & BOUNDED CONVERGENCE (0.00 - 0.20)
-        // -------------------------------------------------------------
-        .to("[data-mandate-frame]", { opacity: 1, scale: 1, duration: 0.03 }, 0.01)
-        .to("[data-mandate-shadow]", { opacity: 0.22, duration: 0.06 }, 0.05)
-        .to("[data-mandate-shadow]", { opacity: 1, duration: 0.05 }, 0.11)
-        .to("[data-mandate-support]", { opacity: 1, duration: 0.06 }, 0.10)
-        .to("[data-mandate-truth]", { opacity: 1, duration: 0.06 }, 0.11)
-        .to("[data-mandate-measure]", { opacity: 1, duration: 0.06 }, 0.12)
-        .to("[data-mandate-hole]", { opacity: 1, scale: 1, duration: 0.04, ease: "power2.out" }, 0.13)
-        .to("[data-mandate-frame]", { opacity: 0, duration: 0.04 }, 0.13)
-        .to("[data-mandate-bounding-paper]", { opacity: 0, duration: 0.03 }, 0.15)
-        .to("[data-mandate-intent]", { opacity: 1, xPercent: 0, duration: 0.06, ease: "power2.out" }, 0.16)
-
-        // -------------------------------------------------------------
-        // STAGE 2 — SCOPE ASSIGNED (0.20 - 0.28)
-        // -------------------------------------------------------------
-        .to("[data-mandate-header]", { clipPath: "inset(0 0% 0 0)", duration: 0.05, stagger: 0.015 }, 0.20)
-        .to("[data-mandate-category]", { opacity: 1, y: 0, clipPath: "inset(0 0% 0 0)", duration: 0.06, ease: "power2.out" }, 0.23)
-
-        // -------------------------------------------------------------
-        // STAGE 3 — COMPLETE AUTHORITY FIELDS (0.28 - 0.48)
-        // All fields reveal rapidly: LIMIT, STEP-UP, NO, EXPIRES, DELEGATION, STAMP
-        // -------------------------------------------------------------
-        .to("[data-mandate-field]", { clipPath: "inset(0 0% 0 0)", duration: 0.06, stagger: 0.01 }, 0.28)
-        .to("[data-mandate-field='limit'] [data-mandate-field-val]", { opacity: 1, x: 0, duration: 0.04, ease: "power2.out" }, 0.28)
-        .to("[data-mandate-field='stepup'] [data-mandate-field-val]", { opacity: 1, x: 0, duration: 0.04, ease: "power2.out" }, 0.32)
-        .to("[data-mandate-field='blocked'] [data-mandate-field-val]", { opacity: 1, scale: 1, x: 0, duration: 0.04, ease: "power2.out" }, 0.36)
-        .to("[data-mandate-field='expires'] [data-mandate-field-val]", { opacity: 1, x: 0, duration: 0.04, ease: "power2.out" }, 0.40)
-        .to("[data-mandate-field='delegation'] [data-mandate-field-val]", { opacity: 1, x: 0, duration: 0.04, ease: "power2.out" }, 0.44)
-        .to("[data-mandate-stamp]", { opacity: 1, scale: 1, rotate: 0, duration: 0.06, ease: "power2.out" }, 0.48)
-
-        // -------------------------------------------------------------
-        // STAGE 4 — CONTRACT ACTIVATED (0.50 - 0.60)
-        // Constraints complete -> seal impacts and settles firmly
-        // -------------------------------------------------------------
-        .to("[data-mandate-footer]", { opacity: 1, y: 0, duration: 0.05, stagger: 0.015 }, 0.50)
-        .to("[data-mandate-seal]", { opacity: 1, scale: 1, rotate: -7, duration: 0.06, ease: "power2.out" }, 0.52)
-
-        // -------------------------------------------------------------
-        // STAGE 5 — FULL COMPLETED CONTRACT HOLD (0.60 - 0.82)
-        // The complete authority contract holds in rock-solid rest.
-        // -------------------------------------------------------------
-
-        // -------------------------------------------------------------
-        // STAGE 6 — UNRELATED CONTENT RECESSION & RULE EXTENSION (0.82 - 0.88)
-        // Peripheral text recedes early; registration rules bridge to Decisions
-        // -------------------------------------------------------------
-        .to("[data-mandate-measure]", { opacity: 0, duration: 0.04 }, 0.82)
-        .to("[data-mandate-support]", { opacity: 0, duration: 0.04 }, 0.83)
-        .to("[data-mandate-truth]", { opacity: 0, duration: 0.04 }, 0.83)
-        .to("[data-mandate-splice-geom]", { opacity: 1, duration: 0.01 }, 0.84)
-        .fromTo(
-          "[data-mandate-splice-rule]",
-          { scaleX: 0 },
-          { scaleX: 1, duration: 0.05, stagger: 0.008, ease: "power2.out" },
-          0.84,
-        )
-
-        // -------------------------------------------------------------
-        // STAGE 7 — PHYSICAL PAPER CARRIER DEPARTURE (0.87 - 0.99)
-        // Physical displacement does ~90% of visual departure.
-        // Stage boundary crops departing material. No razor clipPath!
-        // -------------------------------------------------------------
+        .to("[data-mandate-header]", { clipPath: CLIP_SHOWN, duration: 0.06, stagger: 0.02 }, 0.1)
         .to(
-          "[data-mandate-copy-stage]",
-          {
-            y: -36,
-            opacity: 0,
-            duration: 0.06,
-            ease: "power2.in",
-          },
-          0.87,
-        )
-        .to(
-          "[data-mandate-paper-carrier]",
-          {
-            y: () => cachedExitY,
-            duration: 0.12,
-            ease: "power2.in",
-          },
-          0.87,
-        )
-        // Opacity drops only in the final 15% of movement (0.965 - 0.995) to soften final exit
-        .to(
-          "[data-mandate-paper-carrier]",
-          {
-            opacity: 0,
-            duration: 0.03,
-            ease: "power1.out",
-          },
-          0.965,
-        )
+          "[data-mandate-category]",
+          { opacity: 1, y: 0, clipPath: CLIP_SHOWN, duration: 0.08, ease: "power2.out" },
+          0.18,
+        );
 
-        // -------------------------------------------------------------
-        // STAGE 8 — SPLICE RULE BRIDGE (0.96 - 1.00)
-        // Rules hold at scaleX: 1, bridging directly into Decisions evaluation lines
-        // -------------------------------------------------------------
-        .set({}, {}, 1.00);
+      // =========================================================================
+      // D — LIMITS COMPILED (0.25 - 0.73): one enforceable constraint at a time.
+      // Each rule is ruled onto the sheet, then its value is set against it:
+      // LIMIT 4,000/WEEK -> STEP-UP > 1,500 -> NO ALCOHOL -> EXPIRES SUN 23:59
+      // -> DELEGATION 2 LEVELS MAX. NO ALCOHOL lands hard (a prohibition, not a
+      // number); the others settle in.
+      // =========================================================================
+      FIELDS.forEach((name, i) => {
+        const at = 0.25 + i * 0.1;
+        timeline
+          .to(`[data-mandate-field='${name}']`, { clipPath: CLIP_SHOWN, duration: 0.05, ease: "power1.out" }, at)
+          .to(
+            `[data-mandate-field='${name}'] [data-mandate-field-val]`,
+            name === "blocked"
+              ? { opacity: 1, scale: 1, x: 0, duration: 0.03, ease: "power3.out" }
+              : { opacity: 1, x: 0, duration: 0.05, ease: "power2.out" },
+            at + 0.03,
+          );
+      });
+
+      // =========================================================================
+      // E — CONTRACT BOUND (0.75 - 0.89): the category block stamp, the footer
+      // and the seal strike. The seal is the hard event: authority is now bound.
+      // The registration corners release once the stock is sealed.
+      // =========================================================================
+      timeline
+        .to("[data-mandate-stamp]", { opacity: 1, scale: 1, rotate: 0, duration: 0.04, ease: "power2.out" }, 0.75)
+        .to("[data-mandate-footer]", { opacity: 1, y: 0, duration: 0.05, stagger: 0.015 }, 0.76)
+        .to("[data-mandate-seal]", { opacity: 1, scale: 1, rotate: -7, duration: 0.05, ease: "power2.out" }, 0.8);
+      if (showFrame) timeline.to("[data-mandate-frame]", { opacity: 0, duration: 0.04, ease: "power1.in" }, 0.85);
+
+      // =========================================================================
+      // F — TERMINAL HOLD (0.89 - 1.00): the completed contract, exactly the
+      // 01->02 film's first frame. Nothing recedes, departs or bridges.
+      // =========================================================================
+      timeline.set({}, {}, 1.0);
 
       return () => {
-        ScrollTrigger.removeEventListener("refreshInit", updateTargetBounds);
         visibilityTrigger.kill();
         timeline.scrollTrigger?.kill();
         timeline.kill();
@@ -312,7 +178,7 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
   return (
     <section ref={root} className={styles.section} data-scene="mandate" aria-labelledby="mandate-scene-title">
       <div className={styles.stage}>
-        {/* Dark stage layer: Ivory typography revealed as paper contracts away */}
+        {/* Dark stage layer: scene copy, established by the 00->01 film */}
         <div className={styles.copyStage} data-mandate-copy data-mandate-copy-stage>
           <p className={styles.sceneLabel}>01 / MANDATE</p>
           <h2 id="mandate-scene-title" className={styles.copyHeading}>Permission,<br />made exact.</h2>
@@ -320,16 +186,7 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
           <p className={styles.truth} data-mandate-truth>An agent receives authority<br />inside a contract—never<br />unrestricted money.</p>
         </div>
 
-        {/* Contracting Paper Layer: Master ivory paper field with dark-ink copy */}
-        <div className={styles.boundingPaper} data-mandate-bounding-paper data-mandate-handoff aria-hidden="true">
-          <div className={styles.copyPaper} data-mandate-copy-paper>
-            <p className={styles.sceneLabel}>01 / MANDATE</p>
-            <strong className={styles.copyHeading}>Permission,<br />made exact.</strong>
-            <i className={styles.bridgeMeta}>INTENT → BOUND AUTHORITY</i>
-          </div>
-        </div>
-
-        {/* Destination registration frame */}
+        {/* Registration frame: fixes the region of the stock being compiled into */}
         <div className={styles.registeredFrame} data-mandate-frame aria-hidden="true">
           <span className={styles.regCornerTL} />
           <span className={styles.regCornerTR} />
@@ -337,25 +194,7 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
           <span className={styles.regCornerBR} />
         </div>
 
-        {/* Editorial Splice Registration Geometry */}
-        <div className={styles.spliceGeometry} data-mandate-splice-geom aria-hidden="true">
-          <div className={styles.spliceRuleTop} data-mandate-splice-rule="top" />
-          <div className={styles.spliceRuleUpper} data-mandate-splice-rule="upper">
-            <span className={styles.spliceTickLeft} />
-            <span className={styles.spliceLabelLeft}>+ REG. 01 // AXIS</span>
-            <span className={styles.spliceTickRight} />
-            <span className={styles.spliceLabelRight}>GATE // 01</span>
-          </div>
-          <div className={styles.spliceRuleLower} data-mandate-splice-rule="lower">
-            <span className={styles.spliceTickLeft} />
-            <span className={styles.spliceLabelLeft}>+ REG. 02 // DATUM</span>
-            <span className={styles.spliceTickRight} />
-            <span className={styles.spliceLabelRight}>GATE // 02</span>
-          </div>
-          <div className={styles.spliceRuleBottom} data-mandate-splice-rule="bottom" />
-        </div>
-
-        {/* Paper Artifact Carrier: Houses Intent Ticket and Mandate Sheet for unified registration shutter departure */}
+        {/* Intent ticket and mandate sheet */}
         <div className={styles.paperCarrier} data-mandate-paper-carrier>
           <div className={styles.intent} data-mandate-intent>
             <span>ORIGINAL INTENT / 01</span>

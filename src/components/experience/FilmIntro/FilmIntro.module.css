@@ -1,0 +1,71 @@
+.root {
+  background: var(--kp-black);
+  inset: 0;
+  position: fixed;
+  z-index: var(--kp-z-intro);
+}
+
+.blackFrame {
+  background: var(--kp-black);
+  inset: 0;
+  opacity: 0;
+  position: absolute;
+}
+
+.flash {
+  background: var(--kp-paper-light);
+  inset: 0;
+  opacity: 0;
+  position: absolute;
+}
+
+.registrationRule {
+  background: var(--kp-red);
+  height: 3px;
+  left: 0;
+  position: absolute;
+  top: 82%;
+  transform: scaleX(0);
+  transform-origin: 0% 50%;
+  width: 100%;
+}
+
+.reducedCard {
+  align-items: center;
+  color: var(--kp-ivory);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+  justify-content: center;
+  opacity: 0;
+  text-align: center;
+  transition: opacity 260ms ease;
+}
+
+.reducedCard[data-show="true"] { opacity: 1; }
+
+.reducedEyebrow {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.34em;
+}
+
+.reducedPresents {
+  color: var(--kp-muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.4em;
+}
+
+.reducedTitle {
+  font-family: var(--font-display), serif;
+  font-size: clamp(2.6rem, 8vw, 4.2rem);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  margin-top: 0.3rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reducedCard { transition: none; }
+}

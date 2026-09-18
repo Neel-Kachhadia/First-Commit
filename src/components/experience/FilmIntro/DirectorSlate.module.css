@@ -1,0 +1,145 @@
+.stage {
+  inset: 0;
+  perspective: 1400px;
+  position: absolute;
+}
+
+.board {
+  background: linear-gradient(155deg, #1a1815 0%, #100f0d 70%);
+  border: 1px solid rgba(235, 225, 201, 0.22);
+  border-radius: 3px;
+  box-shadow: 0 2.5rem 5rem rgba(0, 0, 0, 0.6), 0 0.5rem 1rem rgba(0, 0, 0, 0.4);
+  padding: 1.6rem 1.9rem 1.9rem;
+  position: absolute;
+  right: 6%;
+  bottom: 7%;
+  transform-style: preserve-3d;
+  width: min(34rem, 78vw);
+}
+
+.clapper {
+  background: repeating-linear-gradient(
+    120deg,
+    #141210 0 2.4rem,
+    #17130f 2.4rem 4.4rem,
+    #a92a24 4.4rem 5.6rem
+  );
+  border: 1px solid rgba(235, 225, 201, 0.3);
+  border-radius: 2px 2px 0 0;
+  height: 2.6rem;
+  margin-bottom: -1px;
+  position: relative;
+  transform-origin: 50% 0%;
+}
+
+.clapperLabel {
+  color: var(--kp-paper-light);
+  font-family: var(--font-admin), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  left: 0.9rem;
+  letter-spacing: 0.22em;
+  position: absolute;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.fields {
+  border-top: 1px solid rgba(235, 225, 201, 0.16);
+  color: var(--kp-ivory);
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.9rem;
+}
+
+.fieldRow {
+  align-items: baseline;
+  display: flex;
+  gap: 0.6rem;
+}
+
+.fieldGrid {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(3, auto);
+}
+
+.fieldGrid + .fieldGrid { grid-template-columns: repeat(2, auto); }
+
+.fieldGrid > div { display: flex; flex-direction: column; gap: 0.15rem; }
+
+.fieldLabel {
+  color: var(--kp-muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+}
+
+.fieldValue {
+  font-family: var(--font-display), serif;
+  font-size: 1.15rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.fieldGrid .fieldValue { font-family: var(--font-admin), sans-serif; font-size: 1rem; font-weight: 600; }
+
+.notation {
+  color: var(--kp-red-soft);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.24em;
+  margin-top: 0.3rem;
+  opacity: 0.85;
+}
+
+.actionSvg {
+  filter: drop-shadow(0 0.4rem 0.8rem rgba(0, 0, 0, 0.5));
+  left: 50%;
+  position: absolute;
+  top: 46%;
+  transform: translate(-50%, -50%) rotate(-2.5deg);
+  width: min(52rem, 74vw);
+}
+
+/*
+ * stroke-dasharray/-dashoffset for these paths are driven as raw SVG attributes
+ * via GSAP's attr: plugin (see FilmIntro.tsx), not as CSS here — with pathLength=1
+ * normalization the values must stay unitless. GSAP's CSS-property tweening auto-
+ * appends "px" to unrecognized props, which breaks the pathLength-normalized draw;
+ * a CSS declaration here would also just win the cascade over the SVG attribute.
+ */
+.actionStroke {
+  fill: none;
+  stroke: var(--kp-red);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 9px;
+}
+
+.actionUnderline {
+  fill: none;
+  stroke: var(--kp-red);
+  stroke-linecap: round;
+  stroke-width: 11px;
+}
+
+.actionPeriod {
+  fill: var(--kp-red);
+}
+
+@media (max-width: 56rem) {
+  .board {
+    bottom: 5%;
+    padding: 1.25rem 1.35rem 1.5rem;
+    right: 50%;
+    transform: translateX(50%);
+    width: min(24rem, 86vw);
+  }
+
+  .fieldGrid { grid-template-columns: repeat(2, auto); }
+  .fieldGrid + .fieldGrid { grid-template-columns: repeat(2, auto); }
+  .fieldValue { font-size: 1rem; }
+  .actionSvg { top: 40%; width: min(40rem, 88vw); }
+}

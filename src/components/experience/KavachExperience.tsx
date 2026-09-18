@@ -14,6 +14,8 @@ import { ConcurrencyScene } from "./Concurrency/ConcurrencyScene";
 import { CausalReplayScene } from "./CausalReplay/CausalReplayScene";
 import { DebugStageHUD } from "./DebugStageHUD";
 import { GlobalNavbar } from "./GlobalNavbar";
+import { FilmIntro } from "./FilmIntro/FilmIntro";
+import { CinematicTransitionLayer } from "./CinematicTransitionLayer";
 import { experienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import {
@@ -22,6 +24,7 @@ import {
   sceneFromHash,
   type RegisteredSceneKey,
 } from "@/lib/experience/scene-registry";
+import { TRANSITION_REGISTRY } from "@/lib/experience/transition-registry";
 import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
 import type { ExperienceScene } from "@/lib/experience/demo-state";
 import styles from "./KavachExperience.module.css";
@@ -44,6 +47,8 @@ export function KavachExperience() {
   const lenisRef = useRef<Lenis | null>(null);
   const menuScrollYRef = useRef(0);
   const previousOverflowRef = useRef({ html: "", body: "" });
+  const introOverflowRef = useRef({ html: "", body: "" });
+  const introLockedRef = useRef(false);
 
   const navigateScene = useCallback((key: RegisteredSceneKey) => {
     const scene = SCENE_BY_KEY[key];
@@ -91,6 +96,35 @@ export function KavachExperience() {
     document.documentElement.style.overflow = previousOverflowRef.current.html;
     document.body.style.overflow = previousOverflowRef.current.body;
     window.scrollTo({ top: menuScrollYRef.current, left: 0, behavior: "auto" });
+    if (stage) {
+      stage.inert = false;
+      stage.removeAttribute("aria-hidden");
+    }
+    lenisRef.current?.start();
+    ScrollTrigger.update();
+  }, []);
+
+  const lockForIntro = useCallback(() => {
+    const stage = document.querySelector<HTMLElement>("[data-cinematic-stage]");
+    introLockedRef.current = true;
+    introOverflowRef.current = {
+      html: document.documentElement.style.overflow,
+      body: document.body.style.overflow,
+    };
+    lenisRef.current?.stop();
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    if (stage) {
+      stage.inert = true;
+      stage.setAttribute("aria-hidden", "true");
+    }
+  }, []);
+
+  const releaseFromIntro = useCallback(() => {
+    const stage = document.querySelector<HTMLElement>("[data-cinematic-stage]");
+    introLockedRef.current = false;
+    document.documentElement.style.overflow = introOverflowRef.current.html;
+    document.body.style.overflow = introOverflowRef.current.body;
     if (stage) {
       stage.inert = false;
       stage.removeAttribute("aria-hidden");
@@ -157,6 +191,9 @@ export function KavachExperience() {
       });
       lenisRef.current = lenis;
       const activeLenis = lenis;
+      // FilmIntro's lock effect (a child) can run before this parent effect creates Lenis;
+      // converge on the correct state regardless of which fired first.
+      if (introLockedRef.current) activeLenis.stop();
       tick = (time: number) => activeLenis.raf(time * 1000);
       activeLenis.on("scroll", ScrollTrigger.update);
       gsap.ticker.add(tick);
@@ -212,6 +249,43 @@ export function KavachExperience() {
       setActiveScene(scene.key);
     };
 
+    // A viewport resize can cross the mobile breakpoint that collapses/expands
+    // the cinematic-transition scroll spacers, changing total document height
+    // under an unchanged scrollY. If that strands the user inside a spacer
+    // (no scene track contains the new viewport center), snap forward to the
+    // nearest scene rather than leaving the stage with zero owners.
+    let resizeTimer: number | undefined;
+    const recoverFromResize = () => {
+      ScrollTrigger.refresh();
+      const center = window.scrollY + window.innerHeight * 0.5;
+      const inGap = !SCENE_REGISTRY.some((candidate) => {
+        const track = document.querySelector<HTMLElement>(`[data-track='${candidate.slug}']`);
+        return track && center >= track.offsetTop && center < track.offsetTop + track.offsetHeight;
+      });
+      if (inGap) {
+        const target =
+          SCENE_REGISTRY.find((candidate) => {
+            const track = document.querySelector<HTMLElement>(`[data-track='${candidate.slug}']`);
+            return track && track.offsetTop > center;
+          }) ?? SCENE_REGISTRY[SCENE_REGISTRY.length - 1];
+        const track = document.querySelector<HTMLElement>(`[data-track='${target.slug}']`);
+        if (track) {
+          window.scrollTo({
+            top: track.offsetTop + track.offsetHeight * target.safeProgress,
+            left: 0,
+            behavior: "auto",
+          });
+          ScrollTrigger.update();
+        }
+      }
+      reconcileOwner();
+    };
+    const handleResize = () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(recoverFromResize, 120);
+    };
+    window.addEventListener("resize", handleResize);
+
     document.fonts.ready.then(() => {
       refresh();
       restoreHashScene();
@@ -222,6 +296,8 @@ export function KavachExperience() {
     requestAnimationFrame(reconcileOwner);
 
     return () => {
+      window.removeEventListener("resize", handleResize);
+      window.clearTimeout(resizeTimer);
       window.removeEventListener("kp:scene", handleScene);
       window.removeEventListener("load", refresh);
       window.removeEventListener("pageshow", reconcileOwner);
@@ -257,6 +333,7 @@ export function KavachExperience() {
 
   return (
     <main className={styles.experience}>
+      <FilmIntro onLock={lockForIntro} onRelease={releaseFromIntro} />
       <GlobalNavbar onNavigate={navigateScene} onMenuOpenChange={handleMenuOpenChange} />
       <ExperienceCanvas />
       {isLegacy ? (
@@ -276,13 +353,21 @@ export function KavachExperience() {
           {/* Invisible scroll track to provide scroll height without rendering visuals */}
           <div className={styles.scrollTrack} aria-hidden="true">
             <div ref={prologueTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.prologue.trackVh}vh` }} data-track="prologue" />
+            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[0].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[0].id} />
             <div ref={mandateTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.mandate.trackVh}vh` }} data-track="mandate" />
+            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[1].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[1].id} />
             <div ref={decisionsTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.decisions.trackVh}vh` }} data-track="decisions" />
+            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[2].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[2].id} />
             <div ref={delegationTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.delegation.trackVh}vh` }} data-track="delegation" />
+            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[3].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[3].id} />
             <div ref={stepUpTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.stepUp.trackVh}vh` }} data-track="step-up" />
+            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[4].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[4].id} />
             <div ref={revocationTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.revocation.trackVh}vh` }} data-track="revocation" />
+            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[5].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[5].id} />
             <div ref={splitDefenseTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.splitDefense.trackVh}vh` }} data-track="split-defense" />
+            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[6].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[6].id} />
             <div ref={concurrencyTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.concurrency.trackVh}vh` }} data-track="concurrency" />
+            {/* No transition track here: 07 -> 08 is intentionally cut-only. */}
             <div ref={causalReplayTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.causalReplay.trackVh}vh` }} data-track="causal-replay" />
           </div>
 
@@ -309,6 +394,7 @@ export function KavachExperience() {
                 )}
               </>
             )}
+            <CinematicTransitionLayer />
           </div>
           <DebugStageHUD />
         </>

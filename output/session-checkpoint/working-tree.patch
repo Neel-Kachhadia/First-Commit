@@ -1,0 +1,2808 @@
+diff --git a/src/components/experience/CausalReplay/CausalReplayScene.tsx b/src/components/experience/CausalReplay/CausalReplayScene.tsx
+index 56f80ea..e2468d1 100644
+--- a/src/components/experience/CausalReplay/CausalReplayScene.tsx
++++ b/src/components/experience/CausalReplay/CausalReplayScene.tsx
+@@ -103,7 +103,7 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
+         end: "bottom top",
+         onEnter: () => {
+           applyVisibility(true);
+-          gsap.set("[data-replay-docket]", { visibility: "visible" });
++          gsap.set("[data-replay-docket]", { visibility: "visible", opacity: 1 });
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
+           );
+@@ -116,7 +116,7 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
+         },
+         onEnterBack: () => {
+           applyVisibility(true);
+-          gsap.set("[data-replay-docket]", { visibility: "visible" });
++          gsap.set("[data-replay-docket]", { visibility: "visible", opacity: 1 });
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
+           );
+@@ -141,19 +141,9 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
+         },
+       });
+ 
+-      // 07 -> 08 carrier bridge: Case Docket for canonical transaction TX-1081
+-      // enters over the standard 120px pre-roll window, establishing the archival case.
+-      const carrierEls = "[data-replay-docket]";
+-      gsap.set(carrierEls, { opacity: 0, visibility: "visible", pointerEvents: "none" });
+-      const carrierBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=120px",
+-        end: "top top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(carrierEls, { opacity: self.progress });
+-        },
+-      });
++      // 07 -> 08 has no video transition; Scene 08 uses only its own entrance
++      // (below) once the ownership trigger above reveals it.
++      gsap.set("[data-replay-docket]", { opacity: 0, visibility: "visible", pointerEvents: "none" });
+ 
+       gsap.set("[data-replay-footer]", { opacity: 0 });
+       gsap.set("[data-evidence-exposure]", { opacity: 0, y: 16, scale: 0.98 });
+@@ -226,7 +216,6 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        carrierBridgeIn.kill();
+         timeline.kill();
+       };
+     },
+diff --git a/src/components/experience/CinematicTransitionLayer.module.css b/src/components/experience/CinematicTransitionLayer.module.css
+new file mode 100644
+index 0000000..6e3e1b6
+--- /dev/null
++++ b/src/components/experience/CinematicTransitionLayer.module.css
+@@ -0,0 +1,20 @@
++.layer {
++  position: absolute;
++  inset: 0;
++  z-index: 50;
++  pointer-events: none;
++  overflow: hidden;
++}
++
++.video {
++  position: absolute;
++  inset: 0;
++  width: 100%;
++  height: 100%;
++  object-fit: cover;
++  object-position: center;
++  opacity: 0;
++  pointer-events: none;
++  will-change: opacity;
++  background: var(--kp-black);
++}
+diff --git a/src/components/experience/CinematicTransitionLayer.tsx b/src/components/experience/CinematicTransitionLayer.tsx
+new file mode 100644
+index 0000000..d962737
+--- /dev/null
++++ b/src/components/experience/CinematicTransitionLayer.tsx
+@@ -0,0 +1,148 @@
++"use client";
++
++import { useEffect, useRef } from "react";
++import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
++import { experienceStore } from "@/lib/experience/store";
++import { TRANSITION_REGISTRY, TRANSITION_EDGE_FRACTION } from "@/lib/experience/transition-registry";
++import { computeTransitionOpacity, progressToVideoTime } from "@/lib/experience/transition-math";
++import styles from "./CinematicTransitionLayer.module.css";
++
++type BoundaryMeta = {
++  duration: number;
++  failed: boolean;
++};
++
++const isMobileViewport = () => window.matchMedia("(max-width: 48rem)").matches;
++
++/**
++ * Single owner of all seven inter-scene cinematic video transitions.
++ * Scroll position (via a ScrollTrigger per boundary, on that boundary's own
++ * scroll-track spacer) is the only driver of video.currentTime — videos stay
++ * paused and are scrubbed deterministically, forward and reverse.
++ *
++ * Mobile and prefers-reduced-motion bypass the video layer entirely and fall
++ * back to the scenes' own hard-cut ownership handoff (documented responsive
++ * policy: a broken/cropped 16:9 cinematic crossfade is worse than a clean cut).
++ */
++export function CinematicTransitionLayer() {
++  const videoRefs = useRef<Array<HTMLVideoElement | null>>([]);
++
++  useEffect(() => {
++    const meta: BoundaryMeta[] = TRANSITION_REGISTRY.map(() => ({
++      duration: 0,
++      failed: false,
++    }));
++
++    const cleanups: Array<() => void> = [];
++    const triggers: ScrollTrigger[] = [];
++
++    TRANSITION_REGISTRY.forEach((boundary, index) => {
++      const videoEl = videoRefs.current[index];
++      const spacerEl = document.querySelector<HTMLElement>(
++        `[data-transition-track='${boundary.id}']`,
++      );
++      if (!videoEl || !spacerEl) return;
++
++      const applyProgress = (progress: number) => {
++        const bypass = experienceStore.getState().reducedMotion || isMobileViewport();
++        if (bypass || meta[index].failed) {
++          gsap.set(videoEl, { opacity: 0 });
++          return;
++        }
++
++        const opacity = computeTransitionOpacity(progress, TRANSITION_EDGE_FRACTION);
++        gsap.set(videoEl, { opacity });
++
++        if (meta[index].duration > 0) {
++          const target = progressToVideoTime(progress, meta[index].duration);
++          if (Math.abs(videoEl.currentTime - target) > 0.008) {
++            videoEl.currentTime = target;
++          }
++        }
++      };
++
++      const onLoadedMetadata = () => {
++        meta[index].duration = videoEl.duration;
++        // Metadata can resolve after the last scroll-driven onUpdate (e.g. a
++        // fast jump straight into an unprefetched boundary); re-apply the
++        // trigger's current progress so the video doesn't stay stuck on a
++        // stale frame until the next scroll tick.
++        if (trigger) applyProgress(trigger.progress);
++      };
++      const onError = () => {
++        meta[index].failed = true;
++        gsap.set(videoEl, { opacity: 0 });
++        if (process.env.NODE_ENV !== "production") {
++          console.error(`[CinematicTransitionLayer] failed to load ${boundary.src}`);
++        }
++      };
++      videoEl.addEventListener("loadedmetadata", onLoadedMetadata);
++      videoEl.addEventListener("error", onError);
++      cleanups.push(() => {
++        videoEl.removeEventListener("loadedmetadata", onLoadedMetadata);
++        videoEl.removeEventListener("error", onError);
++      });
++
++      const trigger = ScrollTrigger.create({
++        trigger: spacerEl,
++        start: "top top+=64",
++        end: "bottom top-=64",
++        scrub: true,
++        invalidateOnRefresh: true,
++        onUpdate: (self) => {
++          applyProgress(self.progress);
++        },
++      });
++      triggers.push(trigger);
++    });
++
++    // Prefetch: bump preload for boundaries whose track is within ~1.5
++    // viewport heights of the current scroll position.
++    const observer = new IntersectionObserver(
++      (entries) => {
++        entries.forEach((entry) => {
++          if (!entry.isIntersecting) return;
++          const id = (entry.target as HTMLElement).dataset.transitionTrack;
++          const index = TRANSITION_REGISTRY.findIndex((boundary) => boundary.id === id);
++          const videoEl = index >= 0 ? videoRefs.current[index] : null;
++          if (videoEl && videoEl.preload !== "auto") {
++            videoEl.preload = "auto";
++            if (videoEl.readyState === 0) videoEl.load();
++          }
++        });
++      },
++      { rootMargin: "150% 0px" },
++    );
++    document.querySelectorAll<HTMLElement>("[data-transition-track]").forEach((el) => {
++      observer.observe(el);
++    });
++
++    return () => {
++      triggers.forEach((trigger) => trigger.kill());
++      cleanups.forEach((fn) => fn());
++      observer.disconnect();
++    };
++  }, []);
++
++  return (
++    <div className={styles.layer} data-cinematic-transition-layer aria-hidden="true">
++      {TRANSITION_REGISTRY.map((boundary, index) => (
++        <video
++          key={boundary.id}
++          ref={(el) => {
++            videoRefs.current[index] = el;
++          }}
++          className={styles.video}
++          data-transition-video={boundary.id}
++          src={boundary.src}
++          muted
++          playsInline
++          preload="none"
++          controls={false}
++          tabIndex={-1}
++          aria-hidden="true"
++        />
++      ))}
++    </div>
++  );
++}
+diff --git a/src/components/experience/Concurrency/ConcurrencyScene.tsx b/src/components/experience/Concurrency/ConcurrencyScene.tsx
+index 23ca196..fd3ba7e 100644
+--- a/src/components/experience/Concurrency/ConcurrencyScene.tsx
++++ b/src/components/experience/Concurrency/ConcurrencyScene.tsx
+@@ -137,170 +137,72 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
+         },
+       });
+ 
+-      // Physical carrier only: Scene 06's sealed dossier resolves into the
+-      // authoritative budget ledger. Chapter header waits for scene ownership.
++      // incomingCarrier's boundary is now owned by the 06 -> 07 video transition
++      // layer; outgoingCarrier's 07 -> 08 boundary intentionally has no video
++      // transition, so both carriers now rely only on the ownership trigger above.
+       gsap.set(incomingCarrier, {
+         opacity: 0,
+         visibility: "visible",
+         pointerEvents: "none",
+       });
+ 
+-      // 06 -> 07 Carrier Bridge (incoming half):
+-      // Symmetrically crossfades in over the 120px pre-roll window Split-Defense uses to fade out.
+-      const carrierBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=120px",
+-        end: "top top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(incomingCarrier, { opacity: self.progress });
+-        },
+-      });
+-
+-      // 07 -> 08 Carrier Bridge (outgoing half):
+-      // Symmetrically crossfades out over the 120px pre-roll window Causal Replay uses to fade in.
+-      const carrierBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=120px",
+-        end: "bottom top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(outgoingCarrier, { opacity: 1 - self.progress });
+-        },
+-      });
+-
+-      // Initial element positioning
+-      const leftStart = isMobile
+-        ? { x: 0, y: -75, opacity: 0, scale: 0.95, rotate: -1 }
+-        : { x: -380, y: 15, opacity: 0, scale: 1, rotate: -3.5 };
+-      const rightStart = isMobile
+-        ? { x: 0, y: 75, opacity: 0, scale: 0.95, rotate: 1 }
+-        : { x: 380, y: -10, opacity: 0, scale: 1, rotate: 2.5 };
+-
+-      gsap.set("[data-slip-lane='left']", leftStart);
+-      gsap.set("[data-slip-lane='right']", rightStart);
++      // Incoming 06->07 transition already lands with both ₹500 claims
++      // established and flanking the shared ledger (its own terminal
++      // content). The live scene begins there — no arrival animation to
++      // replay — and performs only the remaining product story: convergence,
++      // atomic serialization, one reservation, one rejection.
++      const leftRest = isMobile
++        ? { x: 0, y: -75, scale: 0.96, rotate: -0.8 }
++        : { x: -230, y: 5, scale: 1, rotate: -2 };
++      const rightRest = isMobile
++        ? { x: 0, y: 75, scale: 0.96, rotate: 0.8 }
++        : { x: 230, y: -5, scale: 1, rotate: 1.5 };
++
++      gsap.set("[data-slip-lane='left']", { ...leftRest, opacity: 1 });
++      gsap.set("[data-slip-lane='right']", { ...rightRest, opacity: 1 });
+       gsap.set("[data-balance-initial]", { opacity: 1, y: 0 });
+       gsap.set("[data-balance-final]", { opacity: 0, y: 15 });
+-      gsap.set("[data-authority-stock]", { opacity: 0, y: -8 });
+-      gsap.set("[data-commit-datum]", { opacity: 0, scaleY: 0.85 });
++      gsap.set("[data-authority-stock]", { opacity: 1, y: 0 });
++      gsap.set("[data-commit-datum]", { opacity: 1, scaleY: 1 });
+       gsap.set("[data-stamp-reserved]", { opacity: 0, scale: 1.5, rotate: -8 });
+       gsap.set("[data-stamp-unavailable]", { opacity: 0, scale: 1.5, rotate: 6 });
+       gsap.set("[data-terminal-ledger]", { opacity: 0, y: 20 });
++      gsap.set("[data-concurrency-footer]", { opacity: 1 });
++      gsap.set("[data-ledger-station]", { y: 0 });
+ 
+       // =========================================================================
+-      // BEAT 1: BUDGET LEDGER ESTABLISHES (0.00 - 0.10)
+-      // Folio, header, and the authoritative ₹500 balance register establish.
+-      // Physical authority stock is confirmed in AVAILABLE stock.
+-      // =========================================================================
+-      timeline
+-        .fromTo(
+-          "[data-concurrency-footer]",
+-          { opacity: 0 },
+-          { opacity: 1, duration: 0.06 },
+-          0.04,
+-        )
+-        .fromTo(
+-          "[data-ledger-station]",
+-          { y: -15 },
+-          { y: 0, duration: 0.08, ease: "power2.out" },
+-          0.02,
+-        )
+-        .to(
+-          "[data-authority-stock]",
+-          { opacity: 1, y: 0, duration: 0.06, ease: "power1.out" },
+-          0.06,
+-        )
+-        .to(
+-          "[data-commit-datum]",
+-          { opacity: 1, scaleY: 1, duration: 0.08, ease: "power2.out" },
+-          0.04,
+-        );
+-
+-      // =========================================================================
+-      // BEAT 2: CONCURRENT ARRIVAL OF TWO INDEPENDENT REQUESTS (0.10 - 0.22)
+-      // TX-1094 (10:14:02.110, ₹500, Cafe) and TX-1095 (10:14:02.114, ₹500, Books)
+-      // arrive nearly simultaneously (only 4ms apart). Both see ₹500 REMAINING.
+-      // =========================================================================
+-      timeline
+-        .to(
+-          "[data-slip-lane='left']",
+-          {
+-            opacity: 1,
+-            x: isMobile ? 0 : -230,
+-            y: isMobile ? -75 : 5,
+-            scale: isMobile ? 0.96 : 1,
+-            rotate: isMobile ? -0.8 : -2,
+-            duration: 0.12,
+-            ease: "power2.out",
+-          },
+-          0.10,
+-        )
+-        .to(
+-          "[data-slip-lane='right']",
+-          {
+-            opacity: 1,
+-            x: isMobile ? 0 : 230,
+-            y: isMobile ? 75 : -5,
+-            scale: isMobile ? 0.96 : 1,
+-            rotate: isMobile ? 0.8 : 1.5,
+-            duration: 0.12,
+-            ease: "power2.out",
+-          },
+-          0.11, // 0.01 offset for optical trackability, strictly preserving concurrent perception
+-        );
+-
+-      // =========================================================================
+-      // BEAT 3: "BOTH VALID" QUIET CONTENTION HOLD (0.22 - 0.32)
+-      // Both slips hold position flanking the central ledger. Both show PENDING CLAIM.
+-      // The viewer perceives that both are individually legitimate, but only ₹500 exists.
++      // STAGE A — OPENING HOLD: BOTH VALID, QUIET CONTENTION (0.00 - 0.08)
++      // Composition stays at the transition's terminal frame: two individually
++      // legitimate claims flanking one ₹500 ledger. The tension is the point.
+       // =========================================================================
+-      timeline.set({}, {}, 0.32);
++      timeline.set({}, {}, 0.08);
+ 
+       // =========================================================================
+-      // BEAT 4: CONVERGENCE TOWARD THE COMMIT DATUM (0.32 - 0.44)
++      // STAGE B — CONVERGENCE TOWARD THE COMMIT DATUM (0.08 - 0.26)
+       // Both slips translate toward the central registration axis.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-slip-lane='left']",
+-          {
+-            x: isMobile ? 0 : -130,
+-            y: isMobile ? -60 : 0,
+-            rotate: 0,
+-            duration: 0.12,
+-            ease: "power2.inOut",
+-          },
+-          0.32,
++          { x: isMobile ? 0 : -130, y: isMobile ? -60 : 0, rotate: 0, duration: 0.16, ease: "power2.inOut" },
++          0.08,
+         )
+         .to(
+           "[data-slip-lane='right']",
+-          {
+-            x: isMobile ? 0 : 130,
+-            y: isMobile ? 60 : 0,
+-            rotate: 0,
+-            duration: 0.12,
+-            ease: "power2.inOut",
+-          },
+-          0.32,
++          { x: isMobile ? 0 : 130, y: isMobile ? 60 : 0, rotate: 0, duration: 0.16, ease: "power2.inOut" },
++          0.08,
+         );
+ 
+       // =========================================================================
+-      // BEAT 5: ATOMIC SERIALIZATION AT COMMIT DATUM (0.44 - 0.60)
+-      // Only ONE slip can cross the registration datum.
+-      // TX-1094 crosses into the active reservation slot.
+-      // TX-1095 is held fractionally behind the datum line.
++      // STAGE C — ATOMIC SERIALIZATION AT COMMIT DATUM (0.26 - 0.44)
++      // Only ONE slip can cross the registration datum. TX-1094 crosses into
++      // the active reservation slot; TX-1095 is held fractionally behind it.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-slip-lane='left']",
+-          {
+-            x: isMobile ? 0 : -35,
+-            y: isMobile ? -45 : 0,
+-            scale: 1,
+-            duration: 0.14,
+-            ease: "power2.out",
+-          },
+-          0.44,
++          { x: isMobile ? 0 : -35, y: isMobile ? -45 : 0, scale: 1, duration: 0.16, ease: "power2.out" },
++          0.26,
+         )
+         .to(
+           "[data-slip-lane='right']",
+@@ -309,39 +211,27 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
+             y: isMobile ? 80 : 0,
+             scale: isMobile ? 0.92 : 1,
+             opacity: isMobile ? 0.75 : 1,
+-            duration: 0.14,
++            duration: 0.16,
+             ease: "power2.out",
+           },
+-          0.44,
++          0.26,
+         );
+ 
+       // =========================================================================
+-      // BEAT 6: PHYSICAL AUTHORITY STOCK TRANSFERS & RESERVED STAMP (0.60 - 0.70)
++      // STAGE D — PHYSICAL AUTHORITY STOCK TRANSFERS & RESERVED STAMP (0.44 - 0.56)
+       // The physical ₹500 authority stock coupon translates into TX-1094's slot.
+       // Bold red RESERVED stamp strikes onto TX-1094 with micro-impact shudder.
+-      // Status updates to RESERVED // CONFIRMED.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-authority-stock]",
+-          {
+-            x: isMobile ? 0 : -140,
+-            y: isMobile ? -30 : 60,
+-            duration: 0.08,
+-            ease: "power3.inOut",
+-          },
+-          0.60,
++          { x: isMobile ? 0 : -140, y: isMobile ? -30 : 60, duration: 0.08, ease: "power3.inOut" },
++          0.44,
+         )
+         .to(
+           "[data-stamp-reserved]",
+-          {
+-            opacity: 1,
+-            scale: 1,
+-            rotate: -3.5,
+-            duration: 0.06,
+-            ease: "back.out(2.2)",
+-          },
+-          0.64,
++          { opacity: 1, scale: 1, rotate: -3.5, duration: 0.05, ease: "back.out(2.2)" },
++          0.49,
+         )
+         .call(
+           () => {
+@@ -351,34 +241,24 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
+             if (statusEl) statusEl.textContent = "RESERVED // CONFIRMED";
+           },
+           undefined,
+-          0.65,
++          0.50,
+         );
+ 
+       // =========================================================================
+-      // BEAT 7: AUTHORITATIVE BALANCE PHYSICAL UPDATE (0.70 - 0.78)
+-      // The ₹500 numeral physically shifts out and the registered ₹0 drops into place.
+-      // Dominant authoritative state: CURRENT REMAINING: ₹0.
++      // STAGE E — AUTHORITATIVE BALANCE PHYSICAL UPDATE (0.56 - 0.64)
++      // The ₹500 numeral physically shifts out and the registered ₹0 drops into
++      // place. Dominant authoritative state: CURRENT REMAINING: ₹0.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-balance-initial]",
+-          {
+-            opacity: 0,
+-            y: -18,
+-            duration: 0.06,
+-            ease: "power2.in",
+-          },
+-          0.70,
++          { opacity: 0, y: -18, duration: 0.05, ease: "power2.in" },
++          0.56,
+         )
+         .to(
+           "[data-balance-final]",
+-          {
+-            opacity: 1,
+-            y: 0,
+-            duration: 0.06,
+-            ease: "power2.out",
+-          },
+-          0.72,
++          { opacity: 1, y: 0, duration: 0.05, ease: "power2.out" },
++          0.58,
+         )
+         .call(
+           () => {
+@@ -387,36 +267,24 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
+             }
+           },
+           undefined,
+-          0.74,
++          0.60,
+         );
+ 
+       // =========================================================================
+-      // BEAT 8: TX-1095 VISIBLY RE-EVALUATES AGAINST NEW REALITY (0.78 - 0.88)
+-      // TX-1095 confronts CURRENT REMAINING: ₹0.
+-      // Requested ₹500 exceeds available ₹0.
+-      // Restrained red UNAVAILABLE mark records on TX-1095. Slip recedes slightly.
++      // STAGE F — TX-1095 VISIBLY RE-EVALUATES AGAINST NEW REALITY (0.64 - 0.80)
++      // TX-1095 confronts CURRENT REMAINING: ₹0. Requested ₹500 exceeds
++      // available ₹0. Restrained red UNAVAILABLE mark records; slip recedes.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-slip-lane='right']",
+-          {
+-            x: isMobile ? 0 : 75,
+-            scale: 0.97,
+-            duration: 0.08,
+-            ease: "power1.out",
+-          },
+-          0.78,
++          { x: isMobile ? 0 : 75, scale: 0.97, duration: 0.08, ease: "power1.out" },
++          0.64,
+         )
+         .to(
+           "[data-stamp-unavailable]",
+-          {
+-            opacity: 1,
+-            scale: 1,
+-            rotate: 2.2,
+-            duration: 0.06,
+-            ease: "power2.out",
+-          },
+-          0.82,
++          { opacity: 1, scale: 1, rotate: 2.2, duration: 0.06, ease: "power2.out" },
++          0.70,
+         )
+         .call(
+           () => {
+@@ -426,35 +294,29 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
+             if (statusEl) statusEl.textContent = "UNAVAILABLE // ₹0 REMAINING";
+           },
+           undefined,
+-          0.84,
++          0.72,
+         );
+ 
+       // =========================================================================
+-      // BEAT 9: TERMINAL CONSERVATION LEDGER PLATE LOCKS (0.88 - 0.94)
++      // STAGE G — TERMINAL CONSERVATION LEDGER PLATE LOCKS (0.80 - 0.92)
+       // Complete institutional accounting plate verifies conservation formula:
+       // ₹3,500 PRIOR + ₹500 RESERVED + ₹0 REMAINING = ₹4,000 MANDATE CAP.
+       // =========================================================================
+       timeline.to(
+         "[data-terminal-ledger]",
+-        {
+-          opacity: 1,
+-          y: 0,
+-          duration: 0.06,
+-          ease: "power2.out",
+-        },
+-        0.88,
++        { opacity: 1, y: 0, duration: 0.08, ease: "power2.out" },
++        0.80,
+       );
+ 
+       // =========================================================================
+-      // BEAT 10: TERMINAL RESTING HOLD (0.94 - 1.00)
+-      // Stable, portfolio-quality terminal composition.
++      // STAGE H — TERMINAL RESTING HOLD (0.92 - 1.00)
++      // Stable, portfolio-quality terminal composition. There is no 07 -> 08
++      // video transition — Scene 08 takes over from here with its own entrance.
+       // =========================================================================
+       timeline.set({}, {}, 1.00);
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        carrierBridgeIn.kill();
+-        carrierBridgeOut.kill();
+         timeline.kill();
+       };
+     },
+diff --git a/src/components/experience/Decisions/DecisionsScene.tsx b/src/components/experience/Decisions/DecisionsScene.tsx
+index b36543f..770778a 100644
+--- a/src/components/experience/Decisions/DecisionsScene.tsx
++++ b/src/components/experience/Decisions/DecisionsScene.tsx
+@@ -110,19 +110,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+         },
+       });
+ 
+-      // Product-native evidence carrier (outgoing half): the approved Grocery
+-      // receipt becomes the physical handoff into Delegation. Only this receipt
+-      // survives the scene boundary; no administrative top bar crosses scenes.
+-      const evidenceBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=100px",
+-        end: "bottom top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set("[data-decision-evidence-outgoing]", { opacity: 1 - self.progress });
+-        },
+-      });
+-
+       const startScale = isMobile ? 2.1 : 2.45;
+ 
+       // Initial setup for deterministic forward and reverse scrub
+@@ -152,10 +139,13 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+       gsap.set("[data-barrier='deny']", { opacity: 0, scaleX: 0 });
+       gsap.set("[data-stamp]", { opacity: 0 });
+       gsap.set("[data-note]", { opacity: 0, x: 12 });
++      // No explicit visibility override: this element is an ordinary descendant
++      // of the scene root now, and must inherit the root's hidden/visible state
++      // like everything else — the old boundary crossfade that needed it to
++      // stay visible while the root was hidden is gone.
+       gsap.set("[data-decision-evidence-outgoing]", {
+         display: "block",
+         opacity: 0,
+-        visibility: "visible",
+         pointerEvents: "none",
+       });
+ 
+@@ -490,7 +480,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        evidenceBridgeOut.kill();
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };
+diff --git a/src/components/experience/Delegation/DelegationScene.tsx b/src/components/experience/Delegation/DelegationScene.tsx
+index 888ac0c..5c2d390 100644
+--- a/src/components/experience/Delegation/DelegationScene.tsx
++++ b/src/components/experience/Delegation/DelegationScene.tsx
+@@ -135,89 +135,18 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
+         },
+       });
+ 
+-      // Product-native 02 -> 03 carrier. Both technical copies render the same
+-      // approved receipt at the same viewport datum. Geometry is read only during
+-      // init/refresh; the scrub hot path performs writes only.
++      // Boundary-only preview copy of the approved receipt. Now permanently
++      // hidden — the 02 -> 03 boundary is owned by the video transition layer.
+       const evidenceInEl = root.current.querySelector<HTMLElement>("[data-decision-evidence-incoming]");
+-      const evidenceOutEl = document.querySelector<HTMLElement>("[data-decision-evidence-outgoing]");
+-      let evidenceGeometry = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+-
+       if (evidenceInEl) {
+-        gsap.set(evidenceInEl, { visibility: "visible", pointerEvents: "none" });
++        gsap.set(evidenceInEl, { visibility: "hidden", opacity: 0, pointerEvents: "none" });
+       }
+ 
+-      const measureEvidenceGeometry = () => {
+-        if (!evidenceInEl || !evidenceOutEl) return;
+-        gsap.set(evidenceInEl, { x: 0, y: 0, scaleX: 1, scaleY: 1 });
+-        const outgoing = evidenceOutEl.getBoundingClientRect();
+-        const incoming = evidenceInEl.getBoundingClientRect();
+-        if (incoming.width === 0 || incoming.height === 0) return;
+-        evidenceGeometry = {
+-          x: outgoing.left - incoming.left,
+-          y: outgoing.top - incoming.top,
+-          scaleX: outgoing.width / incoming.width,
+-          scaleY: outgoing.height / incoming.height,
+-        };
+-        gsap.set(evidenceInEl, evidenceGeometry);
+-      };
+-
+-      measureEvidenceGeometry();
+-      ScrollTrigger.addEventListener("refreshInit", measureEvidenceGeometry);
+-
+-      const evidenceBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=100px",
+-        end: "top top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          if (!evidenceInEl) return;
+-          gsap.set(evidenceInEl, {
+-            ...evidenceGeometry,
+-            opacity: self.progress,
+-          });
+-        },
+-      });
+-
+-      const evidenceSettleIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top",
+-        end: "top top-=120px",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          if (!evidenceInEl) return;
+-          gsap.set(evidenceInEl, {
+-            ...evidenceGeometry,
+-            opacity: 1 - self.progress,
+-          });
+-        },
+-      });
+-
+-      // The Grocery derived pass is the actual 03 -> 04 paper carrier. It keeps
+-      // the approved perforated authority artifact alive; chapter header never
+-      // crosses the boundary.
+-      const derivedCarrierEl = root.current.querySelector<HTMLElement>("[data-delegation-grocery]");
+-      if (derivedCarrierEl) {
+-        gsap.set(derivedCarrierEl, { visibility: "visible", pointerEvents: "none" });
+-      }
+-
+-      const documentBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=100px",
+-        end: "bottom top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          if (derivedCarrierEl) gsap.set(derivedCarrierEl, { opacity: 1 - self.progress });
+-        },
+-      });
+-
+       // Accounting DOM helpers for deterministic scrub
+       const allocatedEl = root.current.querySelector<HTMLElement>("[data-accounting-allocated]");
+       const remainingEl = root.current.querySelector<HTMLElement>("[data-accounting-remaining]");
+       const stockCapacityEl = root.current.querySelector<HTMLElement>("[data-stock-capacity]");
+ 
+-      // Incoming evidence opacity is owned by the bridge until the boundary;
+-      // the scene timeline then resolves the receipt into Shopping authority.
+-      gsap.set("[data-decision-evidence-incoming]", { opacity: 0 });
+       gsap.set("[data-delegation-header]", { opacity: 0.85, y: 0 });
+       gsap.set("[data-delegation-footer]", { opacity: 0.85, y: 0 });
+ 
+@@ -682,11 +611,7 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
+       });
+ 
+       return () => {
+-        ScrollTrigger.removeEventListener("refreshInit", measureEvidenceGeometry);
+         visibilityTrigger.kill();
+-        evidenceBridgeIn.kill();
+-        evidenceSettleIn.kill();
+-        documentBridgeOut.kill();
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };
+diff --git a/src/components/experience/KavachExperience.module.css b/src/components/experience/KavachExperience.module.css
+index c27ecb9..64760d0 100644
+--- a/src/components/experience/KavachExperience.module.css
++++ b/src/components/experience/KavachExperience.module.css
+@@ -18,6 +18,21 @@
+   pointer-events: none;
+ }
+ 
++/* Scroll distance dedicated to a cinematic inter-scene video transition.
++   Collapsed on mobile: the video layer is bypassed there (responsive
++   policy), so the dedicated scroll distance collapses too rather than
++   leaving a dead blank gap between scenes' own hard-cut boundaries. */
++.transitionTrack {
++  width: 100%;
++  pointer-events: none;
++}
++
++@media (max-width: 48rem) {
++  .transitionTrack {
++    height: 0 !important;
++  }
++}
++
+ /* Fixed Cinematic Stage: inset: 0 defines the actual fixed viewport plane */
+ .cinematicStage {
+   position: fixed;
+diff --git a/src/components/experience/KavachExperience.tsx b/src/components/experience/KavachExperience.tsx
+index f879772..80d370f 100644
+--- a/src/components/experience/KavachExperience.tsx
++++ b/src/components/experience/KavachExperience.tsx
+@@ -15,6 +15,7 @@ import { CausalReplayScene } from "./CausalReplay/CausalReplayScene";
+ import { DebugStageHUD } from "./DebugStageHUD";
+ import { GlobalNavbar } from "./GlobalNavbar";
+ import { FilmIntro } from "./FilmIntro/FilmIntro";
++import { CinematicTransitionLayer } from "./CinematicTransitionLayer";
+ import { experienceStore } from "@/lib/experience/store";
+ import { progressBus } from "@/lib/experience/progress-bus";
+ import {
+@@ -23,6 +24,7 @@ import {
+   sceneFromHash,
+   type RegisteredSceneKey,
+ } from "@/lib/experience/scene-registry";
++import { TRANSITION_REGISTRY } from "@/lib/experience/transition-registry";
+ import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
+ import type { ExperienceScene } from "@/lib/experience/demo-state";
+ import styles from "./KavachExperience.module.css";
+@@ -247,6 +249,43 @@ export function KavachExperience() {
+       setActiveScene(scene.key);
+     };
+ 
++    // A viewport resize can cross the mobile breakpoint that collapses/expands
++    // the cinematic-transition scroll spacers, changing total document height
++    // under an unchanged scrollY. If that strands the user inside a spacer
++    // (no scene track contains the new viewport center), snap forward to the
++    // nearest scene rather than leaving the stage with zero owners.
++    let resizeTimer: number | undefined;
++    const recoverFromResize = () => {
++      ScrollTrigger.refresh();
++      const center = window.scrollY + window.innerHeight * 0.5;
++      const inGap = !SCENE_REGISTRY.some((candidate) => {
++        const track = document.querySelector<HTMLElement>(`[data-track='${candidate.slug}']`);
++        return track && center >= track.offsetTop && center < track.offsetTop + track.offsetHeight;
++      });
++      if (inGap) {
++        const target =
++          SCENE_REGISTRY.find((candidate) => {
++            const track = document.querySelector<HTMLElement>(`[data-track='${candidate.slug}']`);
++            return track && track.offsetTop > center;
++          }) ?? SCENE_REGISTRY[SCENE_REGISTRY.length - 1];
++        const track = document.querySelector<HTMLElement>(`[data-track='${target.slug}']`);
++        if (track) {
++          window.scrollTo({
++            top: track.offsetTop + track.offsetHeight * target.safeProgress,
++            left: 0,
++            behavior: "auto",
++          });
++          ScrollTrigger.update();
++        }
++      }
++      reconcileOwner();
++    };
++    const handleResize = () => {
++      window.clearTimeout(resizeTimer);
++      resizeTimer = window.setTimeout(recoverFromResize, 120);
++    };
++    window.addEventListener("resize", handleResize);
++
+     document.fonts.ready.then(() => {
+       refresh();
+       restoreHashScene();
+@@ -257,6 +296,8 @@ export function KavachExperience() {
+     requestAnimationFrame(reconcileOwner);
+ 
+     return () => {
++      window.removeEventListener("resize", handleResize);
++      window.clearTimeout(resizeTimer);
+       window.removeEventListener("kp:scene", handleScene);
+       window.removeEventListener("load", refresh);
+       window.removeEventListener("pageshow", reconcileOwner);
+@@ -312,13 +353,21 @@ export function KavachExperience() {
+           {/* Invisible scroll track to provide scroll height without rendering visuals */}
+           <div className={styles.scrollTrack} aria-hidden="true">
+             <div ref={prologueTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.prologue.trackVh}vh` }} data-track="prologue" />
++            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[0].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[0].id} />
+             <div ref={mandateTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.mandate.trackVh}vh` }} data-track="mandate" />
++            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[1].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[1].id} />
+             <div ref={decisionsTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.decisions.trackVh}vh` }} data-track="decisions" />
++            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[2].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[2].id} />
+             <div ref={delegationTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.delegation.trackVh}vh` }} data-track="delegation" />
++            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[3].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[3].id} />
+             <div ref={stepUpTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.stepUp.trackVh}vh` }} data-track="step-up" />
++            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[4].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[4].id} />
+             <div ref={revocationTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.revocation.trackVh}vh` }} data-track="revocation" />
++            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[5].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[5].id} />
+             <div ref={splitDefenseTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.splitDefense.trackVh}vh` }} data-track="split-defense" />
++            <div className={styles.transitionTrack} style={{ height: `${TRANSITION_REGISTRY[6].trackVh}vh` }} data-transition-track={TRANSITION_REGISTRY[6].id} />
+             <div ref={concurrencyTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.concurrency.trackVh}vh` }} data-track="concurrency" />
++            {/* No transition track here: 07 -> 08 is intentionally cut-only. */}
+             <div ref={causalReplayTrackRef} className={styles.trackSegment} style={{ height: `${SCENE_BY_KEY.causalReplay.trackVh}vh` }} data-track="causal-replay" />
+           </div>
+ 
+@@ -345,6 +394,7 @@ export function KavachExperience() {
+                 )}
+               </>
+             )}
++            <CinematicTransitionLayer />
+           </div>
+           <DebugStageHUD />
+         </>
+diff --git a/src/components/experience/Opening/OpeningScene.tsx b/src/components/experience/Opening/OpeningScene.tsx
+index b5fc526..2cde55b 100644
+--- a/src/components/experience/Opening/OpeningScene.tsx
++++ b/src/components/experience/Opening/OpeningScene.tsx
+@@ -67,6 +67,11 @@ export function OpeningScene({ trackRef }: OpeningSceneProps) {
+       updateVisibility();
+       ScrollTrigger.addEventListener("refresh", updateVisibility);
+ 
++      // [data-opening-paper]/[data-opening-bridge] previously wiped to a
++      // full-bleed paper card previewing Mandate's own headline — the
++      // 00 -> 01 boundary's old DOM transition. That boundary is now owned by
++      // the video transition layer, so both stay in their hidden resting
++      // state and Opening's own timeline ends at 0.46 instead.
+       gsap.set("[data-opening-paper]", { clipPath: "inset(48% 0 52% 0)" });
+       gsap.set("[data-opening-bridge]", { opacity: 0, y: 8 });
+       gsap.set("[data-opening-reg]", { opacity: 0 });
+@@ -78,8 +83,6 @@ export function OpeningScene({ trackRef }: OpeningSceneProps) {
+         .to("[data-opening-reg]", { opacity: 1, duration: 0.1 }, 0.40)
+         .to("[data-opening-word]", { yPercent: -16, opacity: 0, clipPath: "inset(0 0 45% 0)", duration: 0.2 }, 0.44)
+         .to("[data-opening-window]", { yPercent: -20, duration: 0.2 }, 0.46)
+-        .to("[data-opening-paper]", { clipPath: "inset(0% 0 0% 0)", duration: 0.26, ease: "power1.inOut" }, 0.52)
+-        .to("[data-opening-bridge]", { opacity: 1, y: 0, duration: 0.18 }, 0.66)
+         .to("[data-opening-meta]", { color: "#15130e", duration: 0.1 }, 0.74);
+ 
+       return () => {
+diff --git a/src/components/experience/Revocation/RevocationScene.tsx b/src/components/experience/Revocation/RevocationScene.tsx
+index da86b07..93b624b 100644
+--- a/src/components/experience/Revocation/RevocationScene.tsx
++++ b/src/components/experience/Revocation/RevocationScene.tsx
+@@ -106,24 +106,17 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
+       const travelLineage = root.current.querySelector<HTMLElement>(
+         "[data-independent-register='travel']",
+       );
+-      const setTravelCarrierMode = (mode: "hidden" | "bridge" | "scene") => {
++      const setTravelRecordOwned = (owned: boolean) => {
+         if (!travelRecord) return;
+-        if (mode === "hidden") {
+-          gsap.set([travelRecord, travelLineage], { visibility: "hidden", opacity: 0 });
+-          travelRecord.setAttribute("aria-hidden", "true");
+-          return;
+-        }
+-        gsap.set(travelRecord, {
+-          visibility: mode === "bridge" ? "visible" : "inherit",
+-          opacity: 1,
++        gsap.set([travelRecord, travelLineage], {
++          visibility: owned ? "inherit" : "hidden",
++          opacity: owned ? 1 : 0,
+         });
+-        gsap.set(travelLineage, { visibility: "inherit", opacity: 1 });
+-        if (mode === "bridge") travelRecord.setAttribute("aria-hidden", "true");
+-        else travelRecord.removeAttribute("aria-hidden");
++        if (owned) travelRecord.removeAttribute("aria-hidden");
++        else travelRecord.setAttribute("aria-hidden", "true");
+       };
+ 
+-      // Body visibility stays exact. Only the independent Travel record may appear
+-      // in the incoming bridge; chapter chrome remains scene-owned.
++      // Body visibility stays exact. Chapter chrome remains scene-owned.
+       // start uses a 1px epsilon (not an authored overlap) — GSAP's onEnter for a
+       // non-scrubbed trigger requires progress to strictly exceed 0, so landing
+       // exactly on the boundary pixel would otherwise leave the body hidden until
+@@ -135,14 +128,14 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
+         end: "bottom top",
+         onEnter: () => {
+           applyVisibility(true);
+-          setTravelCarrierMode("scene");
++          setTravelRecordOwned(true);
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "revocation" } }),
+           );
+         },
+         onEnterBack: () => {
+           applyVisibility(true);
+-          setTravelCarrierMode("scene");
++          setTravelRecordOwned(true);
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "revocation" } }),
+           );
+@@ -150,285 +143,164 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
+         onLeave: () => {
+           if (isPersistent) {
+             applyVisibility(false);
+-            setTravelCarrierMode("hidden");
++            setTravelRecordOwned(false);
+           }
+         },
+         onLeaveBack: () => {
+           applyVisibility(false);
+-          setTravelCarrierMode("bridge");
++          setTravelRecordOwned(false);
+         },
+       });
+ 
++      // Incoming 04->05 transition already lands on the fully intact,
++      // registered authority lineage (its own terminal content): Shopping,
++      // Grocery, Delivery all IN FORCE, Travel ACTIVE. The live scene begins
++      // there — no register-unfolding entry to replay — and performs only
++      // the remaining product story: targeting, revocation, propagation,
++      // selectivity proof.
+       gsap.set("[data-revocation-header]", { opacity: 1, y: 0 });
+-      gsap.set("[data-record]:not([data-record='TX-1082'])", { opacity: 0 });
+-      setTravelCarrierMode("hidden");
++      gsap.set("[data-revocation-footer]", { opacity: 1 });
++      gsap.set("[data-register-station]", { opacity: 1, scale: 1, y: 0 });
++      gsap.set("[data-record]", { opacity: 1 });
++      setTravelRecordOwned(true);
+       gsap.set(travelRecord, { pointerEvents: "none" });
+ 
+-      // Incoming 04 -> 05 bridge. Step-Up's terminal compact request is measured
+-      // against this record, so the late cross-dissolve swaps copies at <=1px.
+-      const travelBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=120px",
+-        end: "top top",
+-        scrub: true,
+-        onEnter: () => setTravelCarrierMode("bridge"),
+-        onEnterBack: () => setTravelCarrierMode("bridge"),
+-        onLeave: () => setTravelCarrierMode("scene"),
+-        onLeaveBack: () => setTravelCarrierMode("hidden"),
+-        onUpdate: (self) => {
+-          gsap.set(travelRecord, { opacity: Math.pow(self.progress, 8) });
+-        },
+-      });
+-
+-      const syncTravelCarrierVisibility = () => {
+-        if (visibilityTrigger.isActive) {
+-          setTravelCarrierMode("scene");
+-        } else if (travelBridgeIn.isActive) {
+-          setTravelCarrierMode("bridge");
+-        } else {
+-          setTravelCarrierMode("hidden");
+-        }
+-      };
+-      ScrollTrigger.addEventListener("refresh", syncTravelCarrierVisibility);
+-
+       // =========================================================================
+-      // BEAT 1: TRAVEL RECORD LANDING & REGISTER UNFOLDING (0.00 - 0.16)
+-      // TX-1082 lands into its independent register before sibling records establish.
++      // STAGE A — OPENING HOLD (0.00 - 0.06)
++      // All four records established and legible, matching the transition's
++      // terminal frame exactly.
+       // =========================================================================
+-      timeline
+-        .fromTo(
+-          "[data-revocation-header]",
+-          { y: -8 },
+-          { y: 0, duration: 0.08, ease: "power1.out" },
+-          0.04,
+-        )
+-        .set("[data-register-station]", { opacity: 1, scale: 1, y: 0 }, 0.00)
+-        .fromTo(
+-          "[data-revocation-footer]",
+-          { opacity: 0 },
+-          { opacity: 1, duration: 0.06 },
+-          0.10,
+-        );
++      timeline.set({}, {}, 0.06);
+ 
+       // =========================================================================
+-      // BEAT 2: INITIAL VALID REGISTRATION ALIGNMENT (0.16 - 0.26)
+-      // All 4 records establish with their signatures in physical register
+-      // =========================================================================
+-      timeline
+-        .to(
+-          "[data-record]",
+-          { opacity: 1, duration: 0.06, stagger: 0.02 },
+-          0.16,
+-        )
+-        .set({}, {}, 0.26);
+-
+-      // =========================================================================
+-      // BEAT 3: SHOPPING RECALL TARGETING (0.26 - 0.38)
++      // STAGE B — SHOPPING RECALL TARGETING (0.06 - 0.22)
+       // Shopping is selected into Authority Recall Aperture / Datum 05
+       // =========================================================================
+       timeline
+         .to(
+           "[data-recall-aperture]",
+-          { opacity: 1, duration: 0.08, ease: "power1.inOut" },
+-          0.26,
++          { opacity: 1, duration: 0.10, ease: "power1.inOut" },
++          0.06,
+         )
+         .to(
+           "[data-record='AUTH-0301']",
+           {
+             scale: 1.012,
+             boxShadow: "0 14px 36px rgba(0, 0, 0, 0.65), 0 3px 8px rgba(0, 0, 0, 0.4)",
+-            duration: 0.08,
++            duration: 0.10,
+             ease: "power1.out",
+           },
+-          0.28,
++          0.10,
+         );
+ 
+       // =========================================================================
+-      // BEAT 3.5: SOURCE SPINE UNLOCK (0.35 - 0.38)
++      // STAGE C — SOURCE SPINE UNLOCK (0.22 - 0.25)
+       // A small, precise registration release — the datum pin retracts fractionally
+       // before any sliding motion begins. No bounce, no mechanism, just a release.
+       // =========================================================================
+       timeline
+-        .to(
+-          "[data-notch-bar]",
+-          { scaleY: 0.35, duration: 0.02, ease: "power1.in" },
+-          0.35,
+-        )
+-        .to(
+-          "[data-notch-bar]",
+-          { x: -3, duration: 0.015, ease: "power1.out" },
+-          0.365,
+-        );
++        .to("[data-notch-bar]", { scaleY: 0.35, duration: 0.015, ease: "power1.in" }, 0.22)
++        .to("[data-notch-bar]", { x: -3, duration: 0.015, ease: "power1.out" }, 0.235);
+ 
+       // =========================================================================
+-      // BEAT 4: HERO MOMENT — SOURCE SPINE WITHDRAWAL (0.38 - 0.54)
+-      // The mechanical spine unlocks and physically slides out of Shopping
+-      // At ~0.46 (approx 50% withdrawn), Shopping validity fails & children begin misregistration
++      // STAGE D — HERO MOMENT: SOURCE SPINE WITHDRAWAL (0.25 - 0.46)
++      // The mechanical spine unlocks and physically slides out of Shopping.
++      // Partway through, inherited registration in Grocery/Delivery starts to waver.
+       // =========================================================================
+       timeline
+-        // Spine unlocks and begins sliding out to the left
+         .to(
+           "[data-source-spine]",
+-          {
+-            x: spineWithdrawX * 0.5,
+-            duration: 0.08,
+-            ease: "power2.in",
+-          },
+-          0.38,
++          { x: spineWithdrawX * 0.5, duration: 0.10, ease: "power2.in" },
++          0.25,
+         )
+-        // At 50% withdrawn (0.46): inherited registration in Grocery/Delivery starts to waver
+         .to(
+           "[data-inherited-register='AUTH-0302']",
+-          {
+-            x: -2,
+-            duration: 0.06,
+-            ease: "power1.out",
+-          },
+-          0.44,
++          { x: -2, duration: 0.07, ease: "power1.out" },
++          0.33,
+         )
+         .to(
+           "[data-inherited-register='AUTH-0303']",
+-          {
+-            x: -2,
+-            duration: 0.06,
+-            ease: "power1.out",
+-          },
+-          0.45,
++          { x: -2, duration: 0.07, ease: "power1.out" },
++          0.34,
+         )
+-        // Spine completes full mechanical withdrawal past threshold
+         .to(
+           "[data-source-spine]",
+-          {
+-            x: spineWithdrawX,
+-            opacity: 0.85,
+-            duration: 0.08,
+-            ease: "power2.out",
+-          },
+-          0.46,
++          { x: spineWithdrawX, opacity: 0.85, duration: 0.10, ease: "power2.out" },
++          0.36,
+         );
+ 
+       // =========================================================================
+-      // BEAT 5: SHOPPING REVOCATION REGISTRATION (0.54 - 0.66)
+-      // Official administrative REVOKED stamp records the event
++      // STAGE E — SHOPPING REVOCATION REGISTRATION (0.46 - 0.58)
++      // Official administrative REVOKED stamp records the event.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-stamp-revoked]",
+-          {
+-            opacity: 1,
+-            scale: 1,
+-            duration: 0.06,
+-            ease: "back.out(1.6)",
+-          },
+-          0.54,
++          { opacity: 1, scale: 1, duration: 0.07, ease: "back.out(1.6)" },
++          0.46,
+         )
+         .to(
+           "[data-record='AUTH-0301']",
+-          {
+-            borderColor: "rgba(169, 42, 36, 0.7)",
+-            duration: 0.06,
+-          },
+-          0.54,
++          { borderColor: "rgba(169, 42, 36, 0.7)", duration: 0.06 },
++          0.46,
+         );
+ 
+       // =========================================================================
+-      // BEAT 6: SIBLING MISREGISTRATION PROPAGATION (0.64 - 0.78)
+-      // Grocery and Delivery react as parallel sibling consequences of Shopping
++      // STAGE F — SIBLING MISREGISTRATION PROPAGATION (0.58 - 0.76)
++      // Grocery and Delivery react as parallel sibling consequences of Shopping.
+       // =========================================================================
+       timeline
+-        // Both siblings lose inherited registration signature
+         .to(
+           "[data-inherited-register='AUTH-0302']",
+-          {
+-            x: -4.5,
+-            borderColor: "rgba(169, 42, 36, 0.75)",
+-            duration: 0.06,
+-            ease: "power2.inOut",
+-          },
+-          0.64,
++          { x: -4.5, borderColor: "rgba(169, 42, 36, 0.75)", duration: 0.07, ease: "power2.inOut" },
++          0.58,
+         )
+         .to(
+           "[data-inherited-register='AUTH-0303']",
+-          {
+-            x: -4.5,
+-            borderColor: "rgba(169, 42, 36, 0.75)",
+-            duration: 0.06,
+-            ease: "power2.inOut",
+-          },
+-          0.66,
++          { x: -4.5, borderColor: "rgba(169, 42, 36, 0.75)", duration: 0.07, ease: "power2.inOut" },
++          0.60,
+         )
+-        // Both siblings drop fractionally off baseline (physical misregistration)
+         .to(
+           "[data-record='AUTH-0302']",
+-          {
+-            y: 3.5,
+-            rotate: -0.4,
+-            borderColor: "rgba(127, 29, 25, 0.6)",
+-            duration: 0.06,
+-            ease: "power1.out",
+-          },
+-          0.67,
++          { y: 3.5, rotate: -0.4, borderColor: "rgba(127, 29, 25, 0.6)", duration: 0.07, ease: "power1.out" },
++          0.62,
+         )
+         .to(
+           "[data-record='AUTH-0303']",
+-          {
+-            y: 3.5,
+-            rotate: 0.3,
+-            borderColor: "rgba(127, 29, 25, 0.6)",
+-            duration: 0.06,
+-            ease: "power1.out",
+-          },
+-          0.69,
++          { y: 3.5, rotate: 0.3, borderColor: "rgba(127, 29, 25, 0.6)", duration: 0.07, ease: "power1.out" },
++          0.64,
+         )
+-        // Sibling stamps register
+         .to(
+           "[data-stamp-withdrawn='AUTH-0302']",
+-          {
+-            opacity: 1,
+-            scale: 1,
+-            duration: 0.05,
+-            ease: "power2.out",
+-          },
+-          0.70,
++          { opacity: 1, scale: 1, duration: 0.06, ease: "power2.out" },
++          0.66,
+         )
+         .to(
+           "[data-stamp-withdrawn='AUTH-0303']",
+-          {
+-            opacity: 1,
+-            scale: 1,
+-            duration: 0.05,
+-            ease: "power2.out",
+-          },
+-          0.73,
++          { opacity: 1, scale: 1, duration: 0.06, ease: "power2.out" },
++          0.70,
+         );
+ 
+       // =========================================================================
+-      // BEAT 7: TRAVEL SELECTIVITY PROOF (0.76 - 0.88)
+-      // Travel record advances independently — proving selectivity
++      // STAGE G — TRAVEL SELECTIVITY PROOF (0.76 - 0.90)
++      // Travel record advances independently — proving selectivity.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-independent-register='travel']",
+-          {
+-            x: travelAdvanceX * 0.65,
+-            duration: 0.06,
+-            ease: "power1.inOut",
+-          },
++          { x: travelAdvanceX * 0.65, duration: 0.07, ease: "power1.inOut" },
+           0.76,
+         )
+         .to(
+           "[data-independent-register='travel']",
+-          {
+-            x: travelAdvanceX,
+-            duration: 0.06,
+-            ease: "power1.out",
+-          },
+-          0.82,
++          { x: travelAdvanceX, duration: 0.07, ease: "power1.out" },
++          0.83,
+         );
+ 
+       // =========================================================================
+-      // BEAT 8: COMPLETE HISTORICAL RECORD HOLD (0.88 - 1.00)
+-      // Final archival state holds generously with all 4 records present
++      // STAGE H — TERMINAL HOLD (0.90 - 1.00)
++      // Final archival state holds generously with all 4 records present —
++      // this is the frame the 05->06 transition begins from.
+       // =========================================================================
+       timeline.set({}, {}, 1.00);
+ 
+@@ -505,8 +377,6 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        travelBridgeIn.kill();
+-        ScrollTrigger.removeEventListener("refresh", syncTravelCarrierVisibility);
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };
+diff --git a/src/components/experience/SplitDefense/SplitDefenseScene.tsx b/src/components/experience/SplitDefense/SplitDefenseScene.tsx
+index af1ecb2..f8db4f4 100644
+--- a/src/components/experience/SplitDefense/SplitDefenseScene.tsx
++++ b/src/components/experience/SplitDefense/SplitDefenseScene.tsx
+@@ -135,60 +135,27 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
+         },
+       });
+ 
+-      // Physical carriers only: Revocation's source datum resolves into the
+-      // temporal aperture; the sealed dossier hands into Scene 07's ledger.
+-      const incomingCarrier = "[data-temporal-aperture]";
+-      const outgoingCarrier = "[data-dossier-backing]";
+-      gsap.set(incomingCarrier, {
+-        opacity: 0,
+-        visibility: "visible",
+-        pointerEvents: "none",
+-      });
+-
+-      // 05 -> 06 Carrier Bridge (incoming half):
+-      // Symmetrically crossfades in over the same 120px pre-roll window Revocation uses to crossfade out.
+-      const carrierBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=120px",
+-        end: "top top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(incomingCarrier, { opacity: self.progress });
+-        },
+-        onLeave: () => {
+-          // Carrier completes at ownership; Scene 06's authored timeline then
+-          // re-engages the full aperture at the established correlation beat.
+-          gsap.set(incomingCarrier, { opacity: 0 });
+-        },
+-      });
+-
+-      // 06 -> 07 Carrier Bridge (outgoing half):
+-      // Symmetrically crossfades out over the 120px pre-roll window Concurrency uses to crossfade in.
+-      const carrierBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=120px",
+-        end: "bottom top",
+-        scrub: true,
+-        onUpdate: (self) => {
+-          gsap.set(outgoingCarrier, { opacity: 1 - self.progress });
+-        },
+-      });
+-
+-      // Initial Receipt Spatial Coordinates
+-      const rec1Start = isMobile
+-        ? { x: -20, y: -40, rotate: -2, opacity: 0 }
+-        : { x: -320, y: 30, rotate: -3.5, opacity: 0 };
+-      const rec2Start = isMobile
+-        ? { x: 15, y: -20, rotate: 1.5, opacity: 0 }
+-        : { x: 0, y: -40, rotate: 1.8, opacity: 0 };
+-      const rec3Start = isMobile
+-        ? { x: -10, y: 0, rotate: -1, opacity: 0 }
+-        : { x: 320, y: 20, rotate: -2.2, opacity: 0 };
+-
+-      // Set initial element states
+-      gsap.set("[data-split-receipt='TX-1091']", rec1Start);
+-      gsap.set("[data-split-receipt='TX-1092']", rec2Start);
+-      gsap.set("[data-split-receipt='TX-1093']", rec3Start);
++      // Incoming 05->06 transition already lands with all three receipts
++      // spread and legible (its own terminal content). The live scene begins
++      // there — no entry animation to replay — and performs only the
++      // remaining product story: correlation, aggregation, one economic
++      // action, block.
++      const rec1Rest = isMobile
++        ? { x: 0, y: 0, rotate: -1 }
++        : { x: -280, y: 15, rotate: -2 };
++      const rec2Rest = isMobile
++        ? { x: 0, y: 0, rotate: 1 }
++        : { x: 0, y: -10, rotate: 1.2 };
++      const rec3Rest = isMobile
++        ? { x: 0, y: 0, rotate: -0.5 }
++        : { x: 280, y: 10, rotate: -1.5 };
++
++      // Set initial element states: receipts already at rest (matching the
++      // transition's terminal frame), everything downstream still hidden.
++      gsap.set("[data-split-receipt='TX-1091']", { ...rec1Rest, opacity: 1 });
++      gsap.set("[data-split-receipt='TX-1092']", { ...rec2Rest, opacity: 1 });
++      gsap.set("[data-split-receipt='TX-1093']", { ...rec3Rest, opacity: 1 });
++      gsap.set("[data-split-footer]", { opacity: 1 });
+       gsap.set("[data-temporal-aperture]", { opacity: 0, scaleY: 0.8 });
+       gsap.set("[data-registration-datum]", { opacity: 0, scaleX: 0 });
+       gsap.set("[data-ledger-tally]", { opacity: 0, y: 15 });
+@@ -197,280 +164,136 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
+       gsap.set("[data-stamp-blocked]", { opacity: 0, scale: 1.6, rotate: 4 });
+ 
+       // =========================================================================
+-      // BEAT 1: FIRST TEMPORAL REQUEST ENTERS (0.00 - 0.10)
+-      // TX-1091 (10:03, ₹1,000, Market Mart) enters independently.
+-      // Sits well below threshold (> ₹1,500).
++      // STAGE A — OPENING HOLD (0.00 - 0.06)
++      // Composition stays exactly at the transition's terminal frame so the
++      // video -> DOM handoff is invisible.
+       // =========================================================================
+-      timeline
+-        .fromTo(
+-          "[data-split-footer]",
+-          { opacity: 0 },
+-          { opacity: 1, duration: 0.06 },
+-          0.06,
+-        )
+-        .to(
+-          "[data-split-receipt='TX-1091']",
+-          {
+-            opacity: 1,
+-            x: isMobile ? 0 : -280,
+-            y: isMobile ? 0 : 15,
+-            rotate: isMobile ? -1 : -2,
+-            duration: 0.08,
+-            ease: "power2.out",
+-          },
+-          0.02,
+-        );
++      timeline.set({}, {}, 0.06);
+ 
+       // =========================================================================
+-      // BEAT 2: SECOND TEMPORAL REQUEST ENTERS (0.10 - 0.19)
+-      // TX-1092 (10:06, ₹1,000, Market Mart) enters 3 minutes later.
+-      // Still looks like an innocent second purchase.
+-      // =========================================================================
+-      timeline.to(
+-        "[data-split-receipt='TX-1092']",
+-        {
+-          opacity: 1,
+-          x: isMobile ? 0 : 0,
+-          y: isMobile ? 0 : -10,
+-          rotate: isMobile ? 1 : 1.2,
+-          duration: 0.08,
+-          ease: "power2.out",
+-        },
+-        0.10,
+-      );
+-
+-      // =========================================================================
+-      // BEAT 3: THIRD TEMPORAL REQUEST ENTERS (0.19 - 0.28)
+-      // TX-1093 (10:09, ₹1,000, Market Mart) enters 3 minutes later.
+-      // =========================================================================
+-      timeline.to(
+-        "[data-split-receipt='TX-1093']",
+-        {
+-          opacity: 1,
+-          x: isMobile ? 0 : 280,
+-          y: isMobile ? 0 : 10,
+-          rotate: isMobile ? -0.5 : -1.5,
+-          duration: 0.08,
+-          ease: "power2.out",
+-        },
+-        0.19,
+-      );
+-
+-      // =========================================================================
+-      // BEAT 4: INDEPENDENT HOLD (0.28 - 0.34)
+-      // All 3 receipts sit visibly below STEP-UP > ₹1,500.
+-      // The viewer perceives them as three separate transactions.
+-      // =========================================================================
+-      timeline.set({}, {}, 0.34);
+-
+-      // =========================================================================
+-      // BEAT 5: TEMPORAL WINDOW ENGAGES & SPATIAL CONVERGENCE (0.34 - 0.52)
++      // STAGE B — TEMPORAL WINDOW ENGAGES & SPATIAL CONVERGENCE (0.06 - 0.30)
+       // The physical Temporal Review Aperture brackets close around 10:00-10:15.
+-      // Receipts translate into tight horizontal proximity and snap to 0deg rotation.
++      // Receipts translate into tight horizontal proximity and snap to 0deg —
++      // three independent purchases visually becoming one cluster.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-temporal-aperture]",
+-          {
+-            opacity: 1,
+-            scaleY: 1,
+-            duration: 0.10,
+-            ease: "power2.out",
+-          },
+-          0.34,
++          { opacity: 1, scaleY: 1, duration: 0.12, ease: "power2.out" },
++          0.06,
+         )
+         .to(
+           "[data-split-receipt='TX-1091']",
+-          {
+-            x: isMobile ? 0 : -250,
+-            y: 0,
+-            rotate: 0,
+-            duration: 0.14,
+-            ease: "power2.inOut",
+-          },
+-          0.36,
++          { x: isMobile ? 0 : -250, y: 0, rotate: 0, duration: 0.18, ease: "power2.inOut" },
++          0.10,
+         )
+         .to(
+           "[data-split-receipt='TX-1092']",
+-          {
+-            x: 0,
+-            y: 0,
+-            rotate: 0,
+-            duration: 0.14,
+-            ease: "power2.inOut",
+-          },
+-          0.36,
++          { x: 0, y: 0, rotate: 0, duration: 0.18, ease: "power2.inOut" },
++          0.10,
+         )
+         .to(
+           "[data-split-receipt='TX-1093']",
+-          {
+-            x: isMobile ? 0 : 250,
+-            y: 0,
+-            rotate: 0,
+-            duration: 0.14,
+-            ease: "power2.inOut",
+-          },
+-          0.36,
++          { x: isMobile ? 0 : 250, y: 0, rotate: 0, duration: 0.18, ease: "power2.inOut" },
++          0.10,
+         );
+ 
+       // =========================================================================
+-      // BEAT 6: IDENTITY EVIDENCE REGISTRATION (0.52 - 0.68)
++      // STAGE C — IDENTITY EVIDENCE REGISTRATION (0.30 - 0.58)
+       // Horizontal forensic datum lines snap across the 3 repeated fields:
+-      // 1. MARKET MART MUMBAI
+-      // 2. VIA AGENT ZEPTO
+-      // 3. PURPOSE GROCERY
+-      // Redundancy becomes visually undeniable.
++      // 1. MARKET MART MUMBAI  2. VIA AGENT ZEPTO  3. PURPOSE GROCERY
++      // Redundancy becomes visually undeniable, one field at a time.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-registration-datum='merchant']",
+-          {
+-            opacity: 1,
+-            scaleX: 1,
+-            duration: 0.05,
+-            ease: "power1.out",
+-          },
+-          0.52,
++          { opacity: 1, scaleX: 1, duration: 0.08, ease: "power1.out" },
++          0.30,
+         )
+         .to(
+           "[data-registration-datum='agent']",
+-          {
+-            opacity: 1,
+-            scaleX: 1,
+-            duration: 0.05,
+-            ease: "power1.out",
+-          },
+-          0.58,
++          { opacity: 1, scaleX: 1, duration: 0.08, ease: "power1.out" },
++          0.40,
+         )
+         .to(
+           "[data-registration-datum='purpose']",
+-          {
+-            opacity: 1,
+-            scaleX: 1,
+-            duration: 0.05,
+-            ease: "power1.out",
+-          },
+-          0.64,
++          { opacity: 1, scaleX: 1, duration: 0.08, ease: "power1.out" },
++          0.50,
+         );
+ 
+       // =========================================================================
+-      // BEAT 7: ACCOUNTING AGGREGATION (0.68 - 0.78)
++      // STAGE D — ACCOUNTING AGGREGATION (0.58 - 0.74)
+       // Ledger tally bracket activates: ₹1,000 + ₹1,000 + ₹1,000 = ₹3,000.
+       // Proves why evasion fails: ₹3,000 > ₹1,500 threshold!
+       // =========================================================================
+       timeline
+         .to(
+           "[data-ledger-tally]",
+-          {
+-            opacity: 1,
+-            y: 0,
+-            duration: 0.08,
+-            ease: "power2.out",
+-          },
+-          0.68,
++          { opacity: 1, y: 0, duration: 0.10, ease: "power2.out" },
++          0.58,
+         )
+         .to(
+           "[data-tally-breach]",
+-          {
+-            color: "var(--kp-red)",
+-            scale: 1.04,
+-            duration: 0.04,
+-            ease: "power1.out",
+-          },
+-          0.74,
++          { color: "var(--kp-red)", scale: 1.04, duration: 0.05, ease: "power1.out" },
++          0.66,
+         );
+ 
+       // =========================================================================
+-      // BEAT 8: DOSSIER LOCK & SINGLE ECONOMIC ACTION (0.78 - 0.86)
++      // STAGE E — DOSSIER LOCK (0.74 - 0.84)
+       // Underlying correlation dossier locks the 3 slips into one composite case.
+       // =========================================================================
+       timeline.to(
+         "[data-dossier-backing]",
+-        {
+-          opacity: 1,
+-          scale: 1,
+-          y: 0,
+-          duration: 0.08,
+-          ease: "power2.out",
+-        },
+-        0.78,
++        { opacity: 1, scale: 1, y: 0, duration: 0.10, ease: "power2.out" },
++        0.74,
+       );
+ 
+       // =========================================================================
+-      // BEAT 9: PRIMARY STAMP — ONE ECONOMIC ACTION (0.86 - 0.93)
+-      // Anticipation -> Impact -> Settle
++      // STAGE F — PRIMARY STAMP: ONE ECONOMIC ACTION (0.84 - 0.90)
++      // Anticipation -> Impact -> Settle. Deliberately sudden — a stamp lands.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-stamp-economic-action]",
+-          {
+-            opacity: 0.4,
+-            scale: 1.25,
+-            rotate: -4,
+-            duration: 0.02,
+-          },
+-          0.86,
++          { opacity: 0.4, scale: 1.25, rotate: -4, duration: 0.02 },
++          0.84,
+         )
+         .to(
+           "[data-stamp-economic-action]",
+-          {
+-            opacity: 1,
+-            scale: 0.98,
+-            rotate: -2.5,
+-            duration: 0.03,
+-            ease: "power4.in",
+-          },
+-          0.88,
++          { opacity: 1, scale: 0.98, rotate: -2.5, duration: 0.025, ease: "power4.in" },
++          0.86,
+         )
+         .to(
+           "[data-stamp-economic-action]",
+-          {
+-            scale: 1,
+-            duration: 0.02,
+-            ease: "power1.out",
+-          },
+-          0.91,
++          { scale: 1, duration: 0.02, ease: "power1.out" },
++          0.885,
+         );
+ 
+       // =========================================================================
+-      // BEAT 10: SECONDARY ENFORCEMENT STAMP — BLOCKED (0.93 - 0.97)
+-      // Authoritative administrative box stamp records BLOCKED
++      // STAGE G — SECONDARY ENFORCEMENT STAMP: BLOCKED (0.90 - 0.95)
++      // Authoritative administrative box stamp records BLOCKED. Also sudden.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-stamp-blocked]",
+-          {
+-            opacity: 0.5,
+-            scale: 1.3,
+-            rotate: 2.5,
+-            duration: 0.015,
+-          },
+-          0.93,
++          { opacity: 0.5, scale: 1.3, rotate: 2.5, duration: 0.015 },
++          0.90,
+         )
+         .to(
+           "[data-stamp-blocked]",
+-          {
+-            opacity: 1,
+-            scale: 0.98,
+-            rotate: 1.2,
+-            duration: 0.02,
+-            ease: "power4.in",
+-          },
+-          0.945,
++          { opacity: 1, scale: 0.98, rotate: 1.2, duration: 0.02, ease: "power4.in" },
++          0.915,
+         )
+         .to(
+           "[data-stamp-blocked]",
+-          {
+-            scale: 1,
+-            duration: 0.015,
+-            ease: "power1.out",
+-          },
+-          0.965,
++          { scale: 1, duration: 0.015, ease: "power1.out" },
++          0.935,
+         );
+ 
+       // =========================================================================
+-      // BEAT 11: COMPLETE TERMINAL HISTORICAL HOLD (0.97 - 1.00)
+-      // Holds final state with all 3 receipts, audit evidence, and stamps intact.
++      // STAGE H — TERMINAL HOLD (0.95 - 1.00)
++      // Resolved case stays stable — this is the frame the 06->07 transition
++      // begins from.
+       // =========================================================================
+       timeline.set({}, {}, 1.00);
+ 
+@@ -480,9 +303,11 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
+         const aperEl = apertureStatusRef.current;
+ 
+         if (aperEl) {
+-          if (p < 0.34) {
++          if (p < 0.06) {
+             aperEl.textContent = "MONITORING WINDOW: 10:00–10:15";
+-          } else if (p < 0.68) {
++          } else if (p < 0.30) {
++            aperEl.textContent = "TEMPORAL WINDOW ENGAGED // CONVERGING";
++          } else if (p < 0.58) {
+             aperEl.textContent = "TEMPORAL CLUSTER IDENTIFIED // 3 SLIPS IN 6 MIN";
+           } else {
+             aperEl.textContent = "CORRELATION SEALED // CASE CLOSED";
+@@ -492,8 +317,6 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        carrierBridgeIn.kill();
+-        carrierBridgeOut.kill();
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };
+diff --git a/src/components/experience/StepUp/StepUpScene.tsx b/src/components/experience/StepUp/StepUpScene.tsx
+index 18157dc..323aa71 100644
+--- a/src/components/experience/StepUp/StepUpScene.tsx
++++ b/src/components/experience/StepUp/StepUpScene.tsx
+@@ -22,9 +22,7 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+       const isMobile = window.matchMedia("(max-width: 48rem)").matches;
+       const prefersReduced = experienceStore.getState().reducedMotion;
+ 
+-      // Coordinate targets for entry and exit
+-      const entryStartX = isMobile ? 0 : -550;
+-      const entryStartY = isMobile ? -320 : 0;
++      // Coordinate target for the outgoing 04->05 exit only (see travelGeometry).
+       const fallbackExitX = isMobile ? 0 : 550;
+       const fallbackExitY = isMobile ? 320 : 0;
+ 
+@@ -94,20 +92,15 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+       const travelCarrier = root.current.querySelector<HTMLElement>(
+         "[data-stepup-travel-carrier]",
+       );
+-      function setTravelCarrierMode(mode: "hidden" | "bridge" | "scene") {
++      function setTravelCarrierOwned(owned: boolean) {
+         if (!travelCarrier) return;
+-        if (mode === "hidden") {
+-          gsap.set(travelCarrier, { visibility: "hidden", opacity: 0 });
+-          return;
+-        }
+         gsap.set(travelCarrier, {
+-          visibility: mode === "bridge" ? "visible" : "inherit",
+-          opacity: 1,
++          visibility: owned ? "inherit" : "hidden",
++          opacity: owned ? 1 : 0,
+         });
+       }
+ 
+-      // Body visibility stays exact. Only the physical Travel request carrier may
+-      // cross the adjacent ownership boundaries; chapter chrome remains scene-owned.
++      // Body visibility stays exact; chapter chrome remains scene-owned.
+       // start uses a 1px epsilon (not an authored overlap) — GSAP's onEnter for a
+       // non-scrubbed trigger requires progress to strictly exceed 0, so landing
+       // exactly on the boundary pixel would otherwise leave the body hidden until
+@@ -119,14 +112,14 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+         end: "bottom top",
+         onEnter: () => {
+           applyVisibility(true);
+-          setTravelCarrierMode("scene");
++          setTravelCarrierOwned(true);
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "stepUp" } }),
+           );
+         },
+         onEnterBack: () => {
+           applyVisibility(true);
+-          setTravelCarrierMode("scene");
++          setTravelCarrierOwned(true);
+           window.dispatchEvent(
+             new CustomEvent("kp:scene", { detail: { id: "stepUp" } }),
+           );
+@@ -134,109 +127,27 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+         onLeave: () => {
+           if (isPersistent) {
+             applyVisibility(false);
+-            setTravelCarrierMode("hidden");
++            setTravelCarrierOwned(false);
+           }
+         },
+         onLeaveBack: () => {
+           applyVisibility(false);
+-          setTravelCarrierMode("bridge");
++          setTravelCarrierOwned(false);
+         },
+       });
+ 
+-      const incomingTravel = document.querySelector<HTMLElement>("[data-delegation-grocery]");
+-      const downstreamTravel = document.querySelector<HTMLElement>("[data-record='TX-1082']");
++      // Exit offset only: the incoming 03->04 transition already lands with
++      // the compact travel slip arrived and centered at the clearance datum
++      // (its own terminal content) — the live scene begins there, not
++      // off-screen. Only the OUTGOING 04->05 hop still uses a fixed offset,
++      // since that boundary's own video owns the departure look.
+       const travelGeometry = {
+-        entryX: entryStartX,
+-        entryY: entryStartY,
+-        entryScaleX: 1,
+-        entryScaleY: 1,
+         exitX: fallbackExitX,
+         exitY: fallbackExitY,
+         exitScaleX: 1,
+         exitScaleY: 1,
+       };
+-
+-      const cacheTravelGeometry = () => {
+-        if (!travelCarrier) return;
+-
+-        gsap.set(travelCarrier, {
+-          x: 0,
+-          y: 0,
+-          scaleX: 1,
+-          scaleY: 1,
+-          transformOrigin: "top left",
+-        });
+-        const base = travelCarrier.getBoundingClientRect();
+-        if (base.width <= 0 || base.height <= 0) return;
+-
+-        if (incomingTravel) {
+-          const source = incomingTravel.getBoundingClientRect();
+-          travelGeometry.entryX = source.left - base.left;
+-          travelGeometry.entryY = source.top - base.top;
+-          travelGeometry.entryScaleX = source.width / base.width;
+-          travelGeometry.entryScaleY = source.height / base.height;
+-        }
+-
+-        if (downstreamTravel) {
+-          const target = downstreamTravel.getBoundingClientRect();
+-          travelGeometry.exitX = target.left - base.left;
+-          travelGeometry.exitY = target.top - base.top;
+-          travelGeometry.exitScaleX = target.width / base.width;
+-          travelGeometry.exitScaleY = target.height / base.height;
+-        }
+-      };
+-
+-      cacheTravelGeometry();
+-      ScrollTrigger.addEventListener("refreshInit", cacheTravelGeometry);
+-
+-      // Incoming 03 -> 04 bridge. Geometry is measured only at init/refresh; the
+-      // compact TX-1082 copy occupies the outgoing pass's exact stage rectangle.
+-      gsap.set("[data-stepup-travel-carrier]", {
+-        opacity: 0,
+-        visibility: "hidden",
+-        pointerEvents: "none",
+-        transformOrigin: "top left",
+-      });
+-      const artifactBridgeIn = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "top top+=100px",
+-        end: "top top",
+-        scrub: true,
+-        onEnter: () => setTravelCarrierMode("bridge"),
+-        onEnterBack: () => setTravelCarrierMode("bridge"),
+-        onLeave: () => setTravelCarrierMode("scene"),
+-        onLeaveBack: () => setTravelCarrierMode("hidden"),
+-        onUpdate: (self) => {
+-          gsap.set("[data-stepup-travel-carrier]", { opacity: self.progress });
+-        },
+-      });
+-
+-      // Outgoing 04 -> 05 bridge. Incoming Revocation copy is registered to this
+-      // terminal rectangle, making the technical DOM swap visually invisible.
+-      const artifactBridgeOut = ScrollTrigger.create({
+-        trigger: triggerEl,
+-        start: "bottom top+=120px",
+-        end: "bottom top",
+-        scrub: true,
+-        onEnter: () => setTravelCarrierMode("bridge"),
+-        onEnterBack: () => setTravelCarrierMode("bridge"),
+-        onLeave: () => setTravelCarrierMode("hidden"),
+-        onLeaveBack: () => setTravelCarrierMode("scene"),
+-        onUpdate: (self) => {
+-          gsap.set("[data-stepup-travel-carrier]", { opacity: 1 - self.progress });
+-        },
+-      });
+-
+-      const syncTravelCarrierVisibility = () => {
+-        if (visibilityTrigger.isActive) {
+-          setTravelCarrierMode("scene");
+-        } else if (artifactBridgeIn.isActive || artifactBridgeOut.isActive) {
+-          setTravelCarrierMode("bridge");
+-        } else {
+-          setTravelCarrierMode("hidden");
+-        }
+-      };
+-      ScrollTrigger.addEventListener("refresh", syncTravelCarrierVisibility);
++      setTravelCarrierOwned(false);
+ 
+       // Dynamic text targets for status bar
+       const barStatusEl = root.current.querySelector<HTMLElement>("[data-bar-status]");
+@@ -255,13 +166,15 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+       gsap.set("[data-registration-bar]", { opacity: 1, y: 0 });
+       gsap.set("[data-clearance-bracket]", { opacity: 1, y: 0 });
+ 
+-      // Single Travel Artifact: Starts as crisp, fully opaque compact request slip
++      // Single Travel Artifact: incoming 03->04 transition already lands with
++      // the compact slip arrived and centered at the clearance datum — start
++      // there, matching the transition's terminal frame exactly.
+       gsap.set("[data-travel-artifact]", { opacity: 1, width: compactWidth });
+       gsap.set("[data-stepup-travel-carrier]", {
+-        x: travelGeometry.entryX,
+-        y: travelGeometry.entryY,
+-        scaleX: travelGeometry.entryScaleX,
+-        scaleY: travelGeometry.entryScaleY,
++        x: isMobile ? 0 : -80,
++        y: isMobile ? -60 : 0,
++        scaleX: 1,
++        scaleY: 1,
+       });
+ 
+       // Top and bottom extensions start collapsed into the compact slip format
+@@ -300,157 +213,82 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+       gsap.set("[data-referral-notice]", { opacity: 0, y: 4 });
+       gsap.set("[data-clear-seal]", { opacity: 0, scale: 1.25 });
+ 
++      // Incoming 03->04 transition already lands with the compact slip
++      // arrived at the clearance datum (its own terminal content) — no entry
++      // animation to replay. Live scene begins at the physical interception.
++      //
+       // =========================================================================
+-      // BEAT 1: SCENE 03 → 04 REGISTRATION (0.00 - 0.04)
++      // STAGE A — OPENING HOLD (0.00 - 0.05)
+       // =========================================================================
+-      timeline
+-        .to(
+-          "[data-registration-bar]",
+-          { borderColor: "rgba(169, 42, 36, 0.75)", duration: 0.04, ease: "power1.out" },
+-          0.01,
+-        );
++      timeline.set({}, {}, 0.05);
+ 
+       // =========================================================================
+-      // BEAT 2: INCOMING TRAVEL REQUEST ENTERS WITH MOMENTUM (0.00 - 0.22)
+-      // Compact execution slip enters along upstream rail with crisp visibility and momentum.
+-      // =========================================================================
+-      timeline
+-        .fromTo(
+-          "[data-stepup-travel-carrier]",
+-          {
+-            x: () => travelGeometry.entryX,
+-            y: () => travelGeometry.entryY,
+-            scaleX: () => travelGeometry.entryScaleX,
+-            scaleY: () => travelGeometry.entryScaleY,
+-          },
+-          {
+-            x: isMobile ? 0 : -80,
+-            y: isMobile ? -60 : 0,
+-            scaleX: 1,
+-            scaleY: 1,
+-            duration: 0.22,
+-            ease: "power1.inOut",
+-          },
+-          0.00,
+-        )
+-        .call(
+-          () => {
+-            if (barStatusEl) barStatusEl.textContent = "CLEARANCE DATUM // READY";
+-          },
+-          undefined,
+-          0.06,
+-        );
+-
+-      // =========================================================================
+-      // BEAT 3: CLEARANCE BOUNDARY ENCOUNTER & PHYSICAL INTERCEPTION (0.22 - 0.32)
++      // STAGE B — CLEARANCE BOUNDARY ENCOUNTER & PHYSICAL INTERCEPTION (0.05 - 0.15)
+       // Controlled deceleration into datum. Physical catch: registration bar engages.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-stepup-travel-carrier]",
+-          {
+-            x: 0,
+-            y: 0,
+-            scaleX: 1,
+-            scaleY: 1,
+-            duration: 0.08,
+-            ease: "power3.out",
+-          },
+-          0.22,
++          { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: 0.08, ease: "power3.out" },
++          0.05,
+         )
+         .to(
+           "[data-registration-bar]",
+-          {
+-            borderColor: "rgba(169, 42, 36, 0.95)",
+-            boxShadow: "0 0 12px rgba(169, 42, 36, 0.35)",
+-            duration: 0.05,
+-          },
+-          0.26,
++          { borderColor: "rgba(169, 42, 36, 0.95)", boxShadow: "0 0 12px rgba(169, 42, 36, 0.35)", duration: 0.05 },
++          0.09,
+         )
+         .call(
+           () => {
+             if (barStatusEl) barStatusEl.textContent = "HELD AT DATUM // LIMIT EXCEEDED";
+           },
+           undefined,
+-          0.28,
++          0.11,
+         );
+ 
+       // =========================================================================
+-      // BEAT 4: DOCUMENT BACKING EXPANSION AROUND OPTICALLY FIXED SPINE (0.32 - 0.54)
++      // STAGE C — DOCUMENT BACKING EXPANSION AROUND OPTICALLY FIXED SPINE (0.15 - 0.37)
+       // Official backing stock unrolls above and below the shared identity spine
+       // (TRAVEL AGENT, TX-1082, ₹4,900), which stays optically fixed and centered.
+-      // By 0.52, the backing stock is completely settled before stamp impact.
+       // =========================================================================
+       timeline
+         .to(
+           "[data-travel-artifact]",
+-          {
+-            width: expandedWidth,
+-            duration: 0.18,
+-            ease: "power2.inOut",
+-          },
+-          0.32,
++          { width: expandedWidth, duration: 0.18, ease: "power2.inOut" },
++          0.15,
+         )
+         .to(
+           "[data-doc-top-extension]",
+-          {
+-            height: topTargetHeight,
+-            opacity: 1,
+-            duration: 0.16,
+-            ease: "power2.inOut",
+-          },
+-          0.33,
++          { height: topTargetHeight, opacity: 1, duration: 0.16, ease: "power2.inOut" },
++          0.16,
+         )
+         .to(
+           "[data-doc-bottom-extension]",
+-          {
+-            height: bottomTargetHeight,
+-            opacity: 1,
+-            duration: 0.18,
+-            ease: "power2.inOut",
+-          },
+-          0.33,
++          { height: bottomTargetHeight, opacity: 1, duration: 0.18, ease: "power2.inOut" },
++          0.16,
+         )
+         .to(
+           "[data-compact-doc-type]",
+-          {
+-            opacity: 0,
+-            duration: 0.06,
+-          },
+-          0.34,
++          { opacity: 0, duration: 0.06 },
++          0.17,
+         )
+         .to(
+           "[data-doc-header-title], [data-doc-pictogram], [data-doc-divider]",
+-          {
+-            opacity: 1,
+-            y: 0,
+-            duration: 0.10,
+-            ease: "power2.out",
+-          },
+-          0.38,
++          { opacity: 1, y: 0, duration: 0.10, ease: "power2.out" },
++          0.21,
+         )
+         .to(
+           "[data-comparison-ledger]",
+-          {
+-            opacity: 1,
+-            y: 0,
+-            duration: 0.10,
+-            ease: "power2.out",
+-          },
+-          0.40,
++          { opacity: 1, y: 0, duration: 0.10, ease: "power2.out" },
++          0.23,
+         )
+         .to(
+           "[data-doc-footer], [data-corner-mark]",
+-          {
+-            opacity: 1,
+-            duration: 0.08,
+-            ease: "power1.out",
+-          },
+-          0.44,
++          { opacity: 1, duration: 0.08, ease: "power1.out" },
++          0.27,
+         );
+ 
+       // =========================================================================
+-      // BEAT 5: HOLD STAMP IMPACT ON SETTLED BACKING STOCK (0.54 - 0.62)
++      // STAGE D — HOLD STAMP IMPACT ON SETTLED BACKING STOCK (0.37 - 0.45)
+       // Stamp impacts firmly. Backing stock is already physically resting.
+       // =========================================================================
+       timeline
+@@ -458,24 +296,24 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+           "[data-hold-stamp]",
+           { opacity: 0, scale: 1.35, rotation: -6 },
+           { opacity: 1, scale: 1, rotation: -3, duration: 0.04, ease: "power3.out" },
+-          0.54,
++          0.37,
+         )
+         .fromTo(
+           "[data-referral-notice]",
+           { opacity: 0, y: 4 },
+           { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" },
+-          0.58,
++          0.41,
+         )
+         .call(
+           () => {
+             if (barStatusEl) barStatusEl.textContent = "HELD FOR CLEARANCE // ₹4,900 > ₹3,000";
+           },
+           undefined,
+-          0.56,
++          0.39,
+         );
+ 
+       // =========================================================================
+-      // BEAT 6: ACTION CONTROLS & CLEAR ONCE AUTHORIZATION (0.62 - 0.80)
++      // STAGE E — ACTION CONTROLS & CLEAR ONCE AUTHORIZATION (0.45 - 0.63)
+       // Controls resolve. CLEAR ONCE seal strikes onto the document.
+       // =========================================================================
+       timeline
+@@ -483,150 +321,110 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+           "[data-action-controls]",
+           { opacity: 0, y: 6 },
+           { opacity: 1, y: 0, duration: 0.08, ease: "power2.out" },
+-          0.62,
++          0.45,
+         )
+         .call(
+           () => {
+             if (barStatusEl) barStatusEl.textContent = "REFER FOR APPROVAL // ROUTE OPEN";
+           },
+           undefined,
+-          0.68,
++          0.51,
+         )
+         .fromTo(
+           "[data-clear-seal]",
+           { opacity: 0, scale: 1.3 },
+           { opacity: 1, scale: 1, duration: 0.06, ease: "power2.out" },
+-          0.72,
++          0.55,
+         )
+         .to(
+           "[data-action-clear-box]",
+-          {
+-            backgroundColor: "rgba(169, 42, 36, 0.14)",
+-            borderColor: "var(--kp-red)",
+-            duration: 0.04,
+-          },
+-          0.76,
++          { backgroundColor: "rgba(169, 42, 36, 0.14)", borderColor: "var(--kp-red)", duration: 0.04 },
++          0.59,
+         )
+         .call(
+           () => {
+             if (barStatusEl) barStatusEl.textContent = "ONE-TIME CLEARANCE GRANTED // RELEASED";
+           },
+           undefined,
+-          0.78,
++          0.61,
+         );
+ 
+       // =========================================================================
+-      // BEAT 7: RELEASE CAUSALITY & RECONTRACTION (0.80 - 0.90)
++      // STAGE F — RELEASE CAUSALITY & RECONTRACTION (0.63 - 0.73)
+       // 1. Bracket unlocks & lifts
+       // 2. Secondary administrative fields retract
+       // 3. Backing stock recedes back around the identity spine into compact slip
+       // 4. Stamped clearance badge appears on the compact slip
+       // =========================================================================
+       timeline
+-        // 1. Bracket unlocks & lifts
+         .to(
+           "[data-registration-bar]",
+-          {
+-            y: -14,
+-            opacity: 0.35,
+-            borderColor: "rgba(235, 225, 201, 0.2)",
+-            duration: 0.05,
+-            ease: "power2.in",
+-          },
+-          0.80,
++          { y: -14, opacity: 0.35, borderColor: "rgba(235, 225, 201, 0.2)", duration: 0.05, ease: "power2.in" },
++          0.63,
+         )
+         .to(
+           "[data-clearance-bracket]",
+-          {
+-            y: 14,
+-            opacity: 0.35,
+-            borderColor: "rgba(235, 225, 201, 0.2)",
+-            duration: 0.05,
+-            ease: "power2.in",
+-          },
+-          0.80,
++          { y: 14, opacity: 0.35, borderColor: "rgba(235, 225, 201, 0.2)", duration: 0.05, ease: "power2.in" },
++          0.63,
+         )
+-        // 2. Secondary fields retract
+         .to(
+           "[data-doc-header-title], [data-doc-pictogram], [data-doc-divider], [data-comparison-ledger], [data-action-controls], [data-doc-footer], [data-corner-mark], [data-referral-notice]",
+-          {
+-            opacity: 0,
+-            y: -4,
+-            duration: 0.04,
+-            ease: "power1.in",
+-          },
+-          0.81,
++          { opacity: 0, y: -4, duration: 0.04, ease: "power1.in" },
++          0.64,
+         )
+-        // 3. Extensions collapse & width contracts back
+         .to(
+           "[data-doc-top-extension]",
+-          {
+-            height: 0,
+-            opacity: 0,
+-            duration: 0.07,
+-            ease: "power2.inOut",
+-          },
+-          0.83,
++          { height: 0, opacity: 0, duration: 0.07, ease: "power2.inOut" },
++          0.66,
+         )
+         .to(
+           "[data-doc-bottom-extension]",
+-          {
+-            height: 0,
+-            opacity: 0,
+-            duration: 0.07,
+-            ease: "power2.inOut",
+-          },
+-          0.83,
++          { height: 0, opacity: 0, duration: 0.07, ease: "power2.inOut" },
++          0.66,
+         )
+         .to(
+           "[data-travel-artifact]",
+-          {
+-            width: compactWidth,
+-            duration: 0.07,
+-            ease: "power2.inOut",
+-          },
+-          0.83,
++          { width: compactWidth, duration: 0.07, ease: "power2.inOut" },
++          0.66,
+         )
+-        // 4. Stamped clearance badge appears on the compact slip
+         .to(
+           "[data-compact-cleared-badge]",
+-          {
+-            height: 28,
+-            opacity: 1,
+-            duration: 0.04,
+-            ease: "power2.out",
+-          },
+-          0.87,
++          { height: 28, opacity: 1, duration: 0.04, ease: "power2.out" },
++          0.70,
+         );
+ 
+       // =========================================================================
+-      // BEAT 8: DOWNSTREAM ACCELERATION (0.90 - 1.00)
+-      // Retained tension releases -> SAME compact card accelerates downstream!
++      // STAGE G — DOWNSTREAM ACCELERATION (0.73 - 0.83)
++      // Retained tension releases -> SAME compact card accelerates downstream
++      // toward the 04->05 transition's own opening frame.
+       // =========================================================================
+-      timeline
+-        .to(
+-          "[data-stepup-travel-carrier]",
+-          {
+-            x: () => travelGeometry.exitX,
+-            y: () => travelGeometry.exitY,
+-            scaleX: () => travelGeometry.exitScaleX,
+-            scaleY: () => travelGeometry.exitScaleY,
+-            duration: 0.10,
+-            ease: "power2.in",
+-          },
+-          0.90,
+-        )
+-        .set({}, {}, 1.0);
++      timeline.to(
++        "[data-stepup-travel-carrier]",
++        {
++          x: () => travelGeometry.exitX,
++          y: () => travelGeometry.exitY,
++          scaleX: () => travelGeometry.exitScaleX,
++          scaleY: () => travelGeometry.exitScaleY,
++          duration: 0.10,
++          ease: "power2.in",
++        },
++        0.73,
++      );
++
++      // =========================================================================
++      // STAGE H — TERMINAL HOLD (0.83 - 1.00)
++      // =========================================================================
++      timeline.set({}, {}, 1.0);
+ 
+       // Deterministic reverse scrub status text updates
+       timeline.eventCallback("onUpdate", () => {
+         const p = timeline.progress();
+         if (barStatusEl) {
+-          if (p < 0.24) {
++          if (p < 0.07) {
+             barStatusEl.textContent = "CLEARANCE DATUM // READY";
+-          } else if (p < 0.54) {
++          } else if (p < 0.37) {
+             barStatusEl.textContent = "HELD AT DATUM // LIMIT EXCEEDED";
+-          } else if (p < 0.72) {
++          } else if (p < 0.55) {
+             barStatusEl.textContent = "REFER FOR APPROVAL // ROUTE OPEN";
+           } else {
+             barStatusEl.textContent = "ONE-TIME CLEARANCE GRANTED // RELEASED";
+@@ -636,10 +434,6 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
+ 
+       return () => {
+         visibilityTrigger.kill();
+-        artifactBridgeIn.kill();
+-        artifactBridgeOut.kill();
+-        ScrollTrigger.removeEventListener("refreshInit", cacheTravelGeometry);
+-        ScrollTrigger.removeEventListener("refresh", syncTravelCarrierVisibility);
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+       };
+diff --git a/src/lib/experience/transition-math.ts b/src/lib/experience/transition-math.ts
+new file mode 100644
+index 0000000..1be9394
+--- /dev/null
++++ b/src/lib/experience/transition-math.ts
+@@ -0,0 +1,38 @@
++/**
++ * Pure, DOM-free math for the cinematic transition controller. Kept separate
++ * from the component so scroll -> video-time / opacity mapping is unit
++ * testable without a browser.
++ */
++
++/** Linear scroll-progress (0..1) -> video.currentTime. Duration is read from
++ * the video element at runtime — never assume a frame count or fps. */
++export function progressToVideoTime(progress: number, duration: number): number {
++  if (!Number.isFinite(duration) || duration <= 0) return 0;
++  const clamped = Math.min(1, Math.max(0, progress));
++  return clamped * duration;
++}
++
++/**
++ * Opacity envelope for the video layer across a boundary: ramps 0 -> 1 over
++ * the first `edgeFraction`, holds at 1, ramps 1 -> 0 over the last
++ * `edgeFraction`. Only the entrance/exit blend uses easing (smoothstep);
++ * the interior is flat so video-time mapping stays purely linear.
++ */
++export function computeTransitionOpacity(progress: number, edgeFraction: number): number {
++  const clamped = Math.min(1, Math.max(0, progress));
++  const edge = Math.min(0.49, Math.max(0, edgeFraction));
++  if (edge === 0) return clamped > 0 && clamped < 1 ? 1 : clamped === 1 ? 1 : 0;
++
++  if (clamped <= edge) {
++    return smoothstep(clamped / edge);
++  }
++  if (clamped >= 1 - edge) {
++    return smoothstep((1 - clamped) / edge);
++  }
++  return 1;
++}
++
++function smoothstep(t: number): number {
++  const x = Math.min(1, Math.max(0, t));
++  return x * x * (3 - 2 * x);
++}
+diff --git a/src/lib/experience/transition-registry.ts b/src/lib/experience/transition-registry.ts
+new file mode 100644
+index 0000000..d7e458e
+--- /dev/null
++++ b/src/lib/experience/transition-registry.ts
+@@ -0,0 +1,76 @@
++import type { RegisteredSceneKey } from "./scene-registry";
++
++/**
++ * Single source of truth for the seven cinematic inter-scene video
++ * transitions. Boundary 07 -> 08 (concurrency -> causalReplay) is
++ * intentionally absent: Scene 08 uses only its own existing entrance.
++ */
++export type TransitionBoundary = {
++  id: string;
++  outgoing: RegisteredSceneKey;
++  incoming: RegisteredSceneKey;
++  /** Path under /public. */
++  src: string;
++  /** Scroll distance dedicated to this transition, in viewport heights. */
++  trackVh: number;
++};
++
++export const TRANSITION_REGISTRY: TransitionBoundary[] = [
++  {
++    id: "00-01",
++    outgoing: "prologue",
++    incoming: "mandate",
++    src: "/assets/kavachpay/transitions/00-01-opening-mandate.mp4",
++    trackVh: 180,
++  },
++  {
++    id: "01-02",
++    outgoing: "mandate",
++    incoming: "decisions",
++    src: "/assets/kavachpay/transitions/01-02-mandate-decisions.mp4",
++    trackVh: 180,
++  },
++  {
++    id: "02-03",
++    outgoing: "decisions",
++    incoming: "delegation",
++    src: "/assets/kavachpay/transitions/02-03-decisions-delegation.mp4",
++    trackVh: 180,
++  },
++  {
++    id: "03-04",
++    outgoing: "delegation",
++    incoming: "stepUp",
++    src: "/assets/kavachpay/transitions/03-04-delegation-stepup.mp4",
++    trackVh: 180,
++  },
++  {
++    id: "04-05",
++    outgoing: "stepUp",
++    incoming: "revocation",
++    src: "/assets/kavachpay/transitions/04-05-stepup-revocation.mp4",
++    trackVh: 200,
++  },
++  {
++    id: "05-06",
++    outgoing: "revocation",
++    incoming: "splitDefense",
++    src: "/assets/kavachpay/transitions/05-06-revocation-split-defense.mp4",
++    trackVh: 200,
++  },
++  {
++    id: "06-07",
++    outgoing: "splitDefense",
++    incoming: "concurrency",
++    src: "/assets/kavachpay/transitions/06-07-split-defense-concurrency.mp4",
++    trackVh: 200,
++  },
++] as const;
++
++/** Boundary-overlap window (px) bleeding into the adjacent scenes' own tracks
++ * so the outgoing scene is still visible as the video ramps in, and the
++ * incoming scene is already visible as the video ramps out. */
++export const TRANSITION_OVERLAP_PX = 64;
++
++/** Fraction of total boundary progress spent easing opacity in/out. */
++export const TRANSITION_EDGE_FRACTION = 0.05;
+diff --git a/tests/visual/boundary-review.spec.ts b/tests/visual/boundary-review.spec.ts
+index dcfdeb1..7b20424 100644
+--- a/tests/visual/boundary-review.spec.ts
++++ b/tests/visual/boundary-review.spec.ts
+@@ -534,6 +534,11 @@ test.describe("Global Scene Boundary Geometry & Invariant Assertions", () => {
+         return all.find((t) => t.trigger === el);
+       };
+ 
++      const getTransitionHeight = (id: string) => {
++        const el = document.querySelector(`[data-transition-track='${id}']`);
++        return el ? el.getBoundingClientRect().height : 0;
++      };
++
+       const prologue = getST("prologue");
+       const mandate = getST("mandate");
+       const decisions = getST("decisions");
+@@ -550,20 +555,32 @@ test.describe("Global Scene Boundary Geometry & Invariant Assertions", () => {
+         delegationEnd: delegation?.end ?? 0,
+         stepUpStart: stepUp?.start ?? 0,
+         stepUpEnd: stepUp?.end ?? 0,
++        t0001: getTransitionHeight("00-01"),
++        t0102: getTransitionHeight("01-02"),
++        t0203: getTransitionHeight("02-03"),
++        t0304: getTransitionHeight("03-04"),
+       };
+     });
+ 
+-    // Invariant 0: Prologue end aligns with Mandate start within 2px
+-    expect(Math.abs(boundaryData.prologueEnd - boundaryData.mandateStart)).toBeLessThanOrEqual(2);
+-
+-    // Invariant 1: Mandate end aligns with Decisions start within 2px
+-    expect(Math.abs(boundaryData.mandateEnd - boundaryData.decisionsStart)).toBeLessThanOrEqual(2);
+-
+-    // Invariant 2: Decisions end aligns with Delegation start within 2px
+-    expect(Math.abs(boundaryData.decisionsEnd - boundaryData.delegationStart)).toBeLessThanOrEqual(2);
+-
+-    // Invariant 3: Delegation end aligns with Step-Up start within 2px
+-    expect(Math.abs(boundaryData.delegationEnd - boundaryData.stepUpStart)).toBeLessThanOrEqual(2);
++    // Invariants 0-3: each pair of consecutive scene tracks is separated by
++    // exactly its dedicated cinematic-transition scroll spacer (the video
++    // transition layer's own scroll distance) — no unexplained gap, and no
++    // longer flush against each other now that boundary videos own that space.
++    expect(
++      Math.abs(boundaryData.mandateStart - boundaryData.prologueEnd - boundaryData.t0001),
++    ).toBeLessThanOrEqual(2);
++
++    expect(
++      Math.abs(boundaryData.decisionsStart - boundaryData.mandateEnd - boundaryData.t0102),
++    ).toBeLessThanOrEqual(2);
++
++    expect(
++      Math.abs(boundaryData.delegationStart - boundaryData.decisionsEnd - boundaryData.t0203),
++    ).toBeLessThanOrEqual(2);
++
++    expect(
++      Math.abs(boundaryData.stepUpStart - boundaryData.delegationEnd - boundaryData.t0304),
++    ).toBeLessThanOrEqual(2);
+ 
+     // Invariant 4: Incoming sections are visible when scroll reaches their start
+     for (const [sceneSel, startVal] of [
+diff --git a/tests/visual/cinematic-transitions.spec.ts b/tests/visual/cinematic-transitions.spec.ts
+new file mode 100644
+index 0000000..edbee94
+--- /dev/null
++++ b/tests/visual/cinematic-transitions.spec.ts
+@@ -0,0 +1,216 @@
++import { test, expect } from "@playwright/test";
++import type { Page } from "@playwright/test";
++import { prepareVisualPage } from "./helpers/scene-checkpoints";
++import { readOwnership } from "./helpers/ownership";
++
++/**
++ * Verifies the single-owner cinematic video transition layer
++ * (CinematicTransitionLayer + transition-registry + transition-math):
++ * scroll-position -> video.currentTime determinism, exactly seven video
++ * boundaries with none at 07->08, bypass paths (mobile / reduced motion /
++ * direct nav / failed media), and that the layer never steals interaction.
++ */
++
++async function scrollToBoundaryProgress(page: Page, id: string, progress: number) {
++  return page.evaluate(
++    ({ id, progress }) => {
++      const el = document.querySelector<HTMLElement>(`[data-transition-track='${id}']`);
++      if (!el) throw new Error(`Missing transition track: ${id}`);
++      const rect = el.getBoundingClientRect();
++      const top = rect.top + window.scrollY;
++      const start = top - 64;
++      const end = top + rect.height + 64;
++      const y = start + progress * (end - start);
++      window.scrollTo(0, y);
++      (window as unknown as { ScrollTrigger?: { update?: () => void } }).ScrollTrigger?.update?.();
++      return y;
++    },
++    { id, progress },
++  );
++}
++
++function readVideo(page: Page, id: string) {
++  return page.evaluate(
++    (id) => {
++      const v = document.querySelector<HTMLVideoElement>(`[data-transition-video='${id}']`);
++      if (!v) return null;
++      const cs = window.getComputedStyle(v);
++      return {
++        opacity: parseFloat(cs.opacity),
++        pointerEvents: cs.pointerEvents,
++        currentTime: v.currentTime,
++        duration: v.duration,
++        paused: v.paused,
++        muted: v.muted,
++        controls: v.controls,
++      };
++    },
++    id,
++  );
++}
++
++test.describe("Cinematic transition registry", () => {
++  test("exactly seven boundaries, none for 07->08", async ({ page }) => {
++    await prepareVisualPage(page);
++    const ids = await page.evaluate(() =>
++      Array.from(document.querySelectorAll("[data-transition-track]")).map(
++        (el) => (el as HTMLElement).dataset.transitionTrack,
++      ),
++    );
++    expect(ids).toHaveLength(7);
++    expect(ids).toEqual([
++      "00-01",
++      "01-02",
++      "02-03",
++      "03-04",
++      "04-05",
++      "05-06",
++      "06-07",
++    ]);
++    expect(ids).not.toContain("07-08");
++
++    // Videos mirror the tracks 1:1.
++    const videoIds = await page.evaluate(() =>
++      Array.from(document.querySelectorAll("[data-transition-video]")).map(
++        (el) => (el as HTMLElement).dataset.transitionVideo,
++      ),
++    );
++    expect(videoIds).toHaveLength(7);
++  });
++
++  test("videos are paused, muted, controls-less, and never intercept pointer events", async ({ page }) => {
++    await prepareVisualPage(page);
++    const boundaryIds = ["00-01", "01-02", "02-03", "03-04", "04-05", "05-06", "06-07"];
++    for (const id of boundaryIds) {
++      const v = await readVideo(page, id);
++      expect(v, id).not.toBeNull();
++      expect(v!.paused, id).toBe(true);
++      expect(v!.muted, id).toBe(true);
++      expect(v!.controls, id).toBe(false);
++      expect(v!.pointerEvents, id).toBe("none");
++    }
++  });
++});
++
++const MOBILE_PROJECTS = new Set(["430x932", "390x844"]);
++
++test.describe("Scroll-driven scrub determinism", () => {
++  test("progress maps linearly to video.currentTime, forward and reverse", async ({ page }, testInfo) => {
++    test.skip(
++      MOBILE_PROJECTS.has(testInfo.project.name),
++      "Mobile intentionally bypasses the video layer (responsive policy) — scrub determinism is a desktop/tablet concern.",
++    );
++    await prepareVisualPage(page);
++    await page.evaluate(() => window.scrollTo(0, 0));
++
++    // Warm the boundary's metadata (duration) before asserting exact times.
++    await scrollToBoundaryProgress(page, "00-01", 0.01);
++    await page.waitForFunction(() => {
++      const v = document.querySelector<HTMLVideoElement>("[data-transition-video='00-01']");
++      return !!v && v.duration > 0;
++    });
++
++    const samples = [0.1, 0.3, 0.5, 0.7, 0.9];
++    for (const p of samples) {
++      await scrollToBoundaryProgress(page, "00-01", p);
++      await page.waitForTimeout(30);
++      const v = await readVideo(page, "00-01");
++      expect(v!.currentTime, `forward @ ${p}`).toBeCloseTo(p * v!.duration, 1);
++    }
++
++    // Reverse: must scrub backward smoothly, not snap to 0 or replay.
++    const reverseSamples = [0.7, 0.5, 0.3, 0.55, 0.4];
++    for (const p of reverseSamples) {
++      await scrollToBoundaryProgress(page, "00-01", p);
++      await page.waitForTimeout(30);
++      const v = await readVideo(page, "00-01");
++      expect(v!.currentTime, `reverse @ ${p}`).toBeCloseTo(p * v!.duration, 1);
++    }
++  });
++
++  test("outgoing scene fully visible at progress 0, incoming scene fully visible at progress 1, video invisible at both edges", async ({ page }) => {
++    await prepareVisualPage(page);
++    await page.evaluate(() => window.scrollTo(0, 0));
++
++    await scrollToBoundaryProgress(page, "00-01", 0.0);
++    await page.waitForTimeout(30);
++    let o = await readOwnership(page);
++    expect(o.visibleRootIds).toEqual(["prologue"]);
++    let v = await readVideo(page, "00-01");
++    expect(v!.opacity).toBeLessThan(0.05);
++
++    await scrollToBoundaryProgress(page, "00-01", 1.0);
++    await page.waitForTimeout(30);
++    o = await readOwnership(page);
++    expect(o.visibleRootIds).toEqual(["mandate"]);
++    v = await readVideo(page, "00-01");
++    expect(v!.opacity).toBeLessThan(0.05);
++  });
++
++  test("exactly one live scene owns the stage mid-transition (video fully occludes both)", async ({ page }, testInfo) => {
++    test.skip(
++      MOBILE_PROJECTS.has(testInfo.project.name),
++      "Mobile intentionally bypasses the video layer (responsive policy) — no video occlusion to assert.",
++    );
++    await prepareVisualPage(page);
++    await scrollToBoundaryProgress(page, "00-01", 0.5);
++    await page.waitForTimeout(30);
++    const o = await readOwnership(page);
++    expect(o.visibleRootCount).toBeLessThanOrEqual(1);
++    const v = await readVideo(page, "00-01");
++    expect(v!.opacity).toBeGreaterThan(0.9);
++  });
++});
++
++test.describe("Bypass paths", () => {
++  test("navbar direct navigation bypasses the video layer entirely", async ({ page }, testInfo) => {
++    await prepareVisualPage(page);
++    if (MOBILE_PROJECTS.has(testInfo.project.name)) {
++      await page.getByRole("button", { name: "CONTROL INDEX" }).click();
++      await page.locator("[data-mobile-chapter]", { hasText: "REVOCATION" }).click();
++    } else {
++      await page.getByRole("button", { name: "05 REVOCATION" }).click();
++    }
++    await page.waitForTimeout(100);
++
++    const opacities = await page.evaluate(() =>
++      Array.from(document.querySelectorAll<HTMLVideoElement>("[data-transition-video]")).map(
++        (v) => parseFloat(getComputedStyle(v).opacity) || 0,
++      ),
++    );
++    for (const opacity of opacities) {
++      expect(opacity).toBeLessThan(0.05);
++    }
++    const o = await readOwnership(page);
++    expect(o.visibleRootIds).toEqual(["revocation"]);
++  });
++
++  test("prefers-reduced-motion bypasses scrubbing: video stays invisible across the whole boundary", async ({ page }) => {
++    await page.emulateMedia({ reducedMotion: "reduce" });
++    await prepareVisualPage(page);
++
++    for (const p of [0.1, 0.5, 0.9]) {
++      await scrollToBoundaryProgress(page, "00-01", p);
++      await page.waitForTimeout(30);
++      const v = await readVideo(page, "00-01");
++      expect(v!.opacity, `reduced-motion @ ${p}`).toBeLessThan(0.05);
++    }
++  });
++
++  test("a boundary whose video fails to load falls back to a clean cut without trapping scroll", async ({ page }) => {
++    await page.route("**/00-01-opening-mandate.mp4", (route) => route.fulfill({ status: 404 }));
++    await prepareVisualPage(page);
++
++    await scrollToBoundaryProgress(page, "00-01", 0.5);
++    await page.waitForTimeout(200);
++
++    const v = await readVideo(page, "00-01");
++    expect(v!.opacity).toBeLessThan(0.05);
++
++    // Scroll must still work past the failed boundary.
++    await scrollToBoundaryProgress(page, "00-01", 1.0);
++    await page.waitForTimeout(50);
++    const o = await readOwnership(page);
++    expect(o.visibleRootIds).toEqual(["mandate"]);
++  });
++});

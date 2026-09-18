@@ -1,11 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { SCENE_BY_KEY, SCENE_REGISTRY, type RegisteredSceneKey } from "@/lib/experience/scene-registry";
 import { useExperienceStore } from "@/lib/experience/store";
-import { useAuth } from "@/lib/auth/auth-context";
 import styles from "./GlobalNavbar.module.css";
 
 type GlobalNavbarProps = {
@@ -13,20 +10,16 @@ type GlobalNavbarProps = {
   onMenuOpenChange: (open: boolean) => void;
 };
 
-const ACTION_NOTICE = "";
+const ACTION_NOTICE = "Destination reserved for the application phase; not implemented in this landing-page pass.";
 
 export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps) {
-  const router = useRouter();
-  const { isAuthenticated, user, logout } = useAuth();
   const activeScene = useExperienceStore((state) => state.activeScene);
+  const introComplete = useExperienceStore((state) => state.introComplete);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const navRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const active = activeScene === "none" ? null : SCENE_BY_KEY[activeScene];
-  // suppress unused-variable warning from the notice pattern kept for aria
-  void ACTION_NOTICE;
-  void setNotice;
 
   const setOpen = useCallback((open: boolean) => {
     setMenuOpen(open);
@@ -38,18 +31,9 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
     onNavigate(scene);
   };
 
-  const handleEnter = useCallback(() => {
-    if (isAuthenticated) {
-      router.push("/dashboard");
-    } else {
-      router.push("/auth");
-    }
-  }, [isAuthenticated, router]);
-
-  const handleSignOut = useCallback(async () => {
-    await logout();
-    router.push("/");
-  }, [logout, router]);
+  const announceUnavailable = (label: string) => {
+    setNotice(`${label}. ${ACTION_NOTICE}`);
+  };
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -84,7 +68,14 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
   }, [menuOpen, setOpen]);
 
   return (
-    <nav ref={navRef} className={styles.nav} aria-label="KavachPay control index" data-global-navbar>
+    <nav
+      ref={navRef}
+      className={styles.nav}
+      aria-label="KavachPay control index"
+      data-global-navbar
+      data-intro-hidden={!introComplete || undefined}
+      inert={!introComplete}
+    >
       <button className={styles.brand} type="button" onClick={() => navigate("prologue")}>
         KAVACHPAY
       </button>
@@ -114,40 +105,13 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
       </div>
 
       <div className={styles.actions}>
-        {isAuthenticated ? (
-          <>
-            {user?.email && (
-              <span
-                className={styles.secondaryAction}
-                style={{ opacity: 0.55, cursor: "default", fontSize: "10px", letterSpacing: "0.08em" }}
-                aria-label={`Signed in as ${user.email}`}
-              >
-                {user.email.split("@")[0].toUpperCase()}
-              </span>
-            )}
-            <button
-              type="button"
-              className={styles.secondaryAction}
-              onClick={handleSignOut}
-            >
-              SIGN OUT
-            </button>
-          </>
-        ) : (
-          <>
-            <Link href="/auth" className={styles.secondaryAction}>
-              LOGIN
-            </Link>
-            <Link href="/auth" className={styles.secondaryAction}>
-              SIGN UP
-            </Link>
-          </>
-        )}
-        <button
-          type="button"
-          className={styles.primaryAction}
-          onClick={handleEnter}
-        >
+        <button type="button" className={styles.secondaryAction} aria-disabled="true" onClick={() => announceUnavailable("Login")}>
+          LOGIN
+        </button>
+        <button type="button" className={styles.secondaryAction} aria-disabled="true" onClick={() => announceUnavailable("Sign up")}>
+          SIGN UP
+        </button>
+        <button type="button" className={styles.primaryAction} aria-disabled="true" onClick={() => announceUnavailable("Enter KavachPay")}>
           ENTER KAVACHPAY
         </button>
       </div>
@@ -195,17 +159,9 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
           })}
         </div>
         <div className={styles.mobileActions}>
-          {isAuthenticated ? (
-            <button type="button" onClick={handleSignOut}>SIGN OUT</button>
-          ) : (
-            <>
-              <Link href="/auth">LOGIN</Link>
-              <Link href="/auth">SIGN UP</Link>
-            </>
-          )}
-          <button type="button" className={styles.primaryAction} onClick={handleEnter}>
-            ENTER KAVACHPAY
-          </button>
+          <button type="button" aria-disabled="true" onClick={() => announceUnavailable("Login")}>LOGIN</button>
+          <button type="button" aria-disabled="true" onClick={() => announceUnavailable("Sign up")}>SIGN UP</button>
+          <button type="button" className={styles.primaryAction} aria-disabled="true" onClick={() => announceUnavailable("Enter KavachPay")}>ENTER KAVACHPAY</button>
         </div>
       </div>
 

@@ -1,0 +1,98 @@
+{
+  "desktop": {
+    "oldBars": 0,
+    "scenes": {
+      "split-defense": {
+        "visibility": "visible",
+        "ariaHidden": "false"
+      },
+      "concurrency": {
+        "visibility": "visible",
+        "ariaHidden": "false"
+      },
+      "causal-replay": {
+        "visibility": "visible",
+        "ariaHidden": "false"
+      }
+    }
+  },
+  "mobile": {
+    "oldBars": 0,
+    "scenes": {
+      "split-defense": {
+        "visibility": "visible",
+        "ariaHidden": "false"
+      },
+      "concurrency": {
+        "visibility": "visible",
+        "ariaHidden": "false"
+      },
+      "causal-replay": {
+        "visibility": "visible",
+        "ariaHidden": "false"
+      }
+    }
+  },
+  "reduced": {
+    "split-defense": [
+      {
+        "id": "split-defense",
+        "visibility": "visible",
+        "ariaHidden": "false",
+        "pointerEvents": "auto"
+      },
+      {
+        "id": "concurrency",
+        "visibility": "hidden",
+        "ariaHidden": "true",
+        "pointerEvents": "none"
+      },
+      {
+        "id": "causal-replay",
+        "visibility": "hidden",
+        "ariaHidden": "true",
+        "pointerEvents": "none"
+      }
+    ],
+    "concurrency": [
+      {
+        "id": "split-defense",
+        "visibility": "hidden",
+        "ariaHidden": "true",
+        "pointerEvents": "none"
+      },
+      {
+        "id": "concurrency",
+        "visibility": "visible",
+        "ariaHidden": "false",
+        "pointerEvents": "auto"
+      },
+      {
+        "id": "causal-replay",
+        "visibility": "hidden",
+        "ariaHidden": "true",
+        "pointerEvents": "none"
+      }
+    ],
+    "causal-replay": [
+      {
+        "id": "split-defense",
+        "visibility": "hidden",
+        "ariaHidden": "true",
+        "pointerEvents": "none"
+      },
+      {
+        "id": "concurrency",
+        "visibility": "hidden",
+        "ariaHidden": "true",
+        "pointerEvents": "none"
+      },
+      {
+        "id": "causal-replay",
+        "visibility": "visible",
+        "ariaHidden": "false",
+        "pointerEvents": "auto"
+      }
+    ]
+  }
+}

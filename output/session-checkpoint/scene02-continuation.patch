@@ -1,0 +1,794 @@
+diff --git a/src/components/experience/Decisions/DecisionsScene.module.css b/src/components/experience/Decisions/DecisionsScene.module.css
+index 218002e..64aef5e 100644
+--- a/src/components/experience/Decisions/DecisionsScene.module.css
++++ b/src/components/experience/Decisions/DecisionsScene.module.css
+@@ -145,7 +145,7 @@
+ }
+ 
+ .tagDeny {
+-  color: var(--kp-ivory);
++  color: var(--kp-red);
+ }
+ 
+ .laneRule {
+@@ -190,6 +190,8 @@
+   display: flex;
+   align-items: center;
+   z-index: 2;
++  /* Receipts emerge from the track's left edge, never over the lane label. */
++  overflow: hidden;
+ }
+ 
+ .trackLine {
+@@ -434,18 +436,6 @@
+ }
+ 
+ /* Approved receipt carrier: same viewport datum in Decisions and Delegation. */
+-.evidenceCarrier {
+-  position: absolute;
+-  left: 50%;
+-  top: 50%;
+-  z-index: 25;
+-  width: max-content;
+-  transform: translate(-50%, -50%);
+-  transform-origin: center;
+-  pointer-events: none;
+-  will-change: transform, opacity;
+-}
+-
+ /* -------------------------------------------------------------------------- */
+ @media (prefers-reduced-motion: reduce) {
+   .section {
+diff --git a/src/components/experience/Decisions/DecisionsScene.tsx b/src/components/experience/Decisions/DecisionsScene.tsx
+index 770778a..b81ecf2 100644
+--- a/src/components/experience/Decisions/DecisionsScene.tsx
++++ b/src/components/experience/Decisions/DecisionsScene.tsx
+@@ -14,55 +14,149 @@ type DecisionsSceneProps = {
+   trackRef?: React.RefObject<HTMLDivElement | null>;
+ };
+ 
++// Film geometry (video px, 1280x720) measured from the approved clips.
++// 01->02 last frame: three lane labels (no letters, no receipts). 02->03 first
++// frame: labels with letters, three receipts resting in their lanes.
++type Box = { x0: number; y0: number; x1: number; y1: number };
++const FILM_W = 1280;
++const FILM_H = 720;
++const LANES = ["allow", "stepup", "deny"] as const;
++type Lane = (typeof LANES)[number];
++
++const IN_LABEL: Record<Lane, Box> = {
++  allow: { x0: 11, y0: 122, x1: 102, y1: 165 },
++  stepup: { x0: 12, y0: 345, x1: 126, y1: 389 },
++  deny: { x0: 12, y0: 569, x1: 83, y1: 612 },
++};
++const OUT_LABEL: Record<Lane, Box> = {
++  allow: { x0: 29, y0: 129, x1: 116, y1: 170 },
++  stepup: { x0: 30, y0: 346, x1: 141, y1: 387 },
++  deny: { x0: 30, y0: 566, x1: 99, y1: 604 },
++};
++const OUT_RECEIPT: Record<Lane, Box> = {
++  allow: { x0: 639, y0: 74, x1: 876, y1: 224 },
++  stepup: { x0: 492, y0: 292, x1: 729, y1: 443 },
++  deny: { x0: 459, y0: 509, x1: 696, y1: 659 },
++};
++// Mobile has no film: receipts rest at these fractions of the track width.
++// Continuity travels furthest, interruption stops mid-lane, termination earliest.
++const MOBILE_REST: Record<Lane, number> = { allow: 0.66, stepup: 0.5, deny: 0.4 };
++
+ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+   const root = useRef<HTMLElement>(null);
+   const stageRef = useRef<HTMLDivElement>(null);
+ 
+   useGSAP(
+     () => {
++      const scope = root.current;
++      if (!scope || !stageRef.current) return;
++      const isMobile = window.matchMedia("(max-width: 48rem)").matches;
+       const prefersReduced = experienceStore.getState().reducedMotion;
+-      if (prefersReduced) {
+-        if (root.current) {
+-          root.current.style.visibility = "visible";
+-          root.current.style.pointerEvents = "auto";
+-        }
+-        if (stageRef.current) {
+-          stageRef.current.style.visibility = "visible";
++
++      const one = <T extends HTMLElement>(sel: string) => scope.querySelector<T>(sel);
++      const carriage = (l: Lane) => one(`[data-receipt-wrap='${l}']`)!;
++      const wrap = (l: Lane) => one(`[data-lane-tagwrap='${l}']`)!;
++      if (LANES.some((l) => !carriage(l) || !wrap(l))) return;
++
++      // ---- Film-box geometry (see DelegationScene: the layer sits under the
++      // navbar and is object-fit: cover, so its box sets the film scale). ----
++      const filmBox = (key: string) => {
++        const box = document.querySelector<HTMLElement>(`video[src*="${key}"]`)?.getBoundingClientRect();
++        const bw = box?.width || window.innerWidth;
++        const bh = box?.height || window.innerHeight;
++        const s = Math.max(bw / FILM_W, bh / FILM_H);
++        return {
++          s,
++          ox: (box?.left ?? 0) - (FILM_W * s - bw) / 2,
++          oy: (box?.top ?? 0) - (FILM_H * s - bh) / 2,
++        };
++      };
++      const tx = (el: Element) => Number(gsap.getProperty(el, "x")) || 0;
++      const ty = (el: Element) => Number(gsap.getProperty(el, "y")) || 0;
++
++      // Label wraps rest at their live layout position. The film frames the labels
++      // at the edge of the video (no page gutter), so absolute film positions
++      // cannot be used without pushing the letters off-screen; instead the live
++      // labels follow the film's own relative IN -> OUT settle (letters
++      // register, labels yield the space), offset by that shift at scene start.
++      const labelStart = (l: Lane) => {
++        const f = filmBox("01-02");
++        return {
++          x: (IN_LABEL[l].x0 - OUT_LABEL[l].x0) * f.s,
++          y: (IN_LABEL[l].y0 - OUT_LABEL[l].y0) * f.s,
++        };
++      };
++
++      // Receipts: centred on the track at 36% (CSS) when untransformed.
++      const natural = (el: HTMLElement) => {
++        const r = el.getBoundingClientRect();
++        return { cx: r.left + r.width / 2 - tx(el), cy: r.top + r.height / 2 - ty(el) };
++      };
++      const trackOf = (l: Lane) => carriage(l).parentElement!.getBoundingClientRect();
++      const rest = (l: Lane) => {
++        const el = carriage(l);
++        const n = natural(el);
++        if (isMobile) {
++          const t = trackOf(l);
++          return { x: t.left + MOBILE_REST[l] * t.width - n.cx, y: 0, scale: 1 };
+         }
+-        gsap.set(
+-          "[data-lane-tag='allow'], [data-lane-tag='stepup'], [data-lane-tag='deny']",
+-          {
+-            scale: 1,
+-            x: 0,
+-            y: 0,
+-            opacity: 1,
+-            clipPath: "none",
+-            letterSpacing: "-0.025em",
+-          },
+-        );
++        const f = filmBox("02-03");
++        const b = OUT_RECEIPT[l];
++        return {
++          x: f.ox + ((b.x0 + b.x1) / 2) * f.s - n.cx,
++          y: f.oy + ((b.y0 + b.y1) / 2) * f.s - n.cy,
++          scale: ((b.x1 - b.x0) * f.s) / el.offsetWidth,
++        };
++      };
++      // Fully left of the lane track, level with its rest position.
++      const start = (l: Lane) => {
++        const el = carriage(l);
++        const n = natural(el);
++        const r = rest(l);
++        const t = trackOf(l);
++        return { x: t.left - (el.offsetWidth * r.scale) / 2 - n.cx, y: r.y, scale: r.scale };
++      };
++      // Just short of the rest slot, for the abrupt stop of STEP-UP and DENY.
++      const approach = (l: Lane, fraction: number) => {
++        const a = start(l);
++        const b = rest(l);
++        return { x: a.x + (b.x - a.x) * fraction, y: b.y, scale: b.scale };
++      };
++
++      const setBodyVisible = (visible: boolean) => {
++        scope.style.visibility = visible ? "visible" : "hidden";
++        scope.style.pointerEvents = visible ? "auto" : "none";
++        scope.setAttribute("aria-hidden", visible ? "false" : "true");
++        if (stageRef.current) stageRef.current.style.visibility = visible ? "visible" : "hidden";
++      };
++
++      // Receipts emerge from their lane track, never over the lane label: clip
++      // each track to start just past its label (labels can be wider than the
++      // label column). Static layout, re-measured on every ScrollTrigger refresh.
++      const clipTracks = () =>
++        LANES.forEach((l) => {
++          const track = carriage(l).parentElement!;
++          const label = wrap(l).getBoundingClientRect();
++          const box = track.getBoundingClientRect();
++          // Only when label and track share a row (desktop); on mobile the label sits above.
++          const sameRow = label.bottom - ty(wrap(l)) > box.top + 4 && label.top - ty(wrap(l)) < box.bottom - 4;
++          const inset = sameRow ? Math.max(0, label.right - tx(wrap(l)) + 12 - box.left) : 0;
++          track.style.clipPath = `inset(0px 0px 0px ${inset}px)`;
++        });
++
++      // Receipts own their transform completely (CSS centres them with translateX(-50%)).
++      gsap.set(LANES.map(carriage), { xPercent: -50, x: 0, y: 0 });
++
++      if (prefersReduced) {
++        setBodyVisible(true);
++        LANES.forEach((l) => gsap.set(carriage(l), { opacity: 1, ...rest(l) }));
++        gsap.set("[data-stamp], [data-note], [data-gate], [data-barrier], [data-lane-letter], [data-lane-rule]", { opacity: 1 });
++        gsap.set("[data-gate], [data-barrier]", { clipPath: "inset(0% 0% 0% 0%)" });
+         return;
+       }
+-      if (!root.current || !stageRef.current) return;
+-
+-      const isMobile = window.matchMedia("(max-width: 48rem)").matches;
+-      const allowMidX = isMobile ? 10 : 35;
+-      const allowExitX = isMobile ? 28 : 68;
+-      const stepUpArrestX = isMobile ? 2 : 6;
+-      const denyHaltX = isMobile ? -6 : -8;
+ 
+       const isPersistent = Boolean(trackRef);
+-      const triggerEl = trackRef?.current ?? (isPersistent ? "[data-track='decisions']" : root.current);
+-
+-      const applyVisibility = (visible: boolean) => {
+-        if (root.current) {
+-          root.current.style.visibility = visible ? "visible" : "hidden";
+-          root.current.style.pointerEvents = visible ? "auto" : "none";
+-          root.current.setAttribute("aria-hidden", visible ? "false" : "true");
+-        }
+-        if (stageRef.current) {
+-          stageRef.current.style.visibility = visible ? "visible" : "hidden";
+-        }
+-      };
++      const triggerEl = trackRef?.current ?? (isPersistent ? "[data-track='decisions']" : scope);
+ 
+       const timeline = gsap.timeline({
+         defaults: { ease: "none" },
+@@ -79,406 +173,140 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+         },
+       });
+ 
+-      // Body visibility trigger scoped to Decisions' own true pinned window.
+-      // Trailing edge is exact (no bleed into Delegation) — only the approved
+-      // receipt evidence carrier survives via its independent bridge trigger.
++      // Body visibility. Desktop: 1px epsilon (not an authored overlap): GSAP's
++      // onEnter for a non-scrubbed trigger needs progress strictly > 0.
++      // Mobile has no film: Mandate's body deliberately lingers 120px past its
++      // end (it sits under the desktop film), so mobile hands over at that point.
++      const announce = () =>
++        window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "decisions" } }));
+       const visibilityTrigger = ScrollTrigger.create({
+         trigger: triggerEl,
+-        start: "top top+=100px",
++        start: isMobile ? "top top-=120px" : "top top+=1px",
+         end: "bottom top",
+         onEnter: () => {
+-          applyVisibility(true);
+-          window.dispatchEvent(
+-            new CustomEvent("kp:scene", {
+-              detail: { id: "decisions" },
+-            }),
+-          );
++          setBodyVisible(true);
++          announce();
+         },
+         onEnterBack: () => {
+-          applyVisibility(true);
+-          window.dispatchEvent(
+-            new CustomEvent("kp:scene", {
+-              detail: { id: "decisions" },
+-            }),
+-          );
++          setBodyVisible(true);
++          announce();
+         },
+         onLeave: () => {
+-          if (isPersistent) applyVisibility(false);
+-        },
+-        onLeaveBack: () => {
+-          applyVisibility(false);
++          if (isPersistent) setBodyVisible(false);
+         },
++        onLeaveBack: () => setBodyVisible(false),
+       });
+ 
+-      const startScale = isMobile ? 2.1 : 2.45;
+-
+-      // Initial setup for deterministic forward and reverse scrub
+-      gsap.set(
+-        "[data-lane-tag='allow'], [data-lane-tag='stepup'], [data-lane-tag='deny']",
+-        {
+-          scale: startScale,
+-          x: 0,
+-          y: -6,
+-          opacity: 0,
+-          clipPath: "inset(0% 0% 100% 0%)",
+-          letterSpacing: "-0.01em",
+-          transformOrigin: "left center",
+-        },
+-      );
+-      gsap.set("[data-lane-tag='deny']", {
+-        color: "#ebe1c9",
+-      });
++      clipTracks();
++      ScrollTrigger.addEventListener("refresh", clipTracks);
++
++      // ---- Initial state: exactly the 01->02 film's last frame ---------------
++      // Apparatus already established: labels, descriptors, lane lines, header,
++      // footer. Not yet present: lane letters, sprocket rows, receipts, stamps,
++      // notes, the STEP-UP gate and the DENY barrier.
++      const HIDE_TOP = "inset(0% 0% 100% 0%)";
++      const SHOW = "inset(0% 0% 0% 0%)";
+       gsap.set("[data-lane-letter]", { opacity: 0, x: -10 });
+-      gsap.set("[data-lane-rule]", { opacity: 0, y: -6 });
+-      gsap.set("[data-lane-track-line]", { scaleX: 0, transformOrigin: "left center" });
+-      gsap.set("[data-decisions-header]", { opacity: 0, y: -8 });
+-      gsap.set("[data-decisions-footer]", { opacity: 0, y: 8 });
+       gsap.set("[data-lane-sprockets]", { opacity: 0 });
+-      gsap.set("[data-receipt-wrap]", { opacity: 0, xPercent: -130 });
+-      gsap.set("[data-gate='stepup']", { opacity: 0, scaleY: 0 });
+-      gsap.set("[data-barrier='deny']", { opacity: 0, scaleX: 0 });
+       gsap.set("[data-stamp]", { opacity: 0 });
+       gsap.set("[data-note]", { opacity: 0, x: 12 });
+-      // No explicit visibility override: this element is an ordinary descendant
+-      // of the scene root now, and must inherit the root's hidden/visible state
+-      // like everything else — the old boundary crossfade that needed it to
+-      // stay visible while the root was hidden is gone.
+-      gsap.set("[data-decision-evidence-outgoing]", {
+-        display: "block",
+-        opacity: 0,
+-        pointerEvents: "none",
+-      });
+-
++      gsap.set("[data-gate]", { opacity: 0, clipPath: HIDE_TOP });
++      gsap.set("[data-barrier]", { opacity: 0, clipPath: "inset(0% 50% 0% 50%)" });
++      gsap.set(LANES.map(carriage), { opacity: 0 });
+ 
+       // =========================================================================
+-      // BEAT 1: THRESHOLD REGISTRATION & COORDINATED CONTRACTION (0.00 - 0.22)
+-      // 0.00 - 0.035: Threshold Registration Reveal. All three labels (ALLOW /
+-      // STEP-UP / DENY) register into the horizontal rules together as ONE family.
+-      // Row-local clip opens vertically from rule, type travels slightly into
+-      // position, opacity moves 0 -> 1, tracking resolves. Zero scale pop.
+-      // 0.035 - 0.065: Complete Threshold Hold. Full large threshold family
+-      // holds in rock-solid rest before contraction begins.
+-      // 0.065 - 0.22: Coordinated Contraction. All three outcomes contract together
+-      // as ONE single typographic family into their operational lane anchors.
+-      // 0.22 - 0.25: Operational Settle.
++      // A — DECISION APPARATUS ESTABLISHED (0.00 - 0.05 hold; 0.05 - 0.13)
++      // The film hands over the labels; here the lanes register their identity:
++      // letters A / B / C take their place (the labels yield the space they
++      // occupy), and the sprocket rows appear along the three lanes.
+       // =========================================================================
++      LANES.forEach((l) => {
++        timeline.fromTo(
++          wrap(l),
++          { x: () => labelStart(l).x, y: () => labelStart(l).y },
++          { x: 0, y: 0, duration: 0.08, ease: "power2.inOut", immediateRender: true },
++          0.05,
++        );
++      });
+       timeline
+-        // Threshold registration reveal: all three labels reveal as ONE family from 0.00 to 0.035
+-        .fromTo(
+-          "[data-lane-tag='allow'], [data-lane-tag='stepup'], [data-lane-tag='deny']",
+-          {
+-            clipPath: "inset(0% 0% 100% 0%)",
+-            opacity: 0,
+-            y: -6,
+-            letterSpacing: "-0.01em",
+-            scale: startScale,
+-            x: 0,
+-            transformOrigin: "left center",
+-          },
+-          {
+-            clipPath: "inset(0% 0% 0% 0%)",
+-            opacity: 1,
+-            y: 0,
+-            letterSpacing: "-0.025em",
+-            scale: startScale,
+-            duration: 0.035,
+-            stagger: 0.002,
+-            ease: "power2.out",
+-          },
+-          0.00,
+-        )
+-        // 0.035 - 0.065: Complete threshold hold (labels remain at full startScale, unclipped, opacity 1)
+-
+-        // 0.065 - 0.22: Coordinated typographic contraction across all three lanes simultaneously
+-        .fromTo(
+-          "[data-lane-tag='allow'], [data-lane-tag='stepup'], [data-lane-tag='deny']",
+-          {
+-            scale: startScale,
+-            x: 0,
+-            y: 0,
+-            opacity: 1,
+-            clipPath: "inset(0% 0% 0% 0%)",
+-            letterSpacing: "-0.025em",
+-            transformOrigin: "left center",
+-          },
+-          {
+-            scale: 1,
+-            x: 0,
+-            y: 0,
+-            opacity: 1,
+-            duration: 0.155,
+-            ease: "power2.out",
+-          },
+-          0.065,
+-        )
+-        // Subtly tint DENY to administrative red late in contraction
+-        .fromTo(
+-          "[data-lane-tag='deny']",
+-          { color: "#ebe1c9" },
+-          { color: "#a92a24", duration: 0.06, ease: "power1.inOut" },
+-          0.16,
+-        )
+-
+-        // Top institutional header and bottom frame register
+-        .fromTo(
+-          "[data-decisions-header]",
+-          { opacity: 0, y: -8 },
+-          { opacity: 1, y: 0, duration: 0.07, ease: "power2.out" },
+-          0.04,
+-        )
+-        .fromTo(
+-          "[data-decisions-footer]",
+-          { opacity: 0, y: 8 },
+-          { opacity: 1, y: 0, duration: 0.07, ease: "power2.out" },
+-          0.04,
+-        )
+-
+-        // Lane identity letters A / B / C register as labels approach operational anchors
+-        .fromTo(
+-          "[data-lane-letter]",
+-          { opacity: 0, x: -10 },
+-          { opacity: 1, x: 0, duration: 0.08, stagger: 0.015, ease: "power2.out" },
+-          0.13,
+-        )
+-
+-        // Descriptors (CONTINUITY / INTERRUPTION / INCOMPLETION) emerge into registration
+-        .fromTo(
+-          "[data-lane-rule]",
+-          { opacity: 0, y: -6 },
+-          { opacity: 1, y: 0, duration: 0.08, stagger: 0.015, ease: "power2.out" },
+-          0.13,
+-        )
+-
+-        // Evaluation tracks extend outward from the settled typographic anchors
+-        .fromTo(
+-          "[data-lane-track-line]",
+-          { scaleX: 0 },
+-          { scaleX: 1, duration: 0.08, stagger: 0.02, ease: "power2.out" },
+-          0.14,
+-        )
+-
+-        // Sprocket tracks materialize along the three lanes
+-        .fromTo(
+-          "[data-lane-sprockets]",
+-          { opacity: 0 },
+-          { opacity: 0.55, duration: 0.08, ease: "none" },
+-          0.14,
++        .to("[data-lane-letter]", { opacity: 1, x: 0, duration: 0.06, ease: "power2.out" }, 0.07)
++        .to("[data-lane-sprockets]", { opacity: 0.55, duration: 0.08 }, 0.05);
++
++      // Lane focus: the active outcome is full strength, the others sit back
++      // until the comparative resolution restores all three.
++      const focus = (active: Lane, at: number) => {
++        LANES.forEach((l) =>
++          timeline.to(`[data-lane='${l}']`, { opacity: l === active ? 1 : 0.5, duration: 0.03 }, at),
+         );
++      };
+ 
+       // =========================================================================
+-      // BEAT 2: ALLOW — CONTINUITY (0.25 - 0.49)
+-      // Grocery ₹1,249 enters ONLY after contraction has fully resolved & settled.
+-      // Glides cleanly through evaluation, receives APPROVED in-flight,
+-      // continues out forward. Velocity preserved!
++      // B — ALLOW: CONTINUITY (0.13 - 0.39)
++      // One uninterrupted glide. Nothing clamps, nothing stops: the stamp lands
++      // on the receipt while it is still moving and the lane stays open ahead.
+       // =========================================================================
++      focus("allow", 0.13);
+       timeline
+-        // Focus spotlight on Lane A
+-        .to("[data-lane='allow']", { opacity: 1, duration: 0.05 }, 0.25)
+-        .to("[data-lane='stepup']", { opacity: 0.38, duration: 0.05 }, 0.25)
+-        .to("[data-lane='deny']", { opacity: 0.38, duration: 0.05 }, 0.25)
+-
+-        // Receipt enters from left
+-        .fromTo(
+-          "[data-receipt-wrap='allow']",
+-          { xPercent: -130, opacity: 0 },
+-          { xPercent: -15, opacity: 1, duration: 0.12, ease: "power1.in" },
+-          0.25,
+-        )
+-        // Continues gliding through the inspection point (no stop!)
+-        .to(
+-          "[data-receipt-wrap='allow']",
+-          { xPercent: allowMidX, duration: 0.08, ease: "none" },
+-          0.37,
+-        )
+-        // In-flight stamp registers without stopping velocity
+-        .fromTo(
+-          "[data-stamp='allow']",
+-          { opacity: 0, scale: 1.35, rotate: -8 },
+-          { opacity: 1, scale: 1, rotate: -2, duration: 0.04, ease: "power2.out" },
+-          0.39,
+-        )
+-        // Annotation registers quietly on the right
+         .fromTo(
+-          "[data-note='allow']",
+-          { opacity: 0, x: 12 },
+-          { opacity: 1, x: 0, duration: 0.05 },
+-          0.41,
++          carriage("allow"),
++          { x: () => start("allow").x, y: () => start("allow").y, scale: () => start("allow").scale },
++          { x: () => rest("allow").x, y: () => rest("allow").y, scale: () => rest("allow").scale, duration: 0.22, ease: "sine.out", immediateRender: true },
++          0.15,
+         )
+-        // Smooth continuation to exit boundary
+-        .to(
+-          "[data-receipt-wrap='allow']",
+-          { xPercent: allowExitX, opacity: 0.92, duration: 0.08, ease: "power1.out" },
+-          0.45,
+-        );
++        .to(carriage("allow"), { opacity: 1, duration: 0.04, ease: "power1.out" }, 0.15)
++        .fromTo("[data-stamp='allow']", { opacity: 0, scale: 1.35, rotate: -8 }, { opacity: 1, scale: 1, rotate: -2, duration: 0.05, ease: "power2.out", immediateRender: true }, 0.28)
++        .to("[data-note='allow']", { opacity: 1, x: 0, duration: 0.05 }, 0.34);
+ 
+       // =========================================================================
+-      // BEAT 3: STEP-UP — INTERRUPTION (0.50 - 0.72)
+-      // Travel ₹4,900 enters with forward momentum, then is cleanly and
+-      // sharply ARRESTED mid-lane. Stamp registers on the held slip.
+-      // Route remains intact, slip is held in suspense.
++      // C — STEP-UP: INTERRUPTION (0.39 - 0.65)
++      // Same approach, then the path is sharply arrested at the threshold; a
++      // gate clamps down on the held slip. Autonomy ends here: it waits.
++      // (The clearance itself belongs to Scene 04.)
+       // =========================================================================
++      focus("stepup", 0.39);
+       timeline
+-        // Focus shifts to Lane B
+-        .to("[data-lane='allow']", { opacity: 0.45, duration: 0.05 }, 0.50)
+-        .to("[data-lane='stepup']", { opacity: 1, duration: 0.05 }, 0.50)
+-        .to("[data-lane='deny']", { opacity: 0.35, duration: 0.05 }, 0.50)
+-
+-        // Receipt enters from left with forward momentum
+-        .fromTo(
+-          "[data-receipt-wrap='stepup']",
+-          { xPercent: -130, opacity: 0 },
+-          { xPercent: -20, opacity: 1, duration: 0.10, ease: "power2.out" },
+-          0.50,
+-        )
+-        // Advances toward checkpoint then sharply arrests
+-        .to(
+-          "[data-receipt-wrap='stepup']",
+-          { xPercent: stepUpArrestX, duration: 0.05, ease: "expo.out" },
+-          0.60,
+-        )
+-        // Hold gate indicator clamps around the slip
+         .fromTo(
+-          "[data-gate='stepup']",
+-          { opacity: 0, scaleY: 0 },
+-          { opacity: 1, scaleY: 1, duration: 0.04, ease: "power3.out" },
+-          0.62,
++          carriage("stepup"),
++          { x: () => start("stepup").x, y: () => start("stepup").y, scale: () => start("stepup").scale },
++          { x: () => approach("stepup", 0.9).x, y: () => approach("stepup", 0.9).y, scale: () => approach("stepup", 0.9).scale, duration: 0.12, ease: "power1.in", immediateRender: true },
++          0.42,
+         )
+-        // STEP-UP REQUIRED stamp registers on the arrested slip
+-        .fromTo(
+-          "[data-stamp='stepup']",
+-          { opacity: 0, scale: 1.4, rotate: 6 },
+-          { opacity: 1, scale: 1, rotate: 3, duration: 0.04, ease: "power2.out" },
+-          0.64,
+-        )
+-        // Annotation registers on the right
+-        .fromTo(
+-          "[data-note='stepup']",
+-          { opacity: 0, x: 12 },
+-          { opacity: 1, x: 0, duration: 0.05 },
+-          0.66,
+-        );
++        .to(carriage("stepup"), { opacity: 1, duration: 0.04, ease: "power1.out" }, 0.42)
++        .to(carriage("stepup"), { x: () => rest("stepup").x, y: () => rest("stepup").y, scale: () => rest("stepup").scale, duration: 0.045, ease: "expo.out" }, 0.54)
++        .to("[data-gate='stepup']", { opacity: 1, clipPath: SHOW, duration: 0.04, ease: "power3.out" }, 0.585)
++        .fromTo("[data-stamp='stepup']", { opacity: 0, scale: 1.4, rotate: 6 }, { opacity: 1, scale: 1, rotate: 3, duration: 0.04, ease: "power2.out", immediateRender: true }, 0.61)
++        .to("[data-note='stepup']", { opacity: 1, x: 0, duration: 0.05 }, 0.62);
+ 
+       // =========================================================================
+-      // BEAT 4: DENY — INCOMPLETION (0.73 - 0.90)
+-      // Blocked Merchant ₹799 advances, but the route itself TERMINATES.
+-      // Slip hits a severed boundary, cannot proceed, stamped DENIED.
++      // D — DENY: TERMINATION (0.65 - 0.89)
++      // The route itself ends: a barrier closes ahead, the remaining route dies
++      // away, and the slip halts dead against it. No gate, no way onward.
+       // =========================================================================
++      focus("deny", 0.65);
+       timeline
+-        // Focus shifts to Lane C
+-        .to("[data-lane='allow']", { opacity: 0.45, duration: 0.05 }, 0.73)
+-        .to("[data-lane='stepup']", { opacity: 0.45, duration: 0.05 }, 0.73)
+-        .to("[data-lane='deny']", { opacity: 1, duration: 0.05 }, 0.73)
+-
+-        // Receipt enters along rail C
+-        .fromTo(
+-          "[data-receipt-wrap='deny']",
+-          { xPercent: -130, opacity: 0 },
+-          { xPercent: -35, opacity: 1, duration: 0.08, ease: "power1.out" },
+-          0.73,
+-        )
+-        // Route sever / barrier activates ahead of the slip
+         .fromTo(
+-          "[data-barrier='deny']",
+-          { opacity: 0, scaleX: 0 },
+-          { opacity: 1, scaleX: 1, duration: 0.04, ease: "power2.out" },
+-          0.78,
++          carriage("deny"),
++          { x: () => start("deny").x, y: () => start("deny").y, scale: () => start("deny").scale },
++          { x: () => approach("deny", 0.88).x, y: () => approach("deny", 0.88).y, scale: () => approach("deny", 0.88).scale, duration: 0.1, ease: "power1.in", immediateRender: true },
++          0.67,
+         )
+-        // Route rail terminates and breaks away
+-        .to(
+-          "[data-track-remaining='deny']",
+-          { opacity: 0.12, strokeDashoffset: 40, duration: 0.05 },
+-          0.79,
+-        )
+-        // Slip attempts continuation and halts abruptly at the void barrier
+-        .to(
+-          "[data-receipt-wrap='deny']",
+-          { xPercent: denyHaltX, duration: 0.04, ease: "power3.out" },
+-          0.80,
+-        )
+-        // Heavy administrative DENIED stamp impacts
+-        .fromTo(
+-          "[data-stamp='deny']",
+-          { opacity: 0, scale: 1.5, rotate: -9 },
+-          { opacity: 1, scale: 1, rotate: -4, duration: 0.04, ease: "power2.out" },
+-          0.82,
+-        )
+-        // Annotation registers on the right
+-        .fromTo(
+-          "[data-note='deny']",
+-          { opacity: 0, x: 12 },
+-          { opacity: 1, x: 0, duration: 0.05 },
+-          0.85,
+-        );
++        .to(carriage("deny"), { opacity: 1, duration: 0.04, ease: "power1.out" }, 0.67)
++        .to("[data-barrier='deny']", { opacity: 1, clipPath: SHOW, duration: 0.04, ease: "power2.out" }, 0.72)
++        .to("[data-track-remaining='deny']", { opacity: 0.12, duration: 0.05 }, 0.74)
++        .to(carriage("deny"), { x: () => rest("deny").x, y: () => rest("deny").y, scale: () => rest("deny").scale, duration: 0.035, ease: "power3.out" }, 0.77)
++        .fromTo("[data-stamp='deny']", { opacity: 0, scale: 1.5, rotate: -9 }, { opacity: 1, scale: 1, rotate: -4, duration: 0.03, ease: "power2.out", immediateRender: true }, 0.81)
++        .to("[data-note='deny']", { opacity: 1, x: 0, duration: 0.05 }, 0.84);
+ 
+       // =========================================================================
+-      // BEAT 5: FINAL EVIDENCE HARMONIZATION & ARCHIVE FILING (0.89 - 1.00)
+-      // All three lanes settle into their authentic resting positions:
+-      // A = clear exit / continued
+-      // B = suspended / held with open path ahead
+-      // C = terminated / severed with dead end
+-      // 0.89 - 0.93: Completed Decisions operating state holds in clear readable rest.
+-      // 0.93 - 0.965: Evidence files into the approved Grocery receipt docket;
+-      // other receipts recede while the successful receipt becomes the carrier.
+-      // 0.965 - 1.00: the docket holds alone for Delegation handoff.
++      // E — COMPARATIVE RESOLUTION (0.89 - 0.94): all three lanes at full
++      // strength together — continuity, interruption, termination.
++      // F — TERMINAL HOLD (0.94 - 1.00): the 02->03 film's first frame, untouched.
+       // =========================================================================
+-      timeline
+-        .to("[data-lane='allow']", { opacity: 0.9, duration: 0.04 }, 0.89)
+-        .to("[data-lane='stepup']", { opacity: 0.95, duration: 0.04 }, 0.89)
+-        .to("[data-lane='deny']", { opacity: 0.95, duration: 0.04 }, 0.89)
+-        .to("[data-receipt-wrap='allow']", { opacity: 0.95, duration: 0.04 }, 0.88)
+-        .to("[data-decisions-footer]", { opacity: 1, duration: 0.04 }, 0.90)
+-        // Sustained terminal hold through 0.93
+-        .set({}, {}, 0.93)
+-        // 0.93 - 0.965: Lanes relinquish dominance; non-carrier receipts file away.
+-        .to(
+-          "[data-lane-tag='allow'], [data-lane-tag='stepup'], [data-lane-tag='deny'], [data-lane-sprockets], [data-gate='stepup'], [data-barrier='deny'], [data-note]",
+-          { opacity: 0, duration: 0.035, ease: "power1.out" },
+-          0.93,
+-        )
+-        .to(
+-          "[data-lane-track-line]",
+-          { scaleX: 0.3, opacity: 0, duration: 0.035, ease: "power1.in" },
+-          0.935,
+-        )
+-        // The original lane receipt yields to an identical physical evidence
+-        // docket at viewport datum. The docket, not a metadata bar, crosses scenes.
+-        .set("[data-decision-evidence-outgoing]", { display: "block" }, 0.90)
+-        .fromTo(
+-          "[data-decision-evidence-outgoing]",
+-          { opacity: 0 },
+-          { opacity: 1, duration: 0.065, ease: "power2.out" },
+-          0.90,
+-        )
+-        .to(
+-          "[data-receipt-wrap='allow']",
+-          { opacity: 0, scale: 0.94, duration: 0.035, ease: "power1.out" },
+-          0.93,
+-        )
+-        .to(
+-          "[data-receipt-wrap='stepup']",
+-          { yPercent: -180, scale: 0.7, opacity: 0.5, duration: 0.035, ease: "power2.in" },
+-          0.935,
+-        )
+-        .to(
+-          "[data-receipt-wrap='deny']",
+-          { yPercent: -240, scale: 0.7, opacity: 0.5, duration: 0.035, ease: "power2.in" },
+-          0.94,
+-        )
+-        // Non-carrier receipts dock and dissolve as approved evidence takes over.
+-        .to(
+-          "[data-receipt-wrap='stepup'], [data-receipt-wrap='deny']",
+-          { opacity: 0, duration: 0.015, ease: "power1.out" },
+-          0.965,
+-        )
+-        // Lane board fades down cleanly so only the physical receipt remains.
+-        .to(
+-          "[data-lanes-board], [data-decisions-header], [data-decisions-footer]",
+-          { opacity: 0, duration: 0.03, ease: "power1.out" },
+-          0.965,
+-        )
+-        .set({}, {}, 1.00);
++      LANES.forEach((l) => timeline.to(`[data-lane='${l}']`, { opacity: 1, duration: 0.05, ease: "power1.inOut" }, 0.89));
++      timeline.set({}, {}, 1.0);
+ 
+       return () => {
++        ScrollTrigger.removeEventListener("refresh", clipTracks);
+         visibilityTrigger.kill();
+         timeline.scrollTrigger?.kill();
+         timeline.kill();
+@@ -495,23 +323,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+       aria-labelledby="decisions-scene-title"
+     >
+       <div ref={stageRef} className={styles.stage} data-decisions-stage>
+-        {/* Approved transaction evidence becomes the 02 → 03 physical carrier. */}
+-        <div
+-          className={styles.evidenceCarrier}
+-          data-decision-evidence-outgoing
+-          aria-hidden="true"
+-        >
+-          <TransactionReceipt
+-            id={decisionsDemo.allow.id}
+-            agent={decisionsDemo.allow.agent}
+-            category={decisionsDemo.allow.category}
+-            amount={decisionsDemo.allow.amount}
+-            mandateRef={decisionsDemo.allow.mandateRef}
+-            status="approved"
+-            stamp={<DecisionStamp tone="ink">APPROVED</DecisionStamp>}
+-          />
+-        </div>
+-
+         {/* Top Institutional Header Bar */}
+         <header className={styles.sceneHeader} data-decisions-header>
+           <div className={styles.headerLeft}>
+@@ -540,7 +351,7 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+             {/* Left Lane Identity */}
+             <div className={styles.laneIdentity}>
+               <span className={styles.laneLetter} data-lane-letter="allow">A</span>
+-              <div className={styles.laneTagWrap}>
++              <div className={styles.laneTagWrap} data-lane-tagwrap="allow">
+                 <strong className={styles.laneTag} data-lane-tag="allow">ALLOW</strong>
+                 <span className={styles.laneRule} data-lane-rule="allow">CONTINUITY</span>
+               </div>
+@@ -589,7 +400,7 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+             {/* Left Lane Identity */}
+             <div className={styles.laneIdentity}>
+               <span className={styles.laneLetter} data-lane-letter="stepup">B</span>
+-              <div className={styles.laneTagWrap}>
++              <div className={styles.laneTagWrap} data-lane-tagwrap="stepup">
+                 <strong className={`${styles.laneTag} ${styles.tagStepUp}`} data-lane-tag="stepup">
+                   STEP-UP
+                 </strong>
+@@ -647,7 +458,7 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
+             {/* Left Lane Identity */}
+             <div className={styles.laneIdentity}>
+               <span className={styles.laneLetter} data-lane-letter="deny">C</span>
+-              <div className={styles.laneTagWrap}>
++              <div className={styles.laneTagWrap} data-lane-tagwrap="deny">
+                 <strong className={`${styles.laneTag} ${styles.tagDeny}`} data-lane-tag="deny">
+                   DENY
+                 </strong>
+diff --git a/src/lib/experience/scene-registry.ts b/src/lib/experience/scene-registry.ts
+index 3a0a494..4bbe732 100644
+--- a/src/lib/experience/scene-registry.ts
++++ b/src/lib/experience/scene-registry.ts
+@@ -1,7 +1,7 @@
+ export const SCENE_REGISTRY = [
+   { key: "prologue", slug: "prologue", number: "00", label: "OPENING / HERO", trackVh: 120, safeProgress: 0 },
+   { key: "mandate", slug: "mandate", number: "01", label: "MANDATE", trackVh: 160, safeProgress: 0.18 },
+-  { key: "decisions", slug: "decisions", number: "02", label: "ALLOW / STEP-UP / DENY", trackVh: 220, safeProgress: 0.065 },
++  { key: "decisions", slug: "decisions", number: "02", label: "ALLOW / STEP-UP / DENY", trackVh: 220, safeProgress: 0.13 },
+   { key: "delegation", slug: "delegation", number: "03", label: "DELEGATION", trackVh: 340, safeProgress: 0.14 },
+   { key: "stepUp", slug: "step-up", number: "04", label: "STEP-UP CLEARANCE", trackVh: 320, safeProgress: 0.22 },
+   { key: "revocation", slug: "revocation", number: "05", label: "REVOCATION", trackVh: 340, safeProgress: 0.26 },

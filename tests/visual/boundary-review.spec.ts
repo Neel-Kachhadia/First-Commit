@@ -534,6 +534,11 @@ test.describe("Global Scene Boundary Geometry & Invariant Assertions", () => {
         return all.find((t) => t.trigger === el);
       };
 
+      const getTransitionHeight = (id: string) => {
+        const el = document.querySelector(`[data-transition-track='${id}']`);
+        return el ? el.getBoundingClientRect().height : 0;
+      };
+
       const prologue = getST("prologue");
       const mandate = getST("mandate");
       const decisions = getST("decisions");
@@ -550,20 +555,32 @@ test.describe("Global Scene Boundary Geometry & Invariant Assertions", () => {
         delegationEnd: delegation?.end ?? 0,
         stepUpStart: stepUp?.start ?? 0,
         stepUpEnd: stepUp?.end ?? 0,
+        t0001: getTransitionHeight("00-01"),
+        t0102: getTransitionHeight("01-02"),
+        t0203: getTransitionHeight("02-03"),
+        t0304: getTransitionHeight("03-04"),
       };
     });
 
-    // Invariant 0: Prologue end aligns with Mandate start within 2px
-    expect(Math.abs(boundaryData.prologueEnd - boundaryData.mandateStart)).toBeLessThanOrEqual(2);
+    // Invariants 0-3: each pair of consecutive scene tracks is separated by
+    // exactly its dedicated cinematic-transition scroll spacer (the video
+    // transition layer's own scroll distance) — no unexplained gap, and no
+    // longer flush against each other now that boundary videos own that space.
+    expect(
+      Math.abs(boundaryData.mandateStart - boundaryData.prologueEnd - boundaryData.t0001),
+    ).toBeLessThanOrEqual(2);
 
-    // Invariant 1: Mandate end aligns with Decisions start within 2px
-    expect(Math.abs(boundaryData.mandateEnd - boundaryData.decisionsStart)).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs(boundaryData.decisionsStart - boundaryData.mandateEnd - boundaryData.t0102),
+    ).toBeLessThanOrEqual(2);
 
-    // Invariant 2: Decisions end aligns with Delegation start within 2px
-    expect(Math.abs(boundaryData.decisionsEnd - boundaryData.delegationStart)).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs(boundaryData.delegationStart - boundaryData.decisionsEnd - boundaryData.t0203),
+    ).toBeLessThanOrEqual(2);
 
-    // Invariant 3: Delegation end aligns with Step-Up start within 2px
-    expect(Math.abs(boundaryData.delegationEnd - boundaryData.stepUpStart)).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs(boundaryData.stepUpStart - boundaryData.delegationEnd - boundaryData.t0304),
+    ).toBeLessThanOrEqual(2);
 
     // Invariant 4: Incoming sections are visible when scroll reaches their start
     for (const [sceneSel, startVal] of [

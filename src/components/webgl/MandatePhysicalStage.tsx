@@ -52,16 +52,10 @@ export function MandatePhysicalStage({
   const applyProgress = useCallback((p: number) => {
     if (!groupRef.current) return;
     const isMandate = activeScene === "mandate";
-    let depthOpacity = 0;
-    if (p <= 0.12) {
-      depthOpacity = 0;
-    } else if (p < 0.18) {
-      depthOpacity = (p - 0.12) / 0.06;
-    } else if (p <= 0.84) {
-      depthOpacity = 1;
-    } else {
-      depthOpacity = Math.max(0.35, 1 - ((p - 0.84) / 0.1) * 0.65);
-    }
+    // The 00->01 film already shows the stacked stock behind the sheet and the
+    // 01->02 film still shows it, so it is present at full strength from the
+    // first to the last frame of the scene (no fade-in / fade-out of its own).
+    const depthOpacity = 1;
 
     const visible = isMandate && depthOpacity > 0;
     groupRef.current.visible = visible;

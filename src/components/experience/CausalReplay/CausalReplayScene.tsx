@@ -103,7 +103,7 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
         end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
-          gsap.set("[data-replay-docket]", { visibility: "visible" });
+          gsap.set("[data-replay-docket]", { visibility: "visible", opacity: 1 });
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
           );
@@ -116,7 +116,7 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
         },
         onEnterBack: () => {
           applyVisibility(true);
-          gsap.set("[data-replay-docket]", { visibility: "visible" });
+          gsap.set("[data-replay-docket]", { visibility: "visible", opacity: 1 });
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
           );
@@ -141,19 +141,9 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
         },
       });
 
-      // 07 -> 08 carrier bridge: Case Docket for canonical transaction TX-1081
-      // enters over the standard 120px pre-roll window, establishing the archival case.
-      const carrierEls = "[data-replay-docket]";
-      gsap.set(carrierEls, { opacity: 0, visibility: "visible", pointerEvents: "none" });
-      const carrierBridgeIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=120px",
-        end: "top top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(carrierEls, { opacity: self.progress });
-        },
-      });
+      // 07 -> 08 has no video transition; Scene 08 uses only its own entrance
+      // (below) once the ownership trigger above reveals it.
+      gsap.set("[data-replay-docket]", { opacity: 0, visibility: "visible", pointerEvents: "none" });
 
       gsap.set("[data-replay-footer]", { opacity: 0 });
       gsap.set("[data-evidence-exposure]", { opacity: 0, y: 16, scale: 0.98 });
@@ -226,7 +216,6 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
 
       return () => {
         visibilityTrigger.kill();
-        carrierBridgeIn.kill();
         timeline.kill();
       };
     },

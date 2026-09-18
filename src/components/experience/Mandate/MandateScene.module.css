@@ -27,22 +27,8 @@
   z-index: 1;
 }
 
-.boundingPaper {
-  position: absolute;
-  inset: 0;
-  background-color: var(--kp-ivory);
-  background-image:
-    linear-gradient(rgba(235, 225, 201, 0.94), rgba(235, 225, 201, 0.94)),
-    var(--kp-paper-texture);
-  background-size: cover;
-  pointer-events: none;
-  z-index: 10;
-  overflow: hidden;
-}
-
 .copy,
-.copyStage,
-.copyPaper {
+.copyStage {
   left: var(--page-gutter);
   position: absolute;
   top: 18vh;
@@ -51,12 +37,6 @@
 
 .copyStage {
   color: var(--kp-ivory);
-  z-index: 2;
-}
-
-.copyPaper {
-  color: var(--kp-ink);
-  pointer-events: none;
   z-index: 2;
 }
 
@@ -75,7 +55,6 @@
 
 .copy h2,
 .copyStage h2,
-.copyPaper strong,
 .copyHeading {
   font-family: var(--font-display), serif;
   font-size: clamp(4rem, 7vw, 8.2rem);
@@ -84,19 +63,6 @@
   line-height: 0.82;
   margin-left: -0.035em;
   display: block;
-}
-
-.bridgeMeta {
-  border-top: 1px solid rgba(20, 19, 15, 0.25);
-  color: rgba(20, 19, 15, 0.65);
-  display: block;
-  font-family: var(--font-mono), monospace;
-  font-size: clamp(0.55rem, 0.68vw, 0.72rem);
-  font-style: normal;
-  letter-spacing: 0.16em;
-  margin-top: clamp(2rem, 5vh, 4rem);
-  padding-top: 0.85rem;
-  width: 63%;
 }
 
 .support {
@@ -194,8 +160,7 @@
 .measure i { background: var(--kp-rule); height: 1px; flex: 1; position: relative; }
 .measure i::before { background: var(--kp-red); content: ""; height: 5px; position: absolute; right: 37.5%; top: -2px; width: 1px; }
 
-.fieldHandoff,
-.boundingPaper {
+.fieldHandoff {
   background-color: var(--kp-paper-light);
   background-image: image-set(
     url("/assets/kavachpay/materials/paper-master-ivory-900.webp") 1x,
@@ -210,78 +175,6 @@
   position: absolute;
   will-change: clip-path;
   z-index: 5;
-}
-
-.spliceGeometry {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 6;
-}
-
-.spliceRuleTop,
-.spliceRuleUpper,
-.spliceRuleLower,
-.spliceRuleBottom {
-  position: absolute;
-  left: var(--page-gutter);
-  right: var(--page-gutter);
-  height: 1px;
-  background-color: var(--kp-rule);
-  transform-origin: 75% center;
-}
-
-.spliceRuleTop {
-  top: 8.2vh;
-}
-
-.spliceRuleUpper {
-  top: 34.87vh;
-}
-
-.spliceRuleLower {
-  top: 61.53vh;
-}
-
-.spliceRuleBottom {
-  top: 88.2vh;
-}
-
-.spliceTickLeft,
-.spliceTickRight {
-  position: absolute;
-  top: -4px;
-  width: 1px;
-  height: 9px;
-  background-color: var(--kp-rule);
-}
-
-.spliceTickLeft {
-  left: 0;
-}
-
-.spliceTickRight {
-  right: 0;
-}
-
-.spliceLabelLeft {
-  position: absolute;
-  left: 0.5rem;
-  top: -1.1rem;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.55rem;
-  letter-spacing: 0.16em;
-  color: var(--kp-muted);
-}
-
-.spliceLabelRight {
-  position: absolute;
-  right: 0.5rem;
-  top: -1.1rem;
-  font-family: var(--font-mono), monospace;
-  font-size: 0.55rem;
-  letter-spacing: 0.16em;
-  color: var(--kp-muted);
 }
 
 .paperCarrier {
@@ -362,15 +255,12 @@
   right: -5px;
 }
 
-
 @media (max-width: 900px) {
   .copy,
-  .copyStage,
-  .copyPaper { left: var(--page-gutter); top: 11vh; width: 84vw; }
+.copyStage { left: var(--page-gutter); top: 11vh; width: 84vw; }
   .copy h2,
-  .copyStage h2,
-  .copyPaper strong,
-  .copyHeading { font-size: clamp(3.5rem, 15vw, 6rem); line-height: 0.82; }
+.copyStage h2,
+.copyHeading { font-size: clamp(3.5rem, 15vw, 6rem); line-height: 0.82; }
   .support { margin-top: 1.4rem; width: 48%; }
   .truth { bottom: auto; right: 0; top: 9rem; }
   .intent { left: -3vw; top: 43vh; width: 58vw; }
@@ -384,28 +274,18 @@
   }
   .sheet { left: 50%; right: auto; top: 27vh; transform: translateX(-50%); }
   .measure { bottom: 2.7vh; width: 52vw; }
-  .spliceRuleTop,
-  .spliceRuleUpper,
-  .spliceRuleLower,
-  .spliceRuleBottom {
-    transform-origin: center center;
-  }
-  .spliceLabelLeft,
-  .spliceLabelRight {
-    display: none;
-  }
+  
+  
 }
 
 @media (max-width: 520px) {
   .copy,
-  .copyStage,
-  .copyPaper { top: 10vh; }
+.copyStage { top: 10vh; }
   .copy h2,
-  .copyStage h2,
-  .copyPaper strong,
-  .copyHeading { font-size: 14.5vw; }
+.copyStage h2,
+.copyHeading { font-size: 14.5vw; }
   .support,
-  .truth {
+.truth {
     clip: rect(0 0 0 0);
     clip-path: inset(50%);
     height: 1px;
@@ -430,6 +310,5 @@
 @media (prefers-reduced-motion: reduce) {
   .section { height: auto; min-height: 100svh; }
   .stage { min-height: 100svh; position: relative; }
-  .transitionRule,
-  .spliceGeometry { display: none; }
+  .transitionRule { display: none; }
 }
