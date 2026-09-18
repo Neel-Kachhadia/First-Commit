@@ -36,18 +36,6 @@
   z-index: 20;
 }
 
-.evidenceCarrier {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 25;
-  width: max-content;
-  transform: translate(-50%, -50%);
-  transform-origin: center;
-  pointer-events: none;
-  will-change: transform, opacity;
-}
-
 .sceneHeader {
   display: flex;
   align-items: baseline;

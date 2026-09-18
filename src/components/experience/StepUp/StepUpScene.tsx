@@ -22,10 +22,6 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       const isMobile = window.matchMedia("(max-width: 48rem)").matches;
       const prefersReduced = experienceStore.getState().reducedMotion;
 
-      // Coordinate target for the outgoing 04->05 exit only (see travelGeometry).
-      const fallbackExitX = isMobile ? 0 : 550;
-      const fallbackExitY = isMobile ? 320 : 0;
-
       if (prefersReduced) {
         if (root.current) {
           root.current.style.visibility = "visible";
@@ -136,17 +132,6 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
         },
       });
 
-      // Exit offset only: the incoming 03->04 transition already lands with
-      // the compact travel slip arrived and centered at the clearance datum
-      // (its own terminal content) — the live scene begins there, not
-      // off-screen. Only the OUTGOING 04->05 hop still uses a fixed offset,
-      // since that boundary's own video owns the departure look.
-      const travelGeometry = {
-        exitX: fallbackExitX,
-        exitY: fallbackExitY,
-        exitScaleX: 1,
-        exitScaleY: 1,
-      };
       setTravelCarrierOwned(false);
 
       // Dynamic text targets for status bar
@@ -166,16 +151,73 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       gsap.set("[data-registration-bar]", { opacity: 1, y: 0 });
       gsap.set("[data-clearance-bracket]", { opacity: 1, y: 0 });
 
-      // Single Travel Artifact: incoming 03->04 transition already lands with
-      // the compact slip arrived and centered at the clearance datum — start
-      // there, matching the transition's terminal frame exactly.
+      // Single Travel Artifact, compact slip form at scene start.
       gsap.set("[data-travel-artifact]", { opacity: 1, width: compactWidth });
-      gsap.set("[data-stepup-travel-carrier]", {
-        x: isMobile ? 0 : -80,
-        y: isMobile ? -60 : 0,
-        scaleX: 1,
-        scaleY: 1,
-      });
+      // Desktop: the 03->04 film parks the slip at the far-left of the frame
+      // (right edge at ~26.4% of the 1280px video frame, object-fit: cover).
+      // Mirror that geometry so the live slip starts exactly under the video's
+      // last frame. Mobile bypasses the film, so it starts at its own rest.
+      // Film geometry (measured from the approved 03->04 / 04->05 clips) that
+      // the live slip must line up with at each seam. Desktop only: mobile
+      // bypasses the films entirely.
+      const IN_FILM = { w: 1280, h: 720, slipRight: 338, slipCy: 366, slipH: 274, key: "03-04" };
+      const OUT_FILM = { w: 1920, h: 1080, slipLeft: 1365, slipW: 506, slipCy: 566.4, key: "04-05" };
+      const LIVE_COMPACT_H = 302; // compact slip box height, css px
+      const LIVE_PAPER_H = 289; // visible paper height of the compact slip
+      const CLEARED_BADGE_H = 28;
+
+      // Real film box: the layer sits under the navbar, so its cover-fit
+      // differs from the raw viewport. Values are measured at refresh time.
+      const filmBox = (key: string, fw: number, fh: number) => {
+        const box = document.querySelector<HTMLElement>(`video[src*="${key}"]`)?.getBoundingClientRect();
+        const bw = box?.width || window.innerWidth;
+        const bh = box?.height || window.innerHeight;
+        const s = Math.max(bw / fw, bh / fh);
+        return {
+          s,
+          ox: (box?.left ?? 0) - (fw * s - bw) / 2,
+          oy: (box?.top ?? 0) - (fh * s - bh) / 2,
+        };
+      };
+      // The station is untransformed static layout; the compact slip is
+      // centred on it. GSAP scales the carrier about its top-left corner, so
+      // targets are expressed as that corner's displacement.
+      const stationCenter = () => {
+        const r = root.current?.querySelector<HTMLElement>("[data-clearance-station]")?.getBoundingClientRect();
+        return {
+          cx: r ? r.left + r.width / 2 : window.innerWidth / 2,
+          cy: r ? r.top + r.height / 2 : window.innerHeight / 2,
+        };
+      };
+      // Live slip laid exactly over the 03->04 film's last frame.
+      const parkedFrame = () => {
+        // No film on mobile: the slip slides in level with the datum from the
+        // left edge, never crossing the registration bar.
+        if (isMobile) return { x: -(compactWidth - 50), y: 0, scale: 1 };
+        const f = filmBox(IN_FILM.key, IN_FILM.w, IN_FILM.h);
+        const c = stationCenter();
+        const scale = (IN_FILM.slipH * f.s) / LIVE_PAPER_H;
+        return {
+          x: f.ox + IN_FILM.slipRight * f.s - scale * compactWidth - (c.cx - compactWidth / 2),
+          y: f.oy + IN_FILM.slipCy * f.s - scale * (LIVE_COMPACT_H / 2) - (c.cy - LIVE_COMPACT_H / 2),
+          scale,
+        };
+      };
+      // Cleared slip (compact + badge) laid over the 04->05 film's first frame.
+      const releasedFrame = () => {
+        const c = stationCenter();
+        const h = LIVE_COMPACT_H + CLEARED_BADGE_H;
+        // No film on mobile: release the cleared slip straight down and fully
+        // out of frame, rather than parking it half-cropped over the footer.
+        if (isMobile) return { x: 0, y: window.innerHeight - (c.cy - h / 2) + 8, scale: 1 };
+        const f = filmBox(OUT_FILM.key, OUT_FILM.w, OUT_FILM.h);
+        const scale = (OUT_FILM.slipW * f.s) / compactWidth;
+        return {
+          x: f.ox + OUT_FILM.slipLeft * f.s - (c.cx - compactWidth / 2),
+          y: f.oy + OUT_FILM.slipCy * f.s - scale * (h / 2) - (c.cy - h / 2),
+          scale,
+        };
+      };
 
       // Top and bottom extensions start collapsed into the compact slip format
       gsap.set("[data-doc-top-extension]", {
@@ -213,9 +255,8 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       gsap.set("[data-referral-notice]", { opacity: 0, y: 4 });
       gsap.set("[data-clear-seal]", { opacity: 0, scale: 1.25 });
 
-      // Incoming 03->04 transition already lands with the compact slip
-      // arrived at the clearance datum (its own terminal content) — no entry
-      // animation to replay. Live scene begins at the physical interception.
+      // The live slip starts parked where the 03->04 film leaves it and is
+      // caught at the datum by the interception beat below.
       //
       // =========================================================================
       // STAGE A — OPENING HOLD (0.00 - 0.05)
@@ -223,30 +264,29 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       timeline.set({}, {}, 0.05);
 
       // =========================================================================
-      // STAGE B — CLEARANCE BOUNDARY ENCOUNTER & PHYSICAL INTERCEPTION (0.05 - 0.15)
+      // STAGE B — CLEARANCE BOUNDARY ENCOUNTER & PHYSICAL INTERCEPTION (0.05 - 0.17)
       // Controlled deceleration into datum. Physical catch: registration bar engages.
       // =========================================================================
       timeline
-        .to(
+        .fromTo(
           "[data-stepup-travel-carrier]",
-          { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: 0.08, ease: "power3.out" },
+          {
+            x: () => parkedFrame().x,
+            y: () => parkedFrame().y,
+            scaleX: () => parkedFrame().scale,
+            scaleY: () => parkedFrame().scale,
+          },
+          { x: 0, y: 0, scaleX: 1, scaleY: 1, duration: 0.12, ease: "power2.inOut", immediateRender: true },
           0.05,
         )
         .to(
           "[data-registration-bar]",
           { borderColor: "rgba(169, 42, 36, 0.95)", boxShadow: "0 0 12px rgba(169, 42, 36, 0.35)", duration: 0.05 },
-          0.09,
-        )
-        .call(
-          () => {
-            if (barStatusEl) barStatusEl.textContent = "HELD AT DATUM // LIMIT EXCEEDED";
-          },
-          undefined,
-          0.11,
+          0.12,
         );
 
       // =========================================================================
-      // STAGE C — DOCUMENT BACKING EXPANSION AROUND OPTICALLY FIXED SPINE (0.15 - 0.37)
+      // STAGE C — DOCUMENT BACKING EXPANSION AROUND OPTICALLY FIXED SPINE (0.17 - 0.37)
       // Official backing stock unrolls above and below the shared identity spine
       // (TRAVEL AGENT, TX-1082, ₹4,900), which stays optically fixed and centered.
       // =========================================================================
@@ -254,38 +294,47 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
         .to(
           "[data-travel-artifact]",
           { width: expandedWidth, duration: 0.18, ease: "power2.inOut" },
-          0.15,
+          0.17,
         )
         .to(
           "[data-doc-top-extension]",
           { height: topTargetHeight, opacity: 1, duration: 0.16, ease: "power2.inOut" },
-          0.16,
+          0.18,
         )
         .to(
           "[data-doc-bottom-extension]",
           { height: bottomTargetHeight, opacity: 1, duration: 0.18, ease: "power2.inOut" },
-          0.16,
+          0.18,
         )
         .to(
           "[data-compact-doc-type]",
           { opacity: 0, duration: 0.06 },
-          0.17,
+          0.19,
         )
         .to(
           "[data-doc-header-title], [data-doc-pictogram], [data-doc-divider]",
           { opacity: 1, y: 0, duration: 0.10, ease: "power2.out" },
-          0.21,
+          0.23,
         )
         .to(
           "[data-comparison-ledger]",
           { opacity: 1, y: 0, duration: 0.10, ease: "power2.out" },
-          0.23,
+          0.25,
         )
         .to(
           "[data-doc-footer], [data-corner-mark]",
           { opacity: 1, duration: 0.08, ease: "power1.out" },
-          0.27,
+          0.29,
         );
+
+      // Mobile only: the expanded document fills the viewport and pushes the
+      // registration bar / bracket into the chapter chrome, so the header and
+      // footer yield while it is open (the navbar keeps the chapter label).
+      if (isMobile) {
+        timeline
+          .to("[data-stepup-header], [data-stepup-footer]", { opacity: 0, duration: 0.05, ease: "power1.out" }, 0.17)
+          .to("[data-stepup-header], [data-stepup-footer]", { opacity: 1, duration: 0.05, ease: "power1.in" }, 0.80);
+      }
 
       // =========================================================================
       // STAGE D — HOLD STAMP IMPACT ON SETTLED BACKING STOCK (0.37 - 0.45)
@@ -303,17 +352,10 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
           { opacity: 0, y: 4 },
           { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" },
           0.41,
-        )
-        .call(
-          () => {
-            if (barStatusEl) barStatusEl.textContent = "HELD FOR CLEARANCE // ₹4,900 > ₹3,000";
-          },
-          undefined,
-          0.39,
         );
 
       // =========================================================================
-      // STAGE E — ACTION CONTROLS & CLEAR ONCE AUTHORIZATION (0.45 - 0.63)
+      // STAGE E — ACTION CONTROLS & CLEAR ONCE AUTHORIZATION (0.45 - 0.68; seal stays readable 0.61 - 0.68)
       // Controls resolve. CLEAR ONCE seal strikes onto the document.
       // =========================================================================
       timeline
@@ -322,13 +364,6 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
           { opacity: 0, y: 6 },
           { opacity: 1, y: 0, duration: 0.08, ease: "power2.out" },
           0.45,
-        )
-        .call(
-          () => {
-            if (barStatusEl) barStatusEl.textContent = "REFER FOR APPROVAL // ROUTE OPEN";
-          },
-          undefined,
-          0.51,
         )
         .fromTo(
           "[data-clear-seal]",
@@ -340,17 +375,10 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
           "[data-action-clear-box]",
           { backgroundColor: "rgba(169, 42, 36, 0.14)", borderColor: "var(--kp-red)", duration: 0.04 },
           0.59,
-        )
-        .call(
-          () => {
-            if (barStatusEl) barStatusEl.textContent = "ONE-TIME CLEARANCE GRANTED // RELEASED";
-          },
-          undefined,
-          0.61,
         );
 
       // =========================================================================
-      // STAGE F — RELEASE CAUSALITY & RECONTRACTION (0.63 - 0.73)
+      // STAGE F — RELEASE CAUSALITY & RECONTRACTION (0.68 - 0.82)
       // 1. Bracket unlocks & lifts
       // 2. Secondary administrative fields retract
       // 3. Backing stock recedes back around the identity spine into compact slip
@@ -360,76 +388,77 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
         .to(
           "[data-registration-bar]",
           { y: -14, opacity: 0.35, borderColor: "rgba(235, 225, 201, 0.2)", duration: 0.05, ease: "power2.in" },
-          0.63,
+          0.68,
         )
         .to(
           "[data-clearance-bracket]",
           { y: 14, opacity: 0.35, borderColor: "rgba(235, 225, 201, 0.2)", duration: 0.05, ease: "power2.in" },
-          0.63,
+          0.68,
         )
         .to(
           "[data-doc-header-title], [data-doc-pictogram], [data-doc-divider], [data-comparison-ledger], [data-action-controls], [data-doc-footer], [data-corner-mark], [data-referral-notice]",
           { opacity: 0, y: -4, duration: 0.04, ease: "power1.in" },
-          0.64,
+          0.69,
         )
         .to(
           "[data-doc-top-extension]",
-          { height: 0, opacity: 0, duration: 0.07, ease: "power2.inOut" },
-          0.66,
+          { height: 0, opacity: 0, duration: 0.11, ease: "power2.inOut" },
+          0.70,
         )
         .to(
           "[data-doc-bottom-extension]",
-          { height: 0, opacity: 0, duration: 0.07, ease: "power2.inOut" },
-          0.66,
+          { height: 0, opacity: 0, duration: 0.11, ease: "power2.inOut" },
+          0.70,
         )
         .to(
           "[data-travel-artifact]",
-          { width: compactWidth, duration: 0.07, ease: "power2.inOut" },
-          0.66,
+          { width: compactWidth, duration: 0.11, ease: "power2.inOut" },
+          0.70,
         )
         .to(
           "[data-compact-cleared-badge]",
-          { height: 28, opacity: 1, duration: 0.04, ease: "power2.out" },
-          0.70,
+          { height: 28, opacity: 1, duration: 0.05, ease: "power2.out" },
+          0.77,
         );
 
       // =========================================================================
-      // STAGE G — DOWNSTREAM ACCELERATION (0.73 - 0.83)
+      // STAGE G — DOWNSTREAM RELEASE (0.80 - 0.92)
       // Retained tension releases -> SAME compact card accelerates downstream
       // toward the 04->05 transition's own opening frame.
       // =========================================================================
       timeline.to(
         "[data-stepup-travel-carrier]",
         {
-          x: () => travelGeometry.exitX,
-          y: () => travelGeometry.exitY,
-          scaleX: () => travelGeometry.exitScaleX,
-          scaleY: () => travelGeometry.exitScaleY,
-          duration: 0.10,
-          ease: "power2.in",
+          x: () => releasedFrame().x,
+          y: () => releasedFrame().y,
+          scaleX: () => releasedFrame().scale,
+          scaleY: () => releasedFrame().scale,
+          duration: 0.12,
+          ease: "power2.inOut",
         },
-        0.73,
+        0.80,
       );
 
       // =========================================================================
-      // STAGE H — TERMINAL HOLD (0.83 - 1.00)
+      // STAGE H — TERMINAL HOLD (0.92 - 1.00)
       // =========================================================================
       timeline.set({}, {}, 1.0);
 
-      // Deterministic reverse scrub status text updates
+      // Status text: single writer, a pure function of timeline progress so it
+      // stays coherent under reverse scrub and direct jumps.
       timeline.eventCallback("onUpdate", () => {
+        if (!barStatusEl) return;
         const p = timeline.progress();
-        if (barStatusEl) {
-          if (p < 0.07) {
-            barStatusEl.textContent = "CLEARANCE DATUM // READY";
-          } else if (p < 0.37) {
-            barStatusEl.textContent = "HELD AT DATUM // LIMIT EXCEEDED";
-          } else if (p < 0.55) {
-            barStatusEl.textContent = "REFER FOR APPROVAL // ROUTE OPEN";
-          } else {
-            barStatusEl.textContent = "ONE-TIME CLEARANCE GRANTED // RELEASED";
-          }
-        }
+        barStatusEl.textContent =
+          p < 0.12
+            ? "CLEARANCE DATUM // READY"
+            : p < 0.37
+              ? "HELD AT DATUM // LIMIT EXCEEDED"
+              : p < 0.45
+                ? "HELD FOR CLEARANCE // ₹4,900 > ₹3,000"
+                : p < 0.55
+                  ? "REFER FOR APPROVAL // ROUTE OPEN"
+                  : "ONE-TIME CLEARANCE GRANTED // RELEASED";
       });
 
       return () => {

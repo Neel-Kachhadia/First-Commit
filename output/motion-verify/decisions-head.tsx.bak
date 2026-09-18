@@ -74,16 +74,18 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
       const tx = (el: Element) => Number(gsap.getProperty(el, "x")) || 0;
       const ty = (el: Element) => Number(gsap.getProperty(el, "y")) || 0;
 
-      // Label wraps rest at their live layout position. The film frames the labels
-      // at the edge of the video (no page gutter), so absolute film positions
-      // cannot be used without pushing the letters off-screen; instead the live
-      // labels follow the film's own relative IN -> OUT settle (letters
-      // register, labels yield the space), offset by that shift at scene start.
+      // Label wraps: untransformed layout position = film OUT frame. At scene
+      // start they sit where the film's last frame has them (letters not yet
+      // registered, so the label is further left).
       const labelStart = (l: Lane) => {
+        const el = wrap(l);
+        const r = el.getBoundingClientRect();
         const f = filmBox("01-02");
+        const natX = r.left - tx(el);
+        const natY = r.top - ty(el);
         return {
-          x: (IN_LABEL[l].x0 - OUT_LABEL[l].x0) * f.s,
-          y: (IN_LABEL[l].y0 - OUT_LABEL[l].y0) * f.s,
+          x: f.ox + IN_LABEL[l].x0 * f.s - natX,
+          y: f.oy + IN_LABEL[l].y0 * f.s - natY,
         };
       };
 
@@ -130,20 +132,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         if (stageRef.current) stageRef.current.style.visibility = visible ? "visible" : "hidden";
       };
 
-      // Receipts emerge from their lane track, never over the lane label: clip
-      // each track to start just past its label (labels can be wider than the
-      // label column). Static layout, re-measured on every ScrollTrigger refresh.
-      const clipTracks = () =>
-        LANES.forEach((l) => {
-          const track = carriage(l).parentElement!;
-          const label = wrap(l).getBoundingClientRect();
-          const box = track.getBoundingClientRect();
-          // Only when label and track share a row (desktop); on mobile the label sits above.
-          const sameRow = label.bottom - ty(wrap(l)) > box.top + 4 && label.top - ty(wrap(l)) < box.bottom - 4;
-          const inset = sameRow ? Math.max(0, label.right - tx(wrap(l)) + 12 - box.left) : 0;
-          track.style.clipPath = `inset(0px 0px 0px ${inset}px)`;
-        });
-
       // Receipts own their transform completely (CSS centres them with translateX(-50%)).
       gsap.set(LANES.map(carriage), { xPercent: -50, x: 0, y: 0 });
 
@@ -173,15 +161,13 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         },
       });
 
-      // Body visibility. Desktop: 1px epsilon (not an authored overlap): GSAP's
-      // onEnter for a non-scrubbed trigger needs progress strictly > 0.
-      // Mobile has no film: Mandate's body deliberately lingers 120px past its
-      // end (it sits under the desktop film), so mobile hands over at that point.
+      // Body visibility. 1px epsilon (not an authored overlap): GSAP's onEnter
+      // for a non-scrubbed trigger needs progress strictly > 0.
       const announce = () =>
         window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "decisions" } }));
       const visibilityTrigger = ScrollTrigger.create({
         trigger: triggerEl,
-        start: isMobile ? "top top-=120px" : "top top+=1px",
+        start: "top top+=1px",
         end: "bottom top",
         onEnter: () => {
           setBodyVisible(true);
@@ -196,9 +182,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         },
         onLeaveBack: () => setBodyVisible(false),
       });
-
-      clipTracks();
-      ScrollTrigger.addEventListener("refresh", clipTracks);
 
       // ---- Initial state: exactly the 01->02 film's last frame ---------------
       // Apparatus already established: labels, descriptors, lane lines, header,
@@ -272,10 +255,10 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
           0.42,
         )
         .to(carriage("stepup"), { opacity: 1, duration: 0.04, ease: "power1.out" }, 0.42)
-        .to(carriage("stepup"), { x: () => rest("stepup").x, y: () => rest("stepup").y, scale: () => rest("stepup").scale, duration: 0.045, ease: "expo.out" }, 0.54)
-        .to("[data-gate='stepup']", { opacity: 1, clipPath: SHOW, duration: 0.04, ease: "power3.out" }, 0.585)
-        .fromTo("[data-stamp='stepup']", { opacity: 0, scale: 1.4, rotate: 6 }, { opacity: 1, scale: 1, rotate: 3, duration: 0.04, ease: "power2.out", immediateRender: true }, 0.61)
-        .to("[data-note='stepup']", { opacity: 1, x: 0, duration: 0.05 }, 0.62);
+        .to(carriage("stepup"), { x: () => rest("stepup").x, y: () => rest("stepup").y, scale: () => rest("stepup").scale, duration: 0.03, ease: "expo.out" }, 0.54)
+        .to("[data-gate='stepup']", { opacity: 1, clipPath: SHOW, duration: 0.04, ease: "power3.out" }, 0.57)
+        .fromTo("[data-stamp='stepup']", { opacity: 0, scale: 1.4, rotate: 6 }, { opacity: 1, scale: 1, rotate: 3, duration: 0.04, ease: "power2.out", immediateRender: true }, 0.6)
+        .to("[data-note='stepup']", { opacity: 1, x: 0, duration: 0.05 }, 0.61);
 
       // =========================================================================
       // D — DENY: TERMINATION (0.65 - 0.89)
@@ -293,9 +276,9 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         .to(carriage("deny"), { opacity: 1, duration: 0.04, ease: "power1.out" }, 0.67)
         .to("[data-barrier='deny']", { opacity: 1, clipPath: SHOW, duration: 0.04, ease: "power2.out" }, 0.72)
         .to("[data-track-remaining='deny']", { opacity: 0.12, duration: 0.05 }, 0.74)
-        .to(carriage("deny"), { x: () => rest("deny").x, y: () => rest("deny").y, scale: () => rest("deny").scale, duration: 0.035, ease: "power3.out" }, 0.77)
-        .fromTo("[data-stamp='deny']", { opacity: 0, scale: 1.5, rotate: -9 }, { opacity: 1, scale: 1, rotate: -4, duration: 0.03, ease: "power2.out", immediateRender: true }, 0.81)
-        .to("[data-note='deny']", { opacity: 1, x: 0, duration: 0.05 }, 0.84);
+        .to(carriage("deny"), { x: () => rest("deny").x, y: () => rest("deny").y, scale: () => rest("deny").scale, duration: 0.02, ease: "power3.out" }, 0.77)
+        .fromTo("[data-stamp='deny']", { opacity: 0, scale: 1.5, rotate: -9 }, { opacity: 1, scale: 1, rotate: -4, duration: 0.03, ease: "power2.out", immediateRender: true }, 0.8)
+        .to("[data-note='deny']", { opacity: 1, x: 0, duration: 0.05 }, 0.83);
 
       // =========================================================================
       // E — COMPARATIVE RESOLUTION (0.89 - 0.94): all three lanes at full
@@ -306,7 +289,6 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
       timeline.set({}, {}, 1.0);
 
       return () => {
-        ScrollTrigger.removeEventListener("refresh", clipTracks);
         visibilityTrigger.kill();
         timeline.scrollTrigger?.kill();
         timeline.kill();
@@ -315,210 +297,3 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
     { scope: root, dependencies: [trackRef] },
   );
 
-  return (
-    <section
-      ref={root}
-      className={styles.section}
-      data-scene="decisions"
-      aria-labelledby="decisions-scene-title"
-    >
-      <div ref={stageRef} className={styles.stage} data-decisions-stage>
-        {/* Top Institutional Header Bar */}
-        <header className={styles.sceneHeader} data-decisions-header>
-          <div className={styles.headerLeft}>
-            <span className={styles.sceneIndex}>02</span>
-            <span className={styles.headerDivider}>/</span>
-            <h2 id="decisions-scene-title" className={styles.headerTitle}>
-              ALLOW / STEP-UP / DENY
-            </h2>
-          </div>
-          <div className={styles.headerRight}>
-            <span className={styles.headerSub}>SAME RULES.</span>
-            <span className={styles.headerMeta}>DIFFERENT OUTCOMES.</span>
-          </div>
-        </header>
-
-        {/* 3 Horizontal Evaluation Lanes */}
-        <div className={styles.lanesBoard} data-lanes-board>
-          {/* ------------------------------------------------------------- */}
-          {/* LANE A: ALLOW (Grocery ₹1,249) */}
-          {/* ------------------------------------------------------------- */}
-          <div
-            className={`${styles.lane} ${styles.laneAllow}`}
-            data-lane="allow"
-            aria-label="Allow outcome: Grocery"
-          >
-            {/* Left Lane Identity */}
-            <div className={styles.laneIdentity}>
-              <span className={styles.laneLetter} data-lane-letter="allow">A</span>
-              <div className={styles.laneTagWrap} data-lane-tagwrap="allow">
-                <strong className={styles.laneTag} data-lane-tag="allow">ALLOW</strong>
-                <span className={styles.laneRule} data-lane-rule="allow">CONTINUITY</span>
-              </div>
-            </div>
-
-            {/* Film Sprocket Perforations */}
-            <div className={styles.sprocketTrack} data-lane-sprockets aria-hidden="true">
-              <div className={styles.sprocketRow} />
-            </div>
-
-            {/* Travel Path & Receipt Carriage */}
-            <div className={styles.trackContainer} data-lane-track>
-              <div className={styles.trackLine} data-lane-track-line="allow" />
-              <div className={styles.receiptCarriage} data-receipt-wrap="allow">
-                <TransactionReceipt
-                  id={decisionsDemo.allow.id}
-                  agent={decisionsDemo.allow.agent}
-                  category={decisionsDemo.allow.category}
-                  amount={decisionsDemo.allow.amount}
-                  mandateRef={decisionsDemo.allow.mandateRef}
-                  status="approved"
-                  stamp={
-                    <div data-stamp="allow">
-                      <DecisionStamp tone="ink">APPROVED</DecisionStamp>
-                    </div>
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Right Restrained Annotation */}
-            <div className={styles.laneOutcome} data-note="allow">
-              <span className={styles.outcomeLine}>CONTINUITY</span>
-              <span className={styles.outcomeSub}>UNOBSTRUCTED PASSAGE</span>
-            </div>
-          </div>
-
-          {/* ------------------------------------------------------------- */}
-          {/* LANE B: STEP-UP (Travel ₹4,900) */}
-          {/* ------------------------------------------------------------- */}
-          <div
-            className={`${styles.lane} ${styles.laneStepUp}`}
-            data-lane="stepup"
-            aria-label="Step-up outcome: Travel"
-          >
-            {/* Left Lane Identity */}
-            <div className={styles.laneIdentity}>
-              <span className={styles.laneLetter} data-lane-letter="stepup">B</span>
-              <div className={styles.laneTagWrap} data-lane-tagwrap="stepup">
-                <strong className={`${styles.laneTag} ${styles.tagStepUp}`} data-lane-tag="stepup">
-                  STEP-UP
-                </strong>
-                <span className={styles.laneRule} data-lane-rule="stepup">INTERRUPTION</span>
-              </div>
-            </div>
-
-            {/* Film Sprocket Perforations */}
-            <div className={styles.sprocketTrack} data-lane-sprockets aria-hidden="true">
-              <div className={styles.sprocketRow} />
-            </div>
-
-            {/* Travel Path & Receipt Carriage */}
-            <div className={styles.trackContainer} data-lane-track>
-              <div className={styles.trackLine} data-lane-track-line="stepup" />
-              {/* Hold Gate Clamp (Physically arrests the slip) */}
-              <div className={styles.holdGate} data-gate="stepup" aria-hidden="true">
-                <span className={styles.gateBracketLeft}>[</span>
-                <span className={styles.gateLabel}>HOLD FOR CLEARANCE</span>
-                <span className={styles.gateBracketRight}>]</span>
-              </div>
-              <div className={styles.receiptCarriage} data-receipt-wrap="stepup">
-                <TransactionReceipt
-                  id={decisionsDemo.stepUp.id}
-                  agent={decisionsDemo.stepUp.agent}
-                  category={decisionsDemo.stepUp.category}
-                  amount={decisionsDemo.stepUp.amount}
-                  constraint={decisionsDemo.stepUp.constraint}
-                  mandateRef={decisionsDemo.stepUp.mandateRef}
-                  status="stepup"
-                  stamp={
-                    <div data-stamp="stepup">
-                      <DecisionStamp tone="red">STEP-UP REQUIRED</DecisionStamp>
-                    </div>
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Right Restrained Annotation */}
-            <div className={styles.laneOutcome} data-note="stepup">
-              <span className={styles.outcomeLine}>INTERRUPTION</span>
-              <span className={styles.outcomeSub}>HELD FOR PERMISSION</span>
-            </div>
-          </div>
-
-          {/* ------------------------------------------------------------- */}
-          {/* LANE C: DENY (Blocked Merchant ₹799) */}
-          {/* ------------------------------------------------------------- */}
-          <div
-            className={`${styles.lane} ${styles.laneDeny}`}
-            data-lane="deny"
-            aria-label="Deny outcome: Blocked Merchant"
-          >
-            {/* Left Lane Identity */}
-            <div className={styles.laneIdentity}>
-              <span className={styles.laneLetter} data-lane-letter="deny">C</span>
-              <div className={styles.laneTagWrap} data-lane-tagwrap="deny">
-                <strong className={`${styles.laneTag} ${styles.tagDeny}`} data-lane-tag="deny">
-                  DENY
-                </strong>
-                <span className={styles.laneRule} data-lane-rule="deny">INCOMPLETION</span>
-              </div>
-            </div>
-
-            {/* Film Sprocket Perforations */}
-            <div className={styles.sprocketTrack} data-lane-sprockets aria-hidden="true">
-              <div className={styles.sprocketRow} />
-            </div>
-
-            {/* Travel Path & Receipt Carriage */}
-            <div className={styles.trackContainer} data-lane-track>
-              {/* Terminated Route Track (route cut off before destination) */}
-              <div className={styles.trackLineTerminated} data-lane-track-line="deny" />
-              <div
-                className={styles.trackRemainingVoid}
-                data-track-remaining="deny"
-                aria-hidden="true"
-              />
-              {/* Physical Route Sever Barrier */}
-              <div className={styles.routeBarrier} data-barrier="deny" aria-hidden="true">
-                <span className={styles.barrierTick} />
-                <span className={styles.barrierLabel}>ROUTE TERMINATED</span>
-                <span className={styles.barrierTick} />
-              </div>
-              <div className={styles.receiptCarriage} data-receipt-wrap="deny">
-                <TransactionReceipt
-                  id={decisionsDemo.deny.id}
-                  agent={decisionsDemo.deny.agent}
-                  category={decisionsDemo.deny.category}
-                  amount={decisionsDemo.deny.amount}
-                  constraint={decisionsDemo.deny.constraint}
-                  mandateRef={decisionsDemo.deny.mandateRef}
-                  status="denied"
-                  stamp={
-                    <div data-stamp="deny">
-                      <DecisionStamp tone="red">DENIED</DecisionStamp>
-                    </div>
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Right Restrained Annotation */}
-            <div className={styles.laneOutcome} data-note="deny">
-              <span className={styles.outcomeLine}>INCOMPLETION</span>
-              <span className={styles.outcomeSub}>UNAUTHORIZED ACTION</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Institutional Administrative Bar */}
-        <footer className={styles.sceneFooter} data-decisions-footer>
-          <span className={styles.footerBrand}>KAVACHPAY</span>
-          <span className={styles.footerTagline}>FRAME BETTER CHOICES</span>
-          <span className={styles.footerCode}>DECISION DISPATCH // 02</span>
-        </footer>
-      </div>
-    </section>
-  );
-}

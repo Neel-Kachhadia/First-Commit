@@ -2,18 +2,51 @@
 
 import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
-import { decisionsDemo, delegationDemo } from "@/lib/experience/demo-state";
+import { delegationDemo } from "@/lib/experience/demo-state";
 import { experienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
 import { AuthorityPass } from "@/components/documents/AuthorityPass";
-import { TransactionReceipt } from "@/components/documents/TransactionReceipt";
-import { DecisionStamp } from "@/components/graphics/DecisionStamp";
 import styles from "./DelegationScene.module.css";
 
 type DelegationSceneProps = {
   trackRef?: React.RefObject<HTMLDivElement | null>;
 };
+
+// Film geometry (video px, 1280x720) measured from the approved clips.
+// 02->03 last frame: the parent pass alone. 03->04 first frame: the full
+// structure. The live passes are laid over these boxes at every viewport.
+type Box = { x0: number; y0: number; x1: number; y1: number };
+const FILM_W = 1280;
+const FILM_H = 720;
+const IN_PARENT: Box = { x0: 411, y0: 127, x1: 858, y1: 611 };
+const OUT_BOX = {
+  parent: { x0: 423, y0: 139, x1: 846, y1: 596 },
+  grocery: { x0: 96, y0: 181, x1: 383, y1: 411 },
+  delivery: { x0: 886, y0: 257, x1: 1162, y1: 478 },
+  downstream: { x0: 126, y0: 473, x1: 364, y1: 660 },
+} satisfies Record<string, Box>;
+
+const CLIP_HIDDEN = "inset(0% 0% 100% 0%)";
+const CLIP_SHOWN = "inset(0% 0% 0% 0%)";
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+const smooth = (v: number) => {
+  const t = clamp01(v);
+  return t * t * (3 - 2 * t);
+};
+const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+
+// Authority accounting as a pure function of scene progress, so it stays
+// coherent under reverse scrub and direct jumps. Grocery's strip leaves the
+// stock at 0.28-0.36, Delivery's at 0.62-0.70.
+const GROCERY_PAID = [0.28, 0.36] as const;
+const DELIVERY_PAID = [0.62, 0.7] as const;
+function delegatedAt(p: number) {
+  const g = smooth((p - GROCERY_PAID[0]) / (GROCERY_PAID[1] - GROCERY_PAID[0]));
+  const d = smooth((p - DELIVERY_PAID[0]) / (DELIVERY_PAID[1] - DELIVERY_PAID[0]));
+  return Math.round((1500 * g + 1000 * d) / 10) * 10;
+}
 
 export function DelegationScene({ trackRef }: DelegationSceneProps) {
   const root = useRef<HTMLElement>(null);
@@ -22,70 +55,110 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
   useGSAP(
     () => {
       const isMobile = window.matchMedia("(max-width: 48rem)").matches;
-
-      // Coordinate calculations based on viewport: zero overlap on desktop, compact flow on mobile
-      const groceryTargetX = isMobile ? 0 : -450;
-      const groceryTargetY = isMobile ? 0 : -65;
-      const downstreamTargetX = isMobile ? 0 : -450;
-      const downstreamTargetY = isMobile ? 0 : 230;
-      const deliveryTargetX = isMobile ? 0 : 450;
-      const deliveryTargetY = isMobile ? 0 : 0;
-      const parentScaleSettle = isMobile ? 1 : 0.94;
-      // Editorial refocus: Grocery becomes primary subject for the Level-2 depth demonstration
-      const groceryFocusY = isMobile ? 0 : groceryTargetY - 18;
-      const parentReceded = isMobile ? 1 : parentScaleSettle * 0.93;
-      const deliveryReceded = isMobile ? 1 : 0.9;
-
       const prefersReduced = experienceStore.getState().reducedMotion;
+      const scope = root.current;
+      if (!scope) return;
+
+      const q = <T extends HTMLElement>(sel: string) => scope.querySelector<T>(sel);
+      const parent = q("[data-delegation-parent]");
+      const grocery = q("[data-delegation-grocery]");
+      const delivery = q("[data-delegation-delivery]");
+      const downstream = q("[data-delegation-downstream]");
+      const arena = q("[data-delegation-arena]");
+      const allocatedEl = q("[data-accounting-allocated]");
+      const remainingEl = q("[data-accounting-remaining]");
+      const stockCapacityEl = q("[data-stock-capacity]");
+      if (!parent || !grocery || !delivery || !downstream || !arena) return;
+
+      // ---- Film-box geometry ------------------------------------------------
+      // The video layer sits under the navbar and is object-fit: cover, so its
+      // box (not the raw viewport) sets the film scale. Measured on demand.
+      const filmBox = (key: string) => {
+        const box = document.querySelector<HTMLElement>(`video[src*="${key}"]`)?.getBoundingClientRect();
+        const bw = box?.width || window.innerWidth;
+        const bh = box?.height || window.innerHeight;
+        const s = Math.max(bw / FILM_W, bh / FILM_H);
+        return {
+          s,
+          ox: (box?.left ?? 0) - (FILM_W * s - bw) / 2,
+          oy: (box?.top ?? 0) - (FILM_H * s - bh) / 2,
+        };
+      };
+      // Every pass is centred on the arena when untransformed (origin: centre).
+      const arenaCenter = () => {
+        const r = arena.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      };
+      const slot = (el: HTMLElement, key: string, b: Box) => {
+        const f = filmBox(key);
+        const c = arenaCenter();
+        return {
+          x: f.ox + ((b.x0 + b.x1) / 2) * f.s - c.x,
+          y: f.oy + ((b.y0 + b.y1) / 2) * f.s - c.y,
+          scale: ((b.x1 - b.x0) * f.s) / el.offsetWidth,
+        };
+      };
+      const inParent = () => slot(parent, "02-03", IN_PARENT);
+      const outParent = () => slot(parent, "03-04", OUT_BOX.parent);
+      const midParent = () => {
+        const a = inParent();
+        const b = outParent();
+        return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, scale: (a.scale + b.scale) / 2 };
+      };
+      const outGrocery = () => slot(grocery, "03-04", OUT_BOX.grocery);
+      const outDelivery = () => slot(delivery, "03-04", OUT_BOX.delivery);
+      const outDownstream = () => slot(downstream, "03-04", OUT_BOX.downstream);
+      // A child starts as its own registration boundary inside the parent's
+      // stock band: same centre, same width.
+      const fromFrame = (el: HTMLElement, name: "grocery" | "delivery") => {
+        const frame = q(`[data-registration-frame='${name}']`);
+        const c = arenaCenter();
+        if (!frame) return { x: 0, y: 0, scale: 0.42 };
+        const r = frame.getBoundingClientRect();
+        return {
+          x: r.left + r.width / 2 - c.x,
+          y: r.top + r.height / 2 - c.y,
+          scale: r.width / el.offsetWidth,
+        };
+      };
+
+      const setBodyVisible = (visible: boolean) => {
+        scope.style.visibility = visible ? "visible" : "hidden";
+        scope.style.pointerEvents = visible ? "auto" : "none";
+        scope.setAttribute("aria-hidden", visible ? "false" : "true");
+        if (stageRef.current) stageRef.current.style.visibility = visible ? "visible" : "hidden";
+      };
+
+      const writeAccounting = (p: number) => {
+        const delegated = delegatedAt(p);
+        const remaining = 4000 - delegated;
+        if (allocatedEl && allocatedEl.textContent !== rupees(delegated)) allocatedEl.textContent = rupees(delegated);
+        if (remainingEl && remainingEl.textContent !== rupees(remaining)) remainingEl.textContent = rupees(remaining);
+        const stock = `${rupees(remaining)} UNALLOCATED`;
+        if (stockCapacityEl && stockCapacityEl.textContent !== stock) stockCapacityEl.textContent = stock;
+      };
+
+      // Passes scale/translate about their own centre.
+      gsap.set([parent, grocery, delivery, downstream], { transformOrigin: "50% 50%" });
+
       if (prefersReduced) {
-        if (root.current) {
-          root.current.style.visibility = "visible";
-          root.current.style.pointerEvents = "auto";
+        setBodyVisible(true);
+        if (!isMobile) {
+          gsap.set(parent, outParent());
+          gsap.set(grocery, { xPercent: -50, yPercent: -50, ...outGrocery() });
+          gsap.set(delivery, { xPercent: -50, yPercent: -50, ...outDelivery() });
+          gsap.set(downstream, { xPercent: -50, yPercent: -50, ...outDownstream() });
         }
-        if (stageRef.current) {
-          stageRef.current.style.visibility = "visible";
-        }
-        // Set all elements to resting static layout with proper offsets
-        gsap.set("[data-delegation-parent]", { opacity: 1, scale: parentScaleSettle, x: 0, y: 0 });
-        gsap.set("[data-delegation-grocery]", { opacity: 1, scale: 1, xPercent: -50, yPercent: -50, x: groceryTargetX, y: groceryTargetY });
-        gsap.set("[data-delegation-delivery]", { opacity: 1, scale: 1, xPercent: -50, yPercent: -50, x: deliveryTargetX, y: deliveryTargetY });
-        gsap.set("[data-delegation-downstream]", { opacity: 1, scaleY: 1, xPercent: -50, yPercent: -50, x: downstreamTargetX, y: downstreamTargetY });
-        gsap.set("[data-sealed-boundary]", { opacity: 1, scale: 1 });
-        // Coupling rails are a transient detachment cue, not a permanent graph line
-        gsap.set("[data-coupling-line='left']", { scaleX: 0 });
-        gsap.set("[data-coupling-line='right']", { scaleX: 0 });
-        gsap.set("[data-decision-evidence-incoming]", { opacity: 0 });
-        gsap.set("[data-delegation-header]", { opacity: 1, y: 0 });
-        gsap.set("[data-delegation-footer]", { opacity: 1, y: 0 });
-        gsap.set("[data-registration-frame]", { opacity: 0 });
-        gsap.set("[data-frame-perf]", { opacity: 0 });
-        gsap.set("[data-ledger-entry]", { opacity: 1 });
-        gsap.set("[data-residue-scar]", { opacity: 1 });
-        gsap.set("[data-next-level-zone]", { opacity: 0 });
-        const allocEl = root.current?.querySelector<HTMLElement>("[data-accounting-allocated]");
-        const remEl = root.current?.querySelector<HTMLElement>("[data-accounting-remaining]");
-        const stockEl = root.current?.querySelector<HTMLElement>("[data-stock-capacity]");
-        if (allocEl) allocEl.textContent = "₹2,500";
-        if (remEl) remEl.textContent = "₹1,500";
-        if (stockEl) stockEl.textContent = "₹1,500 UNALLOCATED";
+        gsap.set([grocery, delivery, downstream], { opacity: 1 });
+        gsap.set("[data-ledger-entry], [data-residue-scar], [data-sealed-boundary]", { opacity: 1 });
+        gsap.set("[data-registration-frame], [data-frame-perf], [data-next-level-zone]", { opacity: 0 });
+        gsap.set("[data-coupling-line]", { scaleX: 0 });
+        writeAccounting(1);
         return;
       }
 
-      if (!root.current || !stageRef.current) return;
-
       const isPersistent = Boolean(trackRef);
-      const triggerEl = trackRef?.current ?? (isPersistent ? "[data-track='delegation']" : root.current);
-
-      const applyVisibility = (visible: boolean) => {
-        if (root.current) {
-          root.current.style.visibility = visible ? "visible" : "hidden";
-          root.current.style.pointerEvents = visible ? "auto" : "none";
-          root.current.setAttribute("aria-hidden", visible ? "false" : "true");
-        }
-        if (stageRef.current) {
-          stageRef.current.style.visibility = visible ? "visible" : "hidden";
-        }
-      };
+      const triggerEl = trackRef?.current ?? (isPersistent ? "[data-track='delegation']" : scope);
 
       const timeline = gsap.timeline({
         defaults: { ease: "none" },
@@ -102,352 +175,170 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
         },
       });
 
-      // Body visibility trigger scoped to Delegation's own true pinned window.
-      // Neither edge bleeds into the neighbouring scene's body. Only the approved
-      // receipt (incoming 02 -> 03) and Grocery authority pass (outgoing 03 -> 04)
-      // survive through independent, pointerless bridge ownership.
-      // start uses a 1px epsilon (not an authored overlap) because GSAP's onEnter
-      // for a non-scrubbed trigger requires progress to strictly exceed 0 — landing
-      // exactly on the boundary pixel (e.g. a scroll-restored deep link) would
-      // otherwise leave the body hidden until 1px of further scroll. Confirmed via
-      // direct ScrollTrigger probing; ScrollTrigger.refresh() alone does not fix it.
+      // Body visibility. start uses a 1px epsilon (not an authored overlap):
+      // GSAP's onEnter for a non-scrubbed trigger needs progress strictly > 0,
+      // so a scroll-restored deep link on the boundary pixel would otherwise
+      // leave the body hidden until 1px more scroll.
+      const announce = () =>
+        window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "delegation" } }));
       const visibilityTrigger = ScrollTrigger.create({
         trigger: triggerEl,
         start: "top top+=1px",
         end: "bottom top",
         onEnter: () => {
-          applyVisibility(true);
-          window.dispatchEvent(
-            new CustomEvent("kp:scene", { detail: { id: "delegation" } }),
-          );
+          setBodyVisible(true);
+          announce();
         },
         onEnterBack: () => {
-          applyVisibility(true);
-          window.dispatchEvent(
-            new CustomEvent("kp:scene", { detail: { id: "delegation" } }),
-          );
+          setBodyVisible(true);
+          announce();
         },
         onLeave: () => {
-          if (isPersistent) applyVisibility(false);
+          if (isPersistent) setBodyVisible(false);
         },
-        onLeaveBack: () => {
-          applyVisibility(false);
-        },
+        onLeaveBack: () => setBodyVisible(false),
       });
 
-      // Boundary-only preview copy of the approved receipt. Now permanently
-      // hidden — the 02 -> 03 boundary is owned by the video transition layer.
-      const evidenceInEl = root.current.querySelector<HTMLElement>("[data-decision-evidence-incoming]");
-      if (evidenceInEl) {
-        gsap.set(evidenceInEl, { visibility: "hidden", opacity: 0, pointerEvents: "none" });
+      // ---- Initial state: exactly the 02->03 film's last frame ---------------
+      // Parent already established at full body, ledger and stock not yet
+      // registered. Children exist only as boundaries inside the stock band.
+      gsap.set("[data-parent-accounting], [data-allocation-stock]", { clipPath: CLIP_HIDDEN });
+      gsap.set("[data-registration-frame], [data-frame-perf], [data-next-level-zone], [data-next-level-perf]", { opacity: 0 });
+      gsap.set("[data-ledger-entry], [data-residue-scar], [data-sealed-boundary]", { opacity: 0 });
+      gsap.set("[data-coupling-line]", { scaleX: 0 });
+      gsap.set([grocery, delivery], { opacity: 0, boxShadow: "0 22px 40px rgba(0,0,0,0.5)" });
+      gsap.set(downstream, { clipPath: CLIP_HIDDEN });
+      writeAccounting(0);
+
+      // Desktop passes are absolutely centred (xPercent/yPercent). Mobile passes
+      // sit in flow (CSS forces transform: none there), so mobile gets no
+      // transform tweens, only reveals.
+      if (!isMobile) {
+        gsap.set([grocery, delivery, downstream], { xPercent: -50, yPercent: -50 });
+        gsap.set([grocery, delivery], { zIndex: 12 });
       }
 
-      // Accounting DOM helpers for deterministic scrub
-      const allocatedEl = root.current.querySelector<HTMLElement>("[data-accounting-allocated]");
-      const remainingEl = root.current.querySelector<HTMLElement>("[data-accounting-remaining]");
-      const stockCapacityEl = root.current.querySelector<HTMLElement>("[data-stock-capacity]");
-
-      gsap.set("[data-delegation-header]", { opacity: 0.85, y: 0 });
-      gsap.set("[data-delegation-footer]", { opacity: 0.85, y: 0 });
-
-      // Parent Pass starts centered, undelegated — primed at 0.00 so stage is never dead
-      gsap.set("[data-delegation-parent]", {
-        opacity: 0.62,
-        scale: 0.98,
-        y: 4,
-      });
-      gsap.set("[data-parent-accounting]", { opacity: 0, y: 6 });
-      gsap.set("[data-allocation-stock]", { opacity: 0, y: 6 });
-
-      // Grocery and Delivery do not exist as separate artifacts yet — they are
-      // only ever seen first as a registration boundary inside the parent's stock band.
-      // (Mobile CSS forces transform: none on these containers, so only opacity applies there.)
-      gsap.set("[data-delegation-grocery]", {
-        opacity: 0,
-        xPercent: -50,
-        yPercent: -50,
-        x: groceryTargetX,
-        y: groceryTargetY,
-        scale: isMobile ? 1 : 0.42,
-      });
-      gsap.set("[data-delegation-delivery]", {
-        opacity: 0,
-        xPercent: -50,
-        yPercent: -50,
-        x: deliveryTargetX,
-        y: deliveryTargetY,
-        scale: isMobile ? 1 : 0.42,
-      });
-
-      // Registration frames + perforation + delegation event log + residue scars start inert
-      gsap.set("[data-registration-frame]", { opacity: 0 });
-      gsap.set("[data-frame-perf]", { opacity: 0 });
-      gsap.set("[data-ledger-entry]", { opacity: 0 });
-      gsap.set("[data-residue-scar]", { opacity: 0 });
-
-      // Downstream Pass starts hidden directly beneath Grocery
-      gsap.set("[data-delegation-downstream]", {
-        opacity: 0,
-        scaleY: 0,
-        xPercent: -50,
-        yPercent: -50,
-        x: downstreamTargetX,
-        y: isMobile ? 15 : 205,
-        transformOrigin: "top center",
-      });
-      gsap.set("[data-next-level-zone]", { opacity: 0 });
-      gsap.set("[data-sealed-boundary]", { opacity: 0, scale: 0.95 });
-
-      // Coupling lines
-      gsap.set("[data-coupling-line='left']", { scaleX: 0 });
-      gsap.set("[data-coupling-line='right']", { scaleX: 0 });
-
+      // =========================================================================
+      // A — ESTABLISHED SOURCE (0.00 - 0.05): hold the film's frame untouched.
+      // The source's accounting then registers (0.05 - 0.13): the ledger and the
+      // derivation stock are drawn down onto the parent like a printed register.
+      // =========================================================================
+      if (!isMobile) {
+        // Function-valued so the geometry is re-measured on every refresh.
+        timeline.fromTo(
+          parent,
+          { x: () => inParent().x, y: () => inParent().y, scale: () => inParent().scale },
+          { x: () => inParent().x, y: () => inParent().y, scale: () => inParent().scale, duration: 0.001, immediateRender: true },
+          0,
+        );
+        // Depth demonstration sits at its film slot from the start (hidden by clip).
+        timeline.fromTo(
+          downstream,
+          { x: () => outDownstream().x, y: () => outDownstream().y, scale: () => outDownstream().scale },
+          { x: () => outDownstream().x, y: () => outDownstream().y, scale: () => outDownstream().scale, duration: 0.001, immediateRender: true },
+          0,
+        );
+      }
+      timeline
+        .to("[data-parent-accounting]", { clipPath: CLIP_SHOWN, duration: 0.05, ease: "power1.inOut" }, 0.05)
+        .to("[data-allocation-stock]", { clipPath: CLIP_SHOWN, duration: 0.05, ease: "power1.inOut" }, 0.08);
 
       // =========================================================================
-      // BEAT 1: APPROVED EVIDENCE -> PARENT REGISTRATION (0.00 - 0.14)
-      // The approved Grocery receipt resolves into Shopping authority; ledger +
-      // derivation stock then register before any child authority exists.
+      // B — FIRST DERIVATION: GROCERY (0.15 - 0.41)
+      // A boundary defines 1,500 / WEEK inside SHOPPING's stock. It perforates,
+      // then that strip is drawn out of the stock as the GROCERY pass and slides
+      // to its sibling slot while the source's ledger pays it out.
       // =========================================================================
       timeline
-        // Header and footer reach full registration
-        .to(
-          "[data-delegation-header], [data-delegation-footer]",
-          { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" },
-          0.01,
-        )
-        // Parent settles into full hero rest by 0.04
-        .to(
-          "[data-delegation-parent]",
-          { opacity: 1, scale: 1, y: 0, duration: 0.04, ease: "power2.out" },
-          0.01,
-        )
-        .call(
-          () => {
-            if (allocatedEl) allocatedEl.textContent = "₹0";
-            if (remainingEl) remainingEl.textContent = "₹4,000";
-            if (stockCapacityEl) stockCapacityEl.textContent = "₹4,000 UNALLOCATED";
-          },
-          undefined,
-          0.06,
-        )
-        // Ledger + continuous derivation stock resolve as one authoritative group
-        .fromTo(
-          "[data-parent-accounting]",
-          { opacity: 0, y: 6 },
-          { opacity: 1, y: 0, duration: 0.06, ease: "power2.out" },
-          0.08,
-        )
-        .fromTo(
-          "[data-allocation-stock]",
-          { opacity: 0, y: 6 },
-          { opacity: 1, y: 0, duration: 0.06, ease: "power2.out" },
-          0.1,
-        );
+        .to("[data-registration-frame='grocery']", { opacity: 1, duration: 0.05, ease: "power1.out" }, 0.15)
+        .to("[data-frame-perf='grocery']", { opacity: 0.9, duration: 0.04, ease: "power1.out" }, 0.19)
+        .to("[data-perforation='left']", { opacity: 0.9, duration: 0.04, ease: "power1.out" }, 0.19);
+      if (!isMobile) {
+        timeline
+          .to("[data-coupling-line='left']", { scaleX: 1, duration: 0.1, ease: "power2.out" }, 0.22)
+          .fromTo(
+            grocery,
+            {
+              x: () => fromFrame(grocery, "grocery").x,
+              y: () => fromFrame(grocery, "grocery").y,
+              scale: () => fromFrame(grocery, "grocery").scale,
+            },
+            {
+              x: () => outGrocery().x,
+              y: () => outGrocery().y,
+              scale: () => outGrocery().scale,
+              duration: 0.14,
+              ease: "power2.inOut",
+              immediateRender: true,
+            },
+            0.23,
+          )
+          .to(
+            parent,
+            { x: () => midParent().x, y: () => midParent().y, scale: () => midParent().scale, duration: 0.1, ease: "power1.inOut" },
+            0.28,
+          );
+      } else {
+        timeline.fromTo(grocery, { clipPath: CLIP_HIDDEN }, { clipPath: CLIP_SHOWN, duration: 0.17, ease: "power2.inOut", immediateRender: true }, 0.17);
+      }
+      timeline
+        .to(grocery, { opacity: 1, duration: 0.04, ease: "power1.out" }, 0.23)
+        .to("[data-registration-frame='grocery']", { opacity: 0, duration: 0.04, ease: "power1.in" }, 0.27)
+        .to("[data-ledger-entry='1']", { opacity: 1, duration: 0.03, ease: "power1.out" }, 0.36)
+        .to("[data-residue-scar='1']", { opacity: 1, duration: 0.03, ease: "power1.out" }, 0.37)
+        .to("[data-coupling-line='left']", { scaleX: 0, duration: 0.03, ease: "power1.in" }, 0.39);
 
       // =========================================================================
-      // BEAT 2: GROCERY DERIVATION — the hero derivation (0.14 - 0.36)
-      // A temporary registration boundary defines ₹1,500 / WEEK inside Shopping's
-      // stock band. The boundary is visible and legible BEFORE anything separates.
-      // Perforation activates, material tensions, then Grocery physically detaches.
+      // C — HOLD (0.41 - 0.49): SHOPPING + GROCERY + the remaining stock, readable.
+      // =========================================================================
+
+      // =========================================================================
+      // D — SECOND, INDEPENDENT DERIVATION: DELIVERY (0.49 - 0.75)
+      // Same grammar, drawn from SHOPPING's remaining stock, never from Grocery.
       // =========================================================================
       timeline
-        // Registration boundary defines itself inside the stock band
-        .fromTo(
-          "[data-registration-frame='grocery']",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.05, ease: "power1.out" },
-          0.14,
-        )
-        // Perforation activates along the boundary
-        .fromTo(
-          "[data-frame-perf='grocery']",
-          { opacity: 0 },
-          { opacity: 0.9, duration: 0.03, yoyo: true, repeat: 1 },
-          0.19,
-        )
-        .fromTo(
-          "[data-perforation='left']",
-          { opacity: 0.35 },
-          { opacity: 0.9, duration: 0.03, yoyo: true, repeat: 1 },
-          0.19,
-        )
-        // Material tension — a brief physical pull before release, no bounce
-        .to(
-          "[data-registration-frame='grocery']",
-          { scaleX: 0.985, duration: 0.02, ease: "power1.inOut", yoyo: true, repeat: 1 },
-          0.21,
-        )
-        // Coupling rail extends toward left as the seam releases
-        .fromTo(
-          "[data-coupling-line='left']",
-          { scaleX: 0 },
-          { scaleX: 1, duration: 0.06, ease: "power2.out" },
-          0.23,
-        )
-        // Registration boundary fades as the physical Grocery pass grows out of it
-        .to(
-          "[data-registration-frame='grocery']",
-          { opacity: 0, duration: 0.04, ease: "power1.in" },
-          0.23,
-        )
-        .fromTo(
-          "[data-delegation-grocery]",
-          { opacity: 0, scale: isMobile ? 1 : 0.42, xPercent: -50, yPercent: -50, x: groceryTargetX, y: groceryTargetY },
-          { opacity: 1, scale: 1, xPercent: -50, yPercent: -50, x: groceryTargetX, y: groceryTargetY, duration: 0.09, ease: "power2.out" },
-          0.23,
-        )
-        // Parent settles fractionally as it yields authority
-        .to(
-          "[data-delegation-parent]",
-          { scale: parentScaleSettle, duration: 0.08, ease: "power1.out" },
-          0.24,
-        )
-        // Accounting responds because material left the source — effect follows cause
-        .call(
-          () => {
-            if (allocatedEl) allocatedEl.textContent = "₹1,500";
-            if (remainingEl) remainingEl.textContent = "₹2,500";
-            if (stockCapacityEl) stockCapacityEl.textContent = "₹2,500 UNALLOCATED";
-          },
-          undefined,
-          0.29,
-        )
-        .fromTo(
-          "[data-ledger-entry='1']",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.04, ease: "power1.out" },
-          0.29,
-        )
-        // Shopping physically remembers the derivation — a scar, not an empty slot
-        .fromTo(
-          "[data-residue-scar='1']",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.04, ease: "power1.out" },
-          0.31,
-        )
-        // Short settle hold — Grocery gains a contact shadow, reads as detached
-        .to(
-          "[data-delegation-grocery]",
-          { boxShadow: "0 22px 40px rgba(0,0,0,0.5)", duration: 0.05, ease: "power1.out" },
-          0.31,
-        )
-        // Temporary coupling rail retracts once the child has settled — provenance
-        // text carries the relationship from here, not a permanent connecting line
-        .to(
-          "[data-coupling-line='left']",
-          { scaleX: 0, duration: 0.03, ease: "power1.in" },
-          0.34,
-        );
-
-      // =========================================================================
-      // BEAT 3: DELIVERY DERIVATION — confirms the rule, slightly quicker (0.36 - 0.54)
-      // Same grammar as Grocery: boundary registers inside remaining stock,
-      // perforates, tensions, detaches. Faster rhythm because the viewer already
-      // understands the rule.
-      // =========================================================================
+        .to("[data-registration-frame='delivery']", { opacity: 1, duration: 0.05, ease: "power1.out" }, 0.49)
+        .to("[data-frame-perf='delivery']", { opacity: 0.9, duration: 0.04, ease: "power1.out" }, 0.53)
+        .to("[data-perforation='right']", { opacity: 0.9, duration: 0.04, ease: "power1.out" }, 0.53);
+      if (!isMobile) {
+        timeline
+          .to("[data-coupling-line='right']", { scaleX: 1, duration: 0.1, ease: "power2.out" }, 0.56)
+          .fromTo(
+            delivery,
+            {
+              x: () => fromFrame(delivery, "delivery").x,
+              y: () => fromFrame(delivery, "delivery").y,
+              scale: () => fromFrame(delivery, "delivery").scale,
+            },
+            {
+              x: () => outDelivery().x,
+              y: () => outDelivery().y,
+              scale: () => outDelivery().scale,
+              duration: 0.14,
+              ease: "power2.inOut",
+              immediateRender: true,
+            },
+            0.57,
+          )
+          .to(
+            parent,
+            { x: () => outParent().x, y: () => outParent().y, scale: () => outParent().scale, duration: 0.1, ease: "power1.inOut" },
+            0.62,
+          );
+      } else {
+        timeline.fromTo(delivery, { clipPath: CLIP_HIDDEN }, { clipPath: CLIP_SHOWN, duration: 0.17, ease: "power2.inOut", immediateRender: true }, 0.51);
+      }
       timeline
-        .fromTo(
-          "[data-registration-frame='delivery']",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.04, ease: "power1.out" },
-          0.36,
-        )
-        .fromTo(
-          "[data-frame-perf='delivery']",
-          { opacity: 0 },
-          { opacity: 0.9, duration: 0.025, yoyo: true, repeat: 1 },
-          0.4,
-        )
-        .fromTo(
-          "[data-perforation='right']",
-          { opacity: 0.35 },
-          { opacity: 0.9, duration: 0.025, yoyo: true, repeat: 1 },
-          0.4,
-        )
-        .to(
-          "[data-registration-frame='delivery']",
-          { scaleX: 0.985, duration: 0.015, ease: "power1.inOut", yoyo: true, repeat: 1 },
-          0.415,
-        )
-        .fromTo(
-          "[data-coupling-line='right']",
-          { scaleX: 0 },
-          { scaleX: 1, duration: 0.05, ease: "power2.out" },
-          0.43,
-        )
-        .to(
-          "[data-registration-frame='delivery']",
-          { opacity: 0, duration: 0.03, ease: "power1.in" },
-          0.43,
-        )
-        .fromTo(
-          "[data-delegation-delivery]",
-          { opacity: 0, scale: isMobile ? 1 : 0.42, xPercent: -50, yPercent: -50, x: deliveryTargetX, y: deliveryTargetY },
-          { opacity: 1, scale: 1, xPercent: -50, yPercent: -50, x: deliveryTargetX, y: deliveryTargetY, duration: 0.07, ease: "power2.out" },
-          0.43,
-        )
-        .call(
-          () => {
-            if (allocatedEl) allocatedEl.textContent = "₹2,500";
-            if (remainingEl) remainingEl.textContent = "₹1,500";
-            if (stockCapacityEl) stockCapacityEl.textContent = "₹1,500 UNALLOCATED";
-          },
-          undefined,
-          0.47,
-        )
-        .fromTo(
-          "[data-ledger-entry='2']",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.03, ease: "power1.out" },
-          0.47,
-        )
-        .fromTo(
-          "[data-residue-scar='2']",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.03, ease: "power1.out" },
-          0.485,
-        )
-        .to(
-          "[data-delegation-delivery]",
-          { boxShadow: "0 22px 40px rgba(0,0,0,0.5)", duration: 0.04, ease: "power1.out" },
-          0.49,
-        )
-        .to(
-          "[data-coupling-line='right']",
-          { scaleX: 0, duration: 0.03, ease: "power1.in" },
-          0.52,
-        );
+        .to(delivery, { opacity: 1, duration: 0.04, ease: "power1.out" }, 0.57)
+        .to("[data-registration-frame='delivery']", { opacity: 0, duration: 0.04, ease: "power1.in" }, 0.61)
+        .to("[data-ledger-entry='2']", { opacity: 1, duration: 0.03, ease: "power1.out" }, 0.7)
+        .to("[data-residue-scar='2']", { opacity: 1, duration: 0.03, ease: "power1.out" }, 0.71)
+        .to("[data-coupling-line='right']", { scaleX: 0, duration: 0.03, ease: "power1.in" }, 0.73);
 
-      // =========================================================================
-      // BEAT 4: SIBLING HOLD + EDITORIAL REFOCUS (0.54 - 0.62)
-      // A clear hold so the viewer registers both siblings as Shopping's children.
-      // Then a deliberate subject change: Shopping and Delivery recede, Grocery
-      // becomes the primary subject for the depth demonstration that follows.
-      // =========================================================================
-      timeline
-        .to(
-          "[data-delegation-parent]",
-          { scale: parentReceded, opacity: 0.82, duration: 0.05, ease: "power1.inOut" },
-          0.58,
-        )
-        .to(
-          "[data-delegation-delivery]",
-          { scale: deliveryReceded, opacity: 0.78, duration: 0.05, ease: "power1.inOut" },
-          0.58,
-        )
-        .to(
-          "[data-delegation-grocery]",
-          { scale: 1.07, y: groceryFocusY, duration: 0.05, ease: "power1.inOut" },
-          0.58,
-        );
-
-      // Mobile only: the pinned stage is a fixed 100vh with no internal scroll, and
-      // Shopping's full ledger + stock band + residue detail is too tall to coexist
-      // on-screen with the Level-2/Level-3 depth demonstration below it. Once focus
-      // shifts to Grocery, that supplementary detail collapses out of flow — a
-      // deliberate mobile recomposition, not a desktop-style dim. It stays collapsed
-      // through the terminal hold (re-expanding it there would reintroduce the
-      // overflow); TOTAL/DELEGATED/REMAINING already registered earlier in the scene.
+      // Mobile only: the pinned stage is one 100vh screen and the parent's full
+      // ledger + stock + residue is too tall to sit above the depth
+      // demonstration, so once both children exist that supporting detail folds
+      // out of flow (TOTAL / DELEGATED / REMAINING have already registered).
       if (isMobile) {
         timeline.to(
           ["[data-parent-accounting]", "[data-allocation-stock]", "[data-allocation-residue]"],
@@ -459,156 +350,34 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
             paddingTop: 0,
             paddingBottom: 0,
             overflow: "hidden",
-            duration: 0.05,
+            duration: 0.04,
             ease: "power1.inOut",
           },
-          0.6,
+          0.75,
         );
       }
 
       // =========================================================================
-      // BEAT 5: LEVEL-2 DERIVATION FROM GROCERY (0.62 - 0.78)
-      // Grocery — now Level 1 — bounds a secondary authority inside itself,
-      // echoing the same registration → perforate → tension → separate grammar
-      // at a tighter, smaller scale.
+      // E — DEPTH STOPS AT 2 LEVELS (0.77 - 0.94)
+      // GROCERY (level 1) bounds a secondary authority beneath itself (level 2);
+      // a level-3 attempt stalls and the seam locks. Siblings do not move.
       // =========================================================================
       timeline
-        // Grocery itself tensions fractionally, signalling material is being bounded
-        .to(
-          "[data-delegation-grocery]",
-          { scaleY: 0.99, duration: 0.02, ease: "power1.inOut", yoyo: true, repeat: 1 },
-          0.62,
-        )
-        .fromTo(
-          "[data-delegation-downstream]",
-          { opacity: 0, scaleY: 0, xPercent: -50, yPercent: -50, x: downstreamTargetX, y: isMobile ? 15 : 205 },
-          {
-            opacity: 1,
-            scaleY: 1,
-            xPercent: -50,
-            yPercent: -50,
-            x: downstreamTargetX,
-            y: downstreamTargetY,
-            duration: 0.08,
-            ease: "power2.out",
-          },
-          0.64,
-        );
+        .to(downstream, { clipPath: CLIP_SHOWN, duration: 0.07, ease: "power2.inOut" }, 0.77)
+        .to("[data-next-level-zone]", { opacity: 1, duration: 0.02, ease: "power1.out" }, 0.84)
+        .to("[data-next-level-perf]", { opacity: 0.85, duration: 0.03, ease: "power1.inOut" }, 0.85)
+        .to("[data-next-level-perf]", { opacity: 0.18, duration: 0.025, ease: "power2.in" }, 0.88)
+        .to("[data-next-level-zone]", { opacity: 0, duration: 0.02, ease: "power1.in" }, 0.905)
+        .to("[data-sealed-boundary]", { opacity: 1, duration: 0.03, ease: "power2.out" }, 0.91)
+        .to("[data-sealed-boundary]", { boxShadow: "0 0 0 1px var(--kp-red)", duration: 0.02 }, 0.94);
 
       // =========================================================================
-      // BEAT 6: LEVEL-3 ANTICIPATION & PHYSICAL REFUSAL (0.72 - 0.87)
-      // The material briefly suggests another derivation is possible, then the
-      // perforation stalls and the seam locks solid. Text records what the
-      // material has already shown.
+      // F — TERMINAL HOLD (0.96 - 1.00): the 03->04 film's first frame, untouched.
       // =========================================================================
-      timeline
-        // Anticipation: the next-level zone opens, perforation attempts to begin
-        .fromTo(
-          "[data-next-level-zone]",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.03, ease: "power1.out" },
-          0.72,
-        )
-        .fromTo(
-          "[data-next-level-perf]",
-          { opacity: 0 },
-          { opacity: 0.85, duration: 0.025, ease: "power1.inOut" },
-          0.74,
-        )
-        // The perforation stalls — attempt fails, does not complete
-        .to(
-          "[data-next-level-perf]",
-          { opacity: 0.18, duration: 0.025, ease: "power2.in" },
-          0.765,
-        )
-        // Seam locks solid — physical refusal, then the text confirms it
-        .to(
-          "[data-next-level-zone]",
-          { opacity: 0, duration: 0.03, ease: "power1.in" },
-          0.785,
-        )
-        .fromTo(
-          "[data-sealed-boundary]",
-          { opacity: 0, scale: 0.95 },
-          { opacity: 1, scale: 1, duration: 0.05, ease: "power2.out" },
-          0.79,
-        )
-        .to(
-          "[data-sealed-boundary]",
-          { boxShadow: "0 0 0 1px var(--kp-red)", duration: 0.04 },
-          0.84,
-        );
+      timeline.set({}, {}, 1.0);
 
-      // =========================================================================
-      // BEAT 7: TERMINAL RESTING COMPOSITION (0.92 - 1.00)
-      // Full hierarchy restored — Shopping dominant, both siblings clear,
-      // the sealed depth boundary held. Portfolio stillness.
-      // =========================================================================
-      timeline
-        .to(
-          "[data-delegation-parent]",
-          { scale: parentScaleSettle, opacity: 1, duration: 0.05, ease: "power1.out" },
-          0.92,
-        )
-        .to(
-          "[data-delegation-delivery]",
-          { scale: 1, opacity: 1, duration: 0.05, ease: "power1.out" },
-          0.92,
-        )
-        .to(
-          "[data-delegation-grocery]",
-          { scale: 1.04, opacity: 1, duration: 0.05, ease: "power1.out" },
-          0.92,
-        )
-        .to("[data-delegation-downstream]", { opacity: 1, duration: 0.04 }, 0.92)
-        .to("[data-delegation-footer]", { opacity: 1, duration: 0.04 }, 0.94)
-        // 0.92 - 0.94: Full resting stillness hold sustained
-        .set({}, {}, 0.94)
-        // Non-carrier passes compact away. Grocery remains the single physical
-        // perforated-document carrier into Step-Up.
-        .to(
-          "[data-delegation-parent], [data-delegation-delivery], [data-delegation-downstream]",
-          { scale: parentScaleSettle * 0.90, y: -30, opacity: 0.8, duration: 0.04, ease: "power2.inOut" },
-          0.955,
-        )
-        .to(
-          "[data-delegation-header]",
-          { opacity: 0, y: -8, duration: 0.03, ease: "power1.out" },
-          0.955,
-        )
-        // Supporting bodies recede; the Grocery pass alone holds the boundary.
-        .to(
-          "[data-delegation-parent], [data-delegation-delivery], [data-delegation-downstream], [data-delegation-footer], [data-registration-frame]",
-          { opacity: 0, duration: 0.02, ease: "power1.out" },
-          0.98,
-        )
-        .set({}, {}, 1.0);
-
-      // Support clean reverse scrubbing for accounting + event-log text
-      timeline.eventCallback("onUpdate", () => {
-        const p = timeline.progress();
-        if (allocatedEl && remainingEl) {
-          if (p < 0.29) {
-            allocatedEl.textContent = "₹0";
-            remainingEl.textContent = "₹4,000";
-          } else if (p < 0.47) {
-            allocatedEl.textContent = "₹1,500";
-            remainingEl.textContent = "₹2,500";
-          } else {
-            allocatedEl.textContent = "₹2,500";
-            remainingEl.textContent = "₹1,500";
-          }
-        }
-        if (stockCapacityEl) {
-          if (p < 0.29) {
-            stockCapacityEl.textContent = "₹4,000 UNALLOCATED";
-          } else if (p < 0.47) {
-            stockCapacityEl.textContent = "₹2,500 UNALLOCATED";
-          } else {
-            stockCapacityEl.textContent = "₹1,500 UNALLOCATED";
-          }
-        }
-      });
+      // Single writer for accounting text.
+      timeline.eventCallback("onUpdate", () => writeAccounting(timeline.progress()));
 
       return () => {
         visibilityTrigger.kill();
@@ -627,23 +396,6 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
       aria-labelledby="delegation-scene-title"
     >
       <div ref={stageRef} className={styles.stage} data-delegation-stage>
-        {/* Incoming approved receipt: product-native 02 -> 03 evidence carrier. */}
-        <div
-          className={styles.evidenceCarrier}
-          data-decision-evidence-incoming
-          aria-hidden="true"
-        >
-          <TransactionReceipt
-            id={decisionsDemo.allow.id}
-            agent={decisionsDemo.allow.agent}
-            category={decisionsDemo.allow.category}
-            amount={decisionsDemo.allow.amount}
-            mandateRef={decisionsDemo.allow.mandateRef}
-            status="approved"
-            stamp={<DecisionStamp tone="ink">APPROVED</DecisionStamp>}
-          />
-        </div>
-
         {/* Scene title remains scene-owned; no upper metadata bar. */}
         <div className={styles.topArea}>
           {/* Institutional Scene Header Bar */}
