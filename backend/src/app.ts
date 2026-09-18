@@ -60,6 +60,10 @@ import {
   listScenariosHandler,
 } from "./handlers/scenario-handler.js";
 
+import { agentcoreCreatePaymentHandler } from "./handlers/agentcore-handler.js";
+import { requireIamAuthorization } from "./utils/require-iam-auth.js";
+import { startLocalWorkers } from "./workers/local-scheduler.js";
+
 import { checkDynamoDB } from "./store/health.js";
 
 dotenv.config();
@@ -116,10 +120,10 @@ export function createApp() {
 
     // Signing key
     checks["signingKey"] = {
-      status: process.env.KAVACHPAY_SIGNING_KEY ? "ok" : "error",
-      detail: process.env.KAVACHPAY_SIGNING_KEY
+      status: process.env.KMS_KEY_ID ? "ok" : "error",
+      detail: process.env.KMS_KEY_ID
         ? "Signing key is configured"
-        : "KAVACHPAY_SIGNING_KEY is not set — receipts use dev fallback key",
+        : "KMS_KEY_ID is not set",
     };
 
     // Razorpay credentials
@@ -147,6 +151,15 @@ export function createApp() {
   app.post("/api/create-order", createOrderHandler);
   app.post("/api/execute-order", executeOrderHandler);
   app.post("/api/verify-payment", verifyPaymentHandler);
+
+  /*
+   * ── AgentCore Tools API ──────────────────────────────────────────────────
+   */
+  app.post(
+    "/v0/agent-tools/create-payment",
+    requireIamAuthorization,
+    agentcoreCreatePaymentHandler
+  );
 
   /*
    * ── KavachPay Control Plane API ─────────────────────────────────────────────
@@ -292,5 +305,8 @@ if (process.env.AWS_LAMBDA_FUNCTION_NAME === undefined) {
 ║ Ready  : http://localhost:${PORT}/ready  ║
 ╚══════════════════════════════════════╝
     `);
+
+    // Start background workers for local demo
+    startLocalWorkers();
   });
 }

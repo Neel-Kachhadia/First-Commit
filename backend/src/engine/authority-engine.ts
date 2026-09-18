@@ -12,6 +12,8 @@ import {
 
 import type { Grant } from "../store/grant-repository.js";
 
+import { metrics } from "../utils/metrics.js";
+
 export class AuthorityEngine {
   /**
    * Main KavachPay authorization pipeline.
@@ -208,7 +210,7 @@ export class AuthorityEngine {
      *
      * Policy engine will be evaluated separately.
      */
-    return {
+    const decision: Decision = {
       decisionId,
 
       intentId: intent.intentId,
@@ -240,6 +242,14 @@ export class AuthorityEngine {
 
       createdAt: now,
     };
+    
+    if (decision.decision === "ALLOW") {
+      metrics.logEvent("AUTH_ALLOW", { decisionId, intentId: intent.intentId });
+    } else if (decision.decision === "DENY") {
+      metrics.logEvent("AUTH_DENY", { decisionId, intentId: intent.intentId, reasonCode: decision.reasonCode });
+    }
+
+    return decision;
   }
 
   private checkScope(

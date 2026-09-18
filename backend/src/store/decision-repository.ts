@@ -155,6 +155,7 @@ export class DecisionRepository {
     auth: {
       signature: string;
       algorithm: string;
+      keyId?: string;
       signedAt: string;
       authorityPath?: string[];
       stateBefore?: Record<string, number>;
@@ -188,6 +189,7 @@ export class DecisionRepository {
           receiptHash,
           signature: auth.signature,
           algorithm: auth.algorithm,
+          keyId: auth.keyId,
           signedAt: auth.signedAt,
 
           ...(auth.authorityPath && { authorityPath: auth.authorityPath }),

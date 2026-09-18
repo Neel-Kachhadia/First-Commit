@@ -6,6 +6,8 @@
  * Responsibilities:
  *   - createPayment()             → create a Razorpay order
  *   - getPayment()                → fetch a payment by ID
+ *   - getOrder()                  → fetch a Razorpay order
+ *   - getOrderPayments()          → fetch all payments for an order
  *   - verifyWebhookSignature()    → HMAC-SHA256 against raw body bytes
  *
  * No business logic lives here. All KavachPay orchestration
@@ -108,11 +110,27 @@ export class RazorpayAdapter {
   }
 
   /**
+   * Fetch a Razorpay order by its order ID.
+   */
+  async getOrder(razorpayOrderId: string): Promise<RazorpayOrder> {
+    const order = await this.client.orders.fetch(razorpayOrderId);
+    return order as unknown as RazorpayOrder;
+  }
+
+  /**
    * Fetch a Razorpay payment by its payment ID.
    */
   async getPayment(razorpayPaymentId: string): Promise<RazorpayPayment> {
     const payment = await this.client.payments.fetch(razorpayPaymentId);
     return payment as unknown as RazorpayPayment;
+  }
+
+  /**
+   * Fetch all payments for a given Razorpay order.
+   */
+  async getOrderPayments(razorpayOrderId: string): Promise<RazorpayPayment[]> {
+    const payments = await this.client.orders.fetchPayments(razorpayOrderId);
+    return (payments as any).items as RazorpayPayment[];
   }
 
   /**

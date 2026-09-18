@@ -13,11 +13,15 @@
     "seed": "tsx src/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-agentcore": "^3.1135.0",
+    "@aws-sdk/client-bedrock-agentcore-control": "^3.1135.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1134.0",
     "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-kms": "^3.1135.0",
     "@aws-sdk/client-secrets-manager": "^3.1134.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0",
-    "@types/multer": "^2.2.0",
+    "@types/aws4": "^1.11.6",
+    "aws4": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
@@ -30,6 +34,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/multer": "^2.2.0",
     "@types/node": "^24.0.0",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2",

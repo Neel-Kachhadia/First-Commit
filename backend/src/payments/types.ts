@@ -40,6 +40,12 @@ export interface IPaymentService {
    * atomically reserved by the Authority Engine.
    */
   execute(intentId: string): Promise<PaymentResult>;
+
+  /**
+   * Find payments that are stuck in a non-terminal state (e.g. PAYMENT_CREATED).
+   * Used by the reconciliation service.
+   */
+  findStuckPayments(): Promise<PaymentRecord[]>;
 }
 
 export interface PaymentResult {

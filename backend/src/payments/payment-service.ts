@@ -24,6 +24,8 @@ import {
   PutCommand,
   GetCommand,
   UpdateCommand,
+  ScanCommand,
+  QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
 
 import { dynamo } from "../store/dynamodb.js";
@@ -372,6 +374,57 @@ export class PaymentService implements IPaymentService {
         ConditionExpression: "attribute_exists(PK)",
       })
     );
+  }
+
+  /**
+   * Find payments that are stuck in a non-terminal state (e.g. PAYMENT_CREATED).
+   * 
+   * Uses the entityType-status-index GSI if available, gracefully falling back
+   * to a full table Scan if the index is not yet provisioned.
+   */
+  async findStuckPayments(): Promise<PaymentRecord[]> {
+    try {
+      // 1. Try querying via the GSI
+      const result = await dynamo.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          IndexName: "entityType-status-index",
+          KeyConditionExpression: "entityType = :et AND #status = :st",
+          ExpressionAttributeNames: {
+            "#status": "status",
+          },
+          ExpressionAttributeValues: {
+            ":et": "PAYMENT",
+            ":st": "PAYMENT_CREATED",
+          },
+        })
+      );
+      
+      return (result.Items || []) as PaymentRecord[];
+    } catch (error: any) {
+      // If the index doesn't exist or isn't active, ValidationException is thrown
+      if (error.name === "ValidationException") {
+        console.warn("[PaymentService] GSI entityType-status-index not available. Falling back to Scan.");
+        
+        const result = await dynamo.send(
+          new ScanCommand({
+            TableName: TABLE_NAME,
+            FilterExpression: "entityType = :et AND #status = :st",
+            ExpressionAttributeNames: {
+              "#status": "status",
+            },
+            ExpressionAttributeValues: {
+              ":et": "PAYMENT",
+              ":st": "PAYMENT_CREATED",
+            },
+          })
+        );
+        
+        return (result.Items || []) as PaymentRecord[];
+      }
+      
+      throw error;
+    }
   }
 }
 

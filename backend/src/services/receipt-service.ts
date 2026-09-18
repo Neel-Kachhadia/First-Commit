@@ -1,15 +1,19 @@
-import { createHash, createHmac } from "crypto";
+import { createHash, verify, constants } from "crypto";
+import { KMSClient, SignCommand, GetPublicKeyCommand } from "@aws-sdk/client-kms";
 import type { Decision } from "../models/decision.js";
 import { decisionRepository } from "../store/decision-repository.js";
+import type { ReconciliationRecord } from "../store/reconciliation-repository.js";
+
+const kmsClient = new KMSClient({ region: process.env.AWS_REGION || "ap-south-1" });
 
 /**
  * KavachPay Decision Receipt Service
  *
- * Produces cryptographically authenticated decision receipts using HMAC-SHA256.
- *
- * Note: HMAC-SHA256 is a symmetric message authentication code.
- * The holder of KAVACHPAY_SIGNING_KEY can both generate and verify receipts.
- * For asymmetric verification (public-key verifiable), upgrade to KMS RSA/ECDSA.
+ * Produces cryptographically authenticated decision receipts using AWS KMS Asymmetric RSA signatures.
+ * 
+ * Verification is performed locally by retrieving the KMS public key, meaning external parties
+ * can verify receipts independently without needing access to the private signing key or 
+ * IAM permissions to call kms:Verify.
  *
  * Receipt structure:
  *
@@ -17,21 +21,43 @@ import { decisionRepository } from "../store/decision-repository.js";
  *         ↓
  *    SHA-256 hash (receiptHash)
  *         ↓
- *   HMAC-SHA256 with KAVACHPAY_SIGNING_KEY (signature)
+ *   AWS-KMS-RSASSA_PSS_SHA_256 (signature)
  *         ↓
  *   stored in DynamoDB alongside the decision
  */
 
-function getSigningKey(): string {
-  const key = process.env.KAVACHPAY_SIGNING_KEY;
-  if (!key) {
-    console.warn(
-      "[ReceiptService] KAVACHPAY_SIGNING_KEY is not set. " +
-      "Receipts will be hashed but not signed. Set this env var before production/demo use."
+function getKmsKeyId(): string {
+  const keyId = process.env.KMS_KEY_ID;
+  if (!keyId) {
+    throw new Error(
+      "[ReceiptService] KMS_KEY_ID is not set. " +
+      "Production and AWS deployments require a valid KMS key. " +
+      "Ensure the environment variable is configured."
     );
-    return "kavachpay-dev-signing-key-replace-in-production";
   }
-  return key;
+  return keyId;
+}
+
+// In-memory cache for the KMS public key (PEM format)
+let cachedPublicKeyPem: string | null = null;
+
+async function getPublicKeyPem(keyId: string): Promise<string> {
+  if (cachedPublicKeyPem) {
+    return cachedPublicKeyPem;
+  }
+  
+  const response = await kmsClient.send(new GetPublicKeyCommand({ KeyId: keyId }));
+  if (!response.PublicKey) {
+    throw new Error("Failed to retrieve public key from KMS.");
+  }
+  
+  // KMS returns the DER-encoded X.509 public key in PublicKey (Uint8Array)
+  // Convert it to PEM format for Node's crypto.verify
+  const base64Der = Buffer.from(response.PublicKey).toString("base64");
+  const pem = `-----BEGIN PUBLIC KEY-----\n${base64Der.match(/.{1,64}/g)?.join("\n")}\n-----END PUBLIC KEY-----`;
+  
+  cachedPublicKeyPem = pem;
+  return pem;
 }
 
 export interface ReceiptContext {
@@ -85,34 +111,87 @@ export class ReceiptService {
     const receiptHash = createHash("sha256")
       .update(JSON.stringify(canonicalPayload))
       .digest("hex");
+    
+    // We need the raw binary digest for KMS
+    const digestBuffer = Buffer.from(receiptHash, "hex");
 
-    // 2. HMAC-SHA256 over the receiptHash — authentication layer
-    const signingKey = getSigningKey();
-    const signature = createHmac("sha256", signingKey)
-      .update(receiptHash)
-      .digest("hex");
+    // 2. AWS KMS Asymmetric RSA Signature over the digest
+    const keyId = getKmsKeyId();
+    const signResponse = await kmsClient.send(
+      new SignCommand({
+        KeyId: keyId,
+        Message: digestBuffer,
+        MessageType: "DIGEST",
+        SigningAlgorithm: "RSASSA_PSS_SHA_256",
+      })
+    );
+
+    if (!signResponse.Signature) {
+      throw new Error("KMS did not return a signature.");
+    }
+
+    const signature = Buffer.from(signResponse.Signature).toString("base64");
 
     decision.receiptHash = receiptHash;
 
     // 3. Persist the main decision record
     await decisionRepository.createDecision(decision);
 
-    // 4. Persist the standalone immutable receipt (with HMAC signature)
+    // 4. Persist the standalone immutable receipt
     await decisionRepository.createReceipt(decision, receiptHash, {
       signature,
-      algorithm: "HMAC-SHA256",
+      algorithm: "RSASSA_PSS_SHA_256",
+      keyId,
       signedAt: new Date().toISOString(),
       authorityPath: context?.authorityPath,
       stateBefore: context?.stateBefore,
       stateAfter: context?.stateAfter,
     });
 
+    console.log(`[ReceiptService] Decision receipt ${decision.decisionId} created and signed via KMS.`);
     return decision;
   }
 
   /**
-   * Verify a stored receipt by recomputing the HMAC-SHA256
-   * over the stored receiptHash and comparing with the stored signature.
+   * Finalizes a reconciliation event by computing its hash and signing it.
+   */
+  async signReconciliationEvent(
+    record: ReconciliationRecord
+  ): Promise<{ receiptHash: string; signature: string; keyId: string; signedAt: string; algorithm: string }> {
+    const receiptHash = createHash("sha256")
+      .update(JSON.stringify(record))
+      .digest("hex");
+    
+    const digestBuffer = Buffer.from(receiptHash, "hex");
+    const keyId = getKmsKeyId();
+    
+    const signResponse = await kmsClient.send(
+      new SignCommand({
+        KeyId: keyId,
+        Message: digestBuffer,
+        MessageType: "DIGEST",
+        SigningAlgorithm: "RSASSA_PSS_SHA_256",
+      })
+    );
+
+    if (!signResponse.Signature) {
+      throw new Error("KMS did not return a signature for reconciliation event.");
+    }
+
+    const signature = Buffer.from(signResponse.Signature).toString("base64");
+
+    return {
+      receiptHash,
+      signature,
+      keyId,
+      algorithm: "RSASSA_PSS_SHA_256",
+      signedAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Reconstructs the canonical payload, computes the SHA-256 digest,
+   * and verifies the signature using the KMS public key.
    *
    * Returns true only if both the hash and the signature are valid.
    */
@@ -131,25 +210,60 @@ export class ReceiptService {
     error?: string;
   }> {
     const receipt = await decisionRepository.getReceipt(intentId, decisionId);
+    const decision = await decisionRepository.getDecision(intentId, decisionId);
 
-    if (!receipt) {
+    if (!receipt || !decision) {
       return {
         valid: false,
-        algorithm: "HMAC-SHA256",
+        algorithm: "RSASSA_PSS_SHA_256",
         signature: "",
         receiptHash: "",
         signedAt: "",
-        error: "Receipt not found.",
+        error: "Receipt or decision not found.",
       };
     }
 
-    // Recompute HMAC over the stored receiptHash
-    const signingKey = getSigningKey();
-    const expectedSig = createHmac("sha256", signingKey)
-      .update(receipt.receiptHash)
-      .digest("hex");
+    // Reconstruct canonical payload
+    const canonicalPayload = {
+      intentId: decision.intentId,
+      decisionId: decision.decisionId,
+      grantId: decision.grantId,
+      decision: decision.decision,
+      reasonCode: decision.reasonCode,
+      amount: decision.amount,
+      currency: decision.currency,
+      effectiveCapacity: decision.effectiveCapacity,
+      grantResidual: decision.grantResidual,
+      reserved: decision.reserved,
+      createdAt: decision.createdAt,
+      ...(receipt.authorityPath && { authorityPath: receipt.authorityPath }),
+      ...(receipt.stateBefore && { stateBefore: receipt.stateBefore }),
+      ...(receipt.stateAfter && { stateAfter: receipt.stateAfter }),
+    };
 
-    const valid = expectedSig === receipt.signature;
+    // Verify asymmetric signature locally against the full payload
+    let valid = false;
+    try {
+      const keyId = getKmsKeyId();
+      const publicKeyPem = await getPublicKeyPem(keyId);
+
+      const payloadBuffer = Buffer.from(JSON.stringify(canonicalPayload), "utf8");
+      const signatureBuffer = Buffer.from(receipt.signature, "base64");
+
+      valid = verify(
+        "sha256",
+        payloadBuffer,
+        {
+          key: publicKeyPem,
+          padding: constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: constants.RSA_PSS_SALTLEN_DIGEST,
+        },
+        signatureBuffer
+      );
+    } catch (e: any) {
+      console.error("[ReceiptService] Verification error:", e);
+      valid = false;
+    }
 
     return {
       valid,

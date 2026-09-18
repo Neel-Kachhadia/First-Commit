@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { runScenarioHandler } from "./src/handlers/scenario-handler.js";
 import { intentRepository } from "./src/store/intent-repository.js";
 import { decisionRepository } from "./src/store/decision-repository.js";

@@ -10,6 +10,7 @@ import { TABLE_NAME } from "./table.js";
 export type AuditEventType =
   | "GRANT_CREATED"
   | "GRANT_REVOKED"
+  | "GRANT_EXPIRED"
   | "INTENT_CREATED"
   | "DECISION_MADE"
   | "RESERVATION_CREATED"

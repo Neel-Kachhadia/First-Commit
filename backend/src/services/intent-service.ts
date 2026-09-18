@@ -41,6 +41,10 @@ import {
   auditRepository,
 } from "../store/audit-repository.js";
 
+import {
+  metrics,
+} from "../utils/metrics.js";
+
 export interface CreateIntentInput {
   intentId?: string;
 
@@ -345,6 +349,7 @@ export class IntentService {
       );
     }
 
+    metrics.logEvent("AUTH_STEP_UP", { intentId: intent.intentId });
     return {
       intent,
       decision,

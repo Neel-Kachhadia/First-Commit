@@ -247,6 +247,48 @@ export class GrantRepository {
       })
     );
   }
+
+  async findExpiredActiveGrants(): Promise<Grant[]> {
+    const now = new Date().toISOString();
+    // In a production system, this would use a GSI (e.g. `entityType-status-expiresAt-index`).
+    // For this demo/hackathon, we'll scan the table for active grants that have expired.
+    const { ScanCommand } = await import("@aws-sdk/lib-dynamodb");
+    const scanResult = await dynamo.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "entityType = :entityType AND #status = :active AND expiresAt <= :now",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":entityType": "GRANT",
+          ":active": "ACTIVE",
+          ":now": now,
+        },
+      })
+    );
+
+    return (scanResult.Items ?? []) as Grant[];
+  }
+
+  async markGrantExpired(userId: string, grantId: string): Promise<void> {
+    await dynamo.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: grantKey(userId, grantId),
+        UpdateExpression: "SET #status = :status, updatedAt = :updatedAt",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":status": "EXPIRED",
+          ":active": "ACTIVE",
+          ":updatedAt": new Date().toISOString(),
+        },
+        ConditionExpression: "attribute_exists(PK) AND #status = :active",
+      })
+    );
+  }
 }
 
 export const grantRepository = new GrantRepository();
