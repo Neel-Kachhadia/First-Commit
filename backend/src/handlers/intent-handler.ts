@@ -93,10 +93,7 @@ export async function listIntentsHandler(
   res: Response
 ): Promise<void> {
   try {
-    const userId =
-      typeof req.query.userId === "string" && req.query.userId.length > 0
-        ? req.query.userId
-        : "u_demo"; // Default to demo user
+    const userId = req.user!.sub;
 
     const intents = await intentService.listUserIntents(userId);
 

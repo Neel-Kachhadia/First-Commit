@@ -49,13 +49,7 @@ export async function revokeGrantHandler(
       return;
     }
 
-    // For now the demo user is u123.
-    // Cognito caller identity will replace this later.
-    const userId =
-      typeof req.body?.userId === "string" &&
-      req.body.userId.length > 0
-        ? req.body.userId
-        : "u123";
+    const userId = req.user!.sub;
 
     const grant =
       await grantService.revokeGrant(
@@ -98,10 +92,7 @@ export async function listGrantsHandler(
   res: Response
 ): Promise<void> {
   try {
-    const userId =
-      typeof req.query.userId === "string" && req.query.userId.length > 0
-        ? req.query.userId
-        : "u_demo"; // Default to demo user
+    const userId = req.user!.sub;
 
     const grants = await grantService.listUserGrants(userId);
 

@@ -3,6 +3,11 @@ import type { ReactNode } from "react";
 import { Plus_Jakarta_Sans, Barlow_Condensed, IBM_Plex_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import "../styles.css";
+import { configureAmplify } from "@/lib/auth/amplify-config";
+import { AuthProvider } from "@/lib/auth/auth-context";
+
+// Configure Amplify once at module load time (runs on server + client).
+configureAmplify();
 
 const sans = Plus_Jakarta_Sans({
   variable: "--font-sans",
@@ -40,7 +45,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${sans.variable} ${display.variable} ${admin.variable} ${mono.variable}`} suppressHydrationWarning>
-      <body>{children}</body>
+      <body>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

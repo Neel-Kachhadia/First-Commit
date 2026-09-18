@@ -1,0 +1,159 @@
+{
+  "/KavachPayStack": [
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "<anonymous> (C:\\VScode\\First-Commit\\infrastructure\\bin\\kavachpay-infrastructure.ts:8:1)",
+        "...node internals, ts-node, ts-node..."
+      ]
+    }
+  ],
+  "/KavachPayStack/KavachPayTable": [
+    {
+      "type": "aws:cdk:hasPhysicalName",
+      "data": {
+        "Ref": "KavachPayTable9B18FD84"
+      }
+    }
+  ],
+  "/KavachPayStack/KavachPayTableName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KavachPayTableName"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "new KavachPayStack (C:\\VScode\\First-Commit\\infrastructure\\lib\\kavachpay-stack.ts:44:5)",
+        "<anonymous> (C:\\VScode\\First-Commit\\infrastructure\\bin\\kavachpay-infrastructure.ts:8:1)",
+        "...node internals, ts-node, ts-node..."
+      ]
+    }
+  ],
+  "/KavachPayStack/KavachPayTableArn": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KavachPayTableArn"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "new KavachPayStack (C:\\VScode\\First-Commit\\infrastructure\\lib\\kavachpay-stack.ts:49:5)",
+        "<anonymous> (C:\\VScode\\First-Commit\\infrastructure\\bin\\kavachpay-infrastructure.ts:8:1)",
+        "...node internals, ts-node, ts-node..."
+      ]
+    }
+  ],
+  "/KavachPayStack/KavachPayUserPoolId": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KavachPayUserPoolId"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "new KavachPayStack (C:\\VScode\\First-Commit\\infrastructure\\lib\\kavachpay-stack.ts:119:5)",
+        "<anonymous> (C:\\VScode\\First-Commit\\infrastructure\\bin\\kavachpay-infrastructure.ts:8:1)",
+        "...node internals, ts-node, ts-node..."
+      ]
+    }
+  ],
+  "/KavachPayStack/KavachPayUserPoolClientId": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KavachPayUserPoolClientId"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "new KavachPayStack (C:\\VScode\\First-Commit\\infrastructure\\lib\\kavachpay-stack.ts:124:5)",
+        "<anonymous> (C:\\VScode\\First-Commit\\infrastructure\\bin\\kavachpay-infrastructure.ts:8:1)",
+        "...node internals, ts-node, ts-node..."
+      ]
+    }
+  ],
+  "/KavachPayStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/KavachPayStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/KavachPayStack/KavachPayTable/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KavachPayTable9B18FD84"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...new Table2 in aws-cdk-lib...",
+        "new KavachPayStack (C:\\VScode\\First-Commit\\infrastructure\\lib\\kavachpay-stack.ts:20:27)",
+        "<anonymous> (C:\\VScode\\First-Commit\\infrastructure\\bin\\kavachpay-infrastructure.ts:8:1)",
+        "...node internals, ts-node, ts-node..."
+      ]
+    }
+  ],
+  "/KavachPayStack/KavachPayUserPool/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KavachPayUserPoolF4449179"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...new UserPool2 in aws-cdk-lib...",
+        "new KavachPayStack (C:\\VScode\\First-Commit\\infrastructure\\lib\\kavachpay-stack.ts:56:21)",
+        "<anonymous> (C:\\VScode\\First-Commit\\infrastructure\\bin\\kavachpay-infrastructure.ts:8:1)",
+        "...node internals, ts-node, ts-node..."
+      ]
+    }
+  ],
+  "/KavachPayStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...aws-cdk-lib, node internals...",
+        "(no user code in 10 frames, use --stack-trace-limit to capture more)"
+      ]
+    }
+  ],
+  "/KavachPayStack/KavachPayUserPool/KavachPayWebClient/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KavachPayUserPoolKavachPayWebClient4F873972"
+    },
+    {
+      "type": "aws:cdk:creationStack",
+      "data": [
+        "...WrappedClass.addClient in aws-cdk-lib...",
+        "new KavachPayStack (C:\\VScode\\First-Commit\\infrastructure\\lib\\kavachpay-stack.ts:98:41)",
+        "<anonymous> (C:\\VScode\\First-Commit\\infrastructure\\bin\\kavachpay-infrastructure.ts:8:1)",
+        "...node internals, ts-node, ts-node..."
+      ]
+    }
+  ]
+}

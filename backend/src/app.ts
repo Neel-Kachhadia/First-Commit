@@ -53,6 +53,16 @@ import {
   resetDemoHandler,
 } from "./handlers/demo-handler.js";
 
+import { cognitoAuthMiddleware } from "./middleware/cognito-auth.js";
+
+import {
+  registerHandler,
+  confirmHandler,
+  loginHandler,
+  refreshHandler,
+  logoutHandler,
+} from "./handlers/auth-handler.js";
+
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), "backend/.env") });
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
@@ -85,6 +95,22 @@ export function createApp() {
       timestamp: new Date().toISOString(),
     });
   });
+
+  /*
+   * ── Auth routes (public — no JWT guard) ────────────────────────────────────
+   */
+
+  app.post("/v0/auth/register", registerHandler);
+  app.post("/v0/auth/confirm", confirmHandler);
+  app.post("/v0/auth/login", loginHandler);
+  app.post("/v0/auth/refresh", refreshHandler);
+  app.post("/v0/auth/logout", logoutHandler);
+
+  /*
+   * ── JWT guard — applied to all /v0/* business routes below ────────────────
+   */
+
+  app.use("/v0", cognitoAuthMiddleware);
 
   /*
    * ── Razorpay Standard Web Checkout API ─────────────────────────────────────
