@@ -3,6 +3,7 @@ export type LedgerStatus =
   | "allowed"
   | "denied"
   | "pending"
+  | "stepup"
   | "STEP_UP_REQUIRED"
   | "APPROVED"
   | "RESERVED"

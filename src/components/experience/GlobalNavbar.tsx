@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { SCENE_BY_KEY, SCENE_REGISTRY, type RegisteredSceneKey } from "@/lib/experience/scene-registry";
 import { useExperienceStore } from "@/lib/experience/store";
+import { useAuth } from "@/lib/auth/auth-context";
 import styles from "./GlobalNavbar.module.css";
 
 type GlobalNavbarProps = {
@@ -11,15 +13,20 @@ type GlobalNavbarProps = {
   onMenuOpenChange: (open: boolean) => void;
 };
 
-const ACTION_NOTICE = "Destination reserved for the application phase; not implemented in this landing-page pass.";
+const ACTION_NOTICE = "";
 
 export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps) {
+  const router = useRouter();
+  const { isAuthenticated, user, logout } = useAuth();
   const activeScene = useExperienceStore((state) => state.activeScene);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const navRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const active = activeScene === "none" ? null : SCENE_BY_KEY[activeScene];
+  // suppress unused-variable warning from the notice pattern kept for aria
+  void ACTION_NOTICE;
+  void setNotice;
 
   const setOpen = useCallback((open: boolean) => {
     setMenuOpen(open);
@@ -31,9 +38,18 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
     onNavigate(scene);
   };
 
-  const announceUnavailable = (label: string) => {
-    setNotice(`${label}. ${ACTION_NOTICE}`);
-  };
+  const handleEnter = useCallback(() => {
+    if (isAuthenticated) {
+      router.push("/dashboard");
+    } else {
+      router.push("/auth");
+    }
+  }, [isAuthenticated, router]);
+
+  const handleSignOut = useCallback(async () => {
+    await logout();
+    router.push("/");
+  }, [logout, router]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -98,15 +114,42 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
       </div>
 
       <div className={styles.actions}>
-        <button type="button" className={styles.secondaryAction} aria-disabled="true" onClick={() => announceUnavailable("Login")}>
-          LOGIN
-        </button>
-        <button type="button" className={styles.secondaryAction} aria-disabled="true" onClick={() => announceUnavailable("Sign up")}>
-          SIGN UP
-        </button>
-        <Link href="/dashboard" className={styles.primaryAction}>
+        {isAuthenticated ? (
+          <>
+            {user?.email && (
+              <span
+                className={styles.secondaryAction}
+                style={{ opacity: 0.55, cursor: "default", fontSize: "10px", letterSpacing: "0.08em" }}
+                aria-label={`Signed in as ${user.email}`}
+              >
+                {user.email.split("@")[0].toUpperCase()}
+              </span>
+            )}
+            <button
+              type="button"
+              className={styles.secondaryAction}
+              onClick={handleSignOut}
+            >
+              SIGN OUT
+            </button>
+          </>
+        ) : (
+          <>
+            <Link href="/auth" className={styles.secondaryAction}>
+              LOGIN
+            </Link>
+            <Link href="/auth" className={styles.secondaryAction}>
+              SIGN UP
+            </Link>
+          </>
+        )}
+        <button
+          type="button"
+          className={styles.primaryAction}
+          onClick={handleEnter}
+        >
           ENTER KAVACHPAY
-        </Link>
+        </button>
       </div>
 
       <button
@@ -152,9 +195,17 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
           })}
         </div>
         <div className={styles.mobileActions}>
-          <button type="button" aria-disabled="true" onClick={() => announceUnavailable("Login")}>LOGIN</button>
-          <button type="button" aria-disabled="true" onClick={() => announceUnavailable("Sign up")}>SIGN UP</button>
-          <Link href="/dashboard" className={styles.primaryAction}>ENTER KAVACHPAY</Link>
+          {isAuthenticated ? (
+            <button type="button" onClick={handleSignOut}>SIGN OUT</button>
+          ) : (
+            <>
+              <Link href="/auth">LOGIN</Link>
+              <Link href="/auth">SIGN UP</Link>
+            </>
+          )}
+          <button type="button" className={styles.primaryAction} onClick={handleEnter}>
+            ENTER KAVACHPAY
+          </button>
         </div>
       </div>
 

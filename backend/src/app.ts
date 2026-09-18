@@ -29,6 +29,13 @@ import {
 } from "./handlers/bedrock-handler.js";
 
 import {
+  audioUpload,
+  transcribeHandler,
+  extractMandateVoiceHandler,
+  audioUploadErrorHandler,
+} from "./handlers/assistant-handler.js";
+
+import {
   getExposureHandler,
 } from "./handlers/exposure-handler.js";
 
@@ -46,6 +53,16 @@ import {
 import {
   resetDemoHandler,
 } from "./handlers/demo-handler.js";
+
+import { cognitoAuthMiddleware } from "./middleware/cognito-auth.js";
+
+import {
+  registerHandler,
+  confirmHandler,
+  loginHandler,
+  refreshHandler,
+  logoutHandler,
+} from "./handlers/auth-handler.js";
 
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), "backend/.env") });
@@ -81,6 +98,22 @@ export function createApp() {
   });
 
   /*
+   * ── Auth routes (public — no JWT guard) ────────────────────────────────────
+   */
+
+  app.post("/v0/auth/register", registerHandler);
+  app.post("/v0/auth/confirm", confirmHandler);
+  app.post("/v0/auth/login", loginHandler);
+  app.post("/v0/auth/refresh", refreshHandler);
+  app.post("/v0/auth/logout", logoutHandler);
+
+  /*
+   * ── JWT guard — applied to all /v0/* business routes below ────────────────
+   */
+
+  app.use("/v0", cognitoAuthMiddleware);
+
+  /*
    * ── Razorpay Standard Web Checkout API ─────────────────────────────────────
    */
 
@@ -96,6 +129,26 @@ export function createApp() {
   app.post(
     "/v0/mandates/extract",
     extractMandateHandler
+  );
+
+  /*
+   * ── Voice-to-Form-Fill API ──────────────────────────────────────────────────
+   */
+
+  // POST /api/assistant/transcribe
+  // Receives multipart audio upload → returns Groq Whisper transcript
+  app.post(
+    "/api/assistant/transcribe",
+    audioUpload.single("audio"),
+    transcribeHandler,
+    audioUploadErrorHandler
+  );
+
+  // POST /api/assistant/extract-mandate
+  // Receives { transcript, currentFormState } → returns MandateExtraction diff
+  app.post(
+    "/api/assistant/extract-mandate",
+    extractMandateVoiceHandler
   );
 
   app.post(

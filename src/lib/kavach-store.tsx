@@ -137,6 +137,7 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
     );
   }, [ledgerData, resolvedApprovalIds, usingSeedApprovals]);
 
+
   // Derived state
   const frozen = false; // Add frozen logic back if needed via DB or local override
   const history: AuthorityEvent[] = seedHistory;

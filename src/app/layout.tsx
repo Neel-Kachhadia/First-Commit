@@ -5,6 +5,11 @@ import Script from "next/script";
 import { themeBootstrapScript } from "@/lib/theme";
 import "./globals.css";
 import "../styles.css";
+import { configureAmplify } from "@/lib/auth/amplify-config";
+import { AuthProvider } from "@/lib/auth/auth-context";
+
+// Configure Amplify once at module load time (runs on server + client).
+configureAmplify();
 
 const body = Crimson_Text({
   variable: "--font-crimson-text",
@@ -41,7 +46,7 @@ export default function RootLayout({
         <Script id="kavachpay-theme-bootstrap" strategy="beforeInteractive">
           {themeBootstrapScript}
         </Script>
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
