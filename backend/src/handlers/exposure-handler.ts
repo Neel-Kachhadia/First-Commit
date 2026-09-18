@@ -9,11 +9,7 @@ export async function getExposureHandler(
   res: Response
 ): Promise<void> {
   try {
-    const userId =
-      typeof req.query.userId === "string" &&
-      req.query.userId.length > 0
-        ? req.query.userId
-        : "u123";
+    const userId = req.user!.sub;
 
     const exposure =
       await exposureService.calculateExposure(

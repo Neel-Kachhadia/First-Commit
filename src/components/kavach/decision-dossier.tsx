@@ -16,6 +16,7 @@ import {
   type Agent,
   type LedgerEntry,
 } from "@/lib/kavach-data";
+import { useUserProfile } from "@/lib/user-profile";
 
 function CopyId({ value }: { value: string }) {
   return (
@@ -68,6 +69,7 @@ export function DecisionDossier({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { profile } = useUserProfile();
   if (!entry) return null;
 
   const previousSpend = agent
@@ -134,7 +136,7 @@ export function DecisionDossier({
               <span>{agent?.name ?? "Unknown agent"}</span>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Derived from Ananya Iyer · delegation depth 1 of 2
+              Derived from {profile.name} · delegation depth 1 of 2
             </p>
           </TraceStep>
           <TraceStep number="04" title="Budget at evaluation">

@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { config } from "dotenv";
+config();
 import { ap2Adapter, type Ap2MandateInput } from "./ap2-adapter.js";
 import { grantService } from "../services/grant-service.js";
 import { authorityEngine } from "../engine/authority-engine.js";

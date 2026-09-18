@@ -1,5 +1,9 @@
 export type AgentStatus = "active" | "exhausted" | "frozen" | "revoked";
 export type LedgerStatus =
+  | "allowed"
+  | "denied"
+  | "pending"
+  | "stepup"
   | "STEP_UP_REQUIRED"
   | "APPROVED"
   | "RESERVED"
@@ -7,11 +11,7 @@ export type LedgerStatus =
   | "DENIED"
   | "REVOKED"
   | "FAILED"
-  | "PENDING"
-  | "allowed"
-  | "pending"
-  | "denied"
-  | "stepup";
+  | "PENDING";
 
 export interface SpendingRule {
   monthlyLimit: number;

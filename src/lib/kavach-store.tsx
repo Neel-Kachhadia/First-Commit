@@ -5,10 +5,21 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useState,
   type ReactNode,
 } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  seedAgents,
+  seedApprovals,
+  seedHistory,
+  seedLedger,
   type Agent,
   type ApprovalRequest,
   type AuthorityEvent,
@@ -71,43 +82,65 @@ export function remainingAuthority(agent: Agent, frozen: boolean) {
   return Math.max(0, agent.rule.monthlyLimit - agent.consumed);
 }
 
-export function KavachProvider({ children }: { children: ReactNode }) {
+function KavachStoreInner({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const [resolvedApprovalIds, setResolvedApprovalIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   // Queries
-  const { data: grantsData } = useQuery({
+  const { data: grantsData, isError: grantsError } = useQuery({
     queryKey: ["grants"],
     queryFn: () => apiClient.getGrants(),
     refetchInterval: 3000,
+    retry: 1,
   });
 
-  const { data: ledgerData } = useQuery({
+  const { data: ledgerData, isError: ledgerError } = useQuery({
     queryKey: ["ledger"],
     queryFn: () => apiClient.getLedger(),
     refetchInterval: 3000,
+    retry: 1,
   });
 
   // Data processing
-  const agents = useMemo(() => {
-    if (!grantsData?.grants) return [];
+  const agents: Agent[] = useMemo(() => {
+    if (grantsError || !grantsData?.grants || grantsData.grants.length === 0) {
+      return seedAgents;
+    }
     return grantsData.grants.map(grantToAgent);
-  }, [grantsData]);
+  }, [grantsData, grantsError]);
 
-  const ledger = useMemo(() => {
-    if (!ledgerData?.intents) return [];
+  const ledger: LedgerEntry[] = useMemo(() => {
+    if (ledgerError || !ledgerData?.intents || ledgerData.intents.length === 0) {
+      return seedLedger;
+    }
     return ledgerData.intents.map(intentToLedgerEntry);
-  }, [ledgerData]);
+  }, [ledgerData, ledgerError]);
 
-  const approvals = useMemo(() => {
-    if (!ledgerData?.intents) return [];
-    return ledgerData.intents
-      .map(intentToApproval)
-      .filter((a: ApprovalRequest | null): a is ApprovalRequest => a !== null);
-  }, [ledgerData]);
+  const usingSeedApprovals =
+    ledgerError || !ledgerData?.intents || ledgerData.intents.length === 0;
+
+  const approvals: ApprovalRequest[] = useMemo(() => {
+    const pending =
+      usingSeedApprovals
+        ? seedApprovals
+        : ledgerData.intents
+            .map(intentToApproval)
+            .filter(
+              (approval: ApprovalRequest | null): approval is ApprovalRequest =>
+                approval !== null,
+            );
+
+    return pending.filter(
+      (approval: ApprovalRequest) => !resolvedApprovalIds.has(approval.id),
+    );
+  }, [ledgerData, resolvedApprovalIds, usingSeedApprovals]);
+
 
   // Derived state
   const frozen = false; // Add frozen logic back if needed via DB or local override
-  const history: AuthorityEvent[] = []; // Mocked/Empty for now unless exposure API is used.
+  const history: AuthorityEvent[] = seedHistory;
 
   const remainingFor = useCallback(
     (agent: Agent) => remainingAuthority(agent, frozen),
@@ -148,6 +181,13 @@ export function KavachProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const denyMutation = useMutation({
+    mutationFn: apiClient.denyIntent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ledger"] });
+    },
+  });
+
   const executeOrderMutation = useMutation({
     mutationFn: apiClient.executeOrder,
     onSuccess: () => {
@@ -176,19 +216,46 @@ export function KavachProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  const approveRequest = async (id: string) => {
-    const res = await approveMutation.mutateAsync(id);
-    if (res.intent?.status === "RESERVED") {
-      await executeOrderMutation.mutateAsync(id);
-    }
-  };
+  const markApprovalResolved = useCallback((id: string) => {
+    setResolvedApprovalIds((current) => {
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }, []);
 
-  const denyRequest = async (id: string) => {
-    // Currently, there's no explicitly deny endpoint (since they auto-deny if not approved or if explicitly closed).
-    // We can simulate it by doing nothing or if backend has deny, call it. 
-    // We will leave it as an optimistic update or mock for now.
-    console.warn("Explicit deny not wired to backend");
-  };
+  const restoreApproval = useCallback((id: string) => {
+    setResolvedApprovalIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const approveRequest = useCallback(async (id: string) => {
+    markApprovalResolved(id);
+    if (usingSeedApprovals) return;
+    try {
+      const res = await approveMutation.mutateAsync(id);
+      if (res.intent?.status === "RESERVED") {
+        await executeOrderMutation.mutateAsync(id);
+      }
+    } catch (error) {
+      restoreApproval(id);
+      throw error;
+    }
+  }, [approveMutation, executeOrderMutation, markApprovalResolved, restoreApproval, usingSeedApprovals]);
+
+  const denyRequest = useCallback(async (id: string) => {
+    markApprovalResolved(id);
+    if (usingSeedApprovals) return;
+    try {
+      await denyMutation.mutateAsync(id);
+    } catch (error) {
+      restoreApproval(id);
+      throw error;
+    }
+  }, [denyMutation, markApprovalResolved, restoreApproval, usingSeedApprovals]);
 
   const revokeAgent = async (id: string) => {
     await revokeMutation.mutateAsync(id);
@@ -311,10 +378,32 @@ export function KavachProvider({ children }: { children: ReactNode }) {
       totalAuthority,
       totalConsumed,
       getAgent,
+      approveRequest,
+      denyRequest,
     ]
   );
 
   return <KavachContext.Provider value={value}>{children}</KavachContext.Provider>;
+}
+
+export function KavachProvider({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 1000 * 60,
+            refetchOnWindowFocus: false,
+          },
+        },
+      }),
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <KavachStoreInner>{children}</KavachStoreInner>
+    </QueryClientProvider>
+  );
 }
 
 export function useKavach() {

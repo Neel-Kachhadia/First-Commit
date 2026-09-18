@@ -12,7 +12,7 @@
   --kp-yellow: #c6aa47;
   --kp-muted: #aaa08c;
   --kp-rule: rgba(235, 225, 201, 0.56);
-  --font-display: var(--font-instrument-serif);
+  --font-display: var(--font-crimson-text);
   --font-admin: var(--font-barlow-condensed);
   --font-mono: var(--font-ibm-plex-mono);
   --page-gutter: clamp(1.15rem, 2.1vw, 2.6rem);

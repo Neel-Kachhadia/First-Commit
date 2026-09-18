@@ -1,0 +1,390 @@
+/* ── AuthPage — KavachPay login/signup ─────────────────────────────────────── */
+
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #0a0805;
+  font-family: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+  overflow: hidden;
+  z-index: 0;
+}
+
+/* Grain overlay — identical technique to the landing experience */
+.root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Ambient light bleed — single warm ellipse behind the card */
+.root::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 520px;
+  height: 320px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(ellipse at center, hsl(42, 60%, 30%) 0%, transparent 70%);
+  opacity: 0.14;
+  pointer-events: none;
+  z-index: 0;
+  animation: breathe 6s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.12; transform: translate(-50%, -50%) scale(1); }
+  50%       { opacity: 0.20; transform: translate(-50%, -50%) scale(1.08); }
+}
+
+/* ── Card ───────────────────────────────────────────────────────────────────── */
+
+.card {
+  position: relative;
+  z-index: 2;
+  width: min(440px, calc(100vw - 40px));
+  padding: 40px 36px 36px;
+  background: rgba(14, 12, 9, 0.84);
+  border: 1px solid rgba(255, 220, 140, 0.10);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: fadeUp 0.5s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Corner mark ────────────────────────────────────────────────────────────── */
+
+.cornerMark {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: rgba(255, 220, 140, 0.25);
+  line-height: 1.2;
+  text-align: right;
+  pointer-events: none;
+  font-family: inherit;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+
+.header {
+  margin-bottom: 28px;
+}
+
+.wordmark {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  color: hsl(42, 80%, 60%);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: hsl(38, 20%, 90%);
+  line-height: 1.15;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(200, 185, 160, 0.45);
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+/* ── Rule divider ───────────────────────────────────────────────────────────── */
+
+.rule {
+  height: 1px;
+  background: linear-gradient(90deg, hsl(42, 60%, 40%) 0%, transparent 100%);
+  transform-origin: left;
+  transform: scaleX(0);
+  margin-bottom: 24px;
+  animation: ruleIn 0.6s 0.25s ease both;
+}
+
+@keyframes ruleIn {
+  to { transform: scaleX(1); }
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────────── */
+
+.tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 220, 140, 0.10);
+}
+
+.tab {
+  flex: 1;
+  padding: 8px 0 10px;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(200, 185, 160, 0.40);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: rgba(200, 185, 160, 0.70);
+}
+
+.tabActive {
+  color: hsl(42, 80%, 60%);
+  border-bottom-color: hsl(42, 80%, 60%);
+}
+
+/* ── Form ───────────────────────────────────────────────────────────────────── */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.label {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(200, 185, 160, 0.50);
+}
+
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 220, 140, 0.03);
+  border: 1px solid rgba(255, 220, 140, 0.12);
+  color: hsl(38, 20%, 88%);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0;
+}
+
+.input::placeholder {
+  color: rgba(200, 185, 160, 0.22);
+}
+
+.input:focus {
+  border-color: hsl(42, 70%, 50%);
+  background: rgba(255, 220, 140, 0.05);
+  box-shadow: 0 0 0 2px rgba(255, 196, 80, 0.08);
+}
+
+.input:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.inputError {
+  border-color: hsl(0, 60%, 50%) !important;
+}
+
+.fieldError {
+  font-size: 10px;
+  color: hsl(0, 70%, 60%);
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+/* OTP input grid */
+.otpGroup {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.otpInput {
+  width: 100%;
+  padding: 12px 0;
+  text-align: center;
+  font-size: 18px;
+  letter-spacing: 0;
+  font-family: inherit;
+}
+
+/* ── Error banner ───────────────────────────────────────────────────────────── */
+
+.errorBanner {
+  padding: 10px 12px;
+  background: rgba(180, 50, 50, 0.10);
+  border: 1px solid rgba(180, 50, 50, 0.30);
+  color: hsl(0, 70%, 68%);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+}
+
+/* ── Success banner ─────────────────────────────────────────────────────────── */
+
+.successBanner {
+  padding: 10px 12px;
+  background: rgba(50, 150, 80, 0.10);
+  border: 1px solid rgba(50, 150, 80, 0.25);
+  color: hsl(140, 50%, 60%);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+}
+
+/* ── Submit button ──────────────────────────────────────────────────────────── */
+
+.submit {
+  width: 100%;
+  padding: 12px;
+  margin-top: 6px;
+  background: hsl(42, 70%, 48%);
+  border: 1px solid hsl(42, 70%, 55%);
+  color: #0a0805;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s, transform 0.15s;
+  position: relative;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+.submit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.submit:hover:not(:disabled) {
+  background: hsl(42, 75%, 54%);
+  transform: translateY(-1px);
+}
+
+.submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Footer links ───────────────────────────────────────────────────────────── */
+
+.footerLinks {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.footerLink {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: rgba(200, 185, 160, 0.40);
+  text-decoration: none;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.footerLink:hover {
+  color: hsl(42, 70%, 55%);
+}
+
+/* ── Back to landing ────────────────────────────────────────────────────────── */
+
+.backLink {
+  position: absolute;
+  top: 24px;
+  left: 28px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(200, 185, 160, 0.30);
+  text-decoration: none;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 3;
+}
+
+.backLink:hover {
+  color: hsl(42, 60%, 55%);
+}
+
+/* ── Spinner ────────────────────────────────────────────────────────────────── */
+
+.spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(10, 8, 5, 0.4);
+  border-top-color: #0a0805;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Verify info ────────────────────────────────────────────────────────────── */
+
+.verifyInfo {
+  font-size: 11px;
+  color: rgba(200, 185, 160, 0.55);
+  letter-spacing: 0.06em;
+  line-height: 1.6;
+  margin-bottom: 4px;
+}
+
+.verifyEmail {
+  color: hsl(42, 70%, 58%);
+  font-weight: 500;
+}

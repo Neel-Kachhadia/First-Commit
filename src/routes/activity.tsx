@@ -8,12 +8,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DecisionDossier } from "@/components/kavach/decision-dossier";
 import {
   PageHeader,
@@ -41,21 +49,36 @@ export default function ActivityPage() {
   const [filter, setFilter] = useState<LedgerStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [agentFilter, setAgentFilter] = useState("all");
+  const [merchantFilter, setMerchantFilter] = useState("all");
+  const [timeFilter, setTimeFilter] = useState("all");
+  const [reasonFilter, setReasonFilter] = useState("");
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
   const [selected, setSelected] = useState<LedgerEntry | null>(null);
 
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
+    const normalizedReason = reasonFilter.trim().toLowerCase();
     const min = minAmount === "" ? 0 : Number(minAmount);
     const max = maxAmount === "" ? Number.POSITIVE_INFINITY : Number(maxAmount);
+    const latestTimestamp = Math.max(
+      ...ledger.map((entry) => new Date(entry.at).getTime()),
+    );
+    const windowDays = timeFilter === "24h" ? 1 : Number(timeFilter);
+    const cutoff =
+      timeFilter === "all"
+        ? Number.NEGATIVE_INFINITY
+        : latestTimestamp - windowDays * 24 * 60 * 60 * 1000;
     return ledger.filter((entry) => {
       const agent = getAgent(entry.agentId);
       return (
         (filter === "all" || entry.status === filter) &&
         (agentFilter === "all" || entry.agentId === agentFilter) &&
+        (merchantFilter === "all" || entry.merchant === merchantFilter) &&
+        new Date(entry.at).getTime() >= cutoff &&
         entry.amount >= min &&
         entry.amount <= max &&
+        (!normalizedReason || entry.reason.toLowerCase().includes(normalizedReason)) &&
         (!normalized ||
           entry.id.toLowerCase().includes(normalized) ||
           entry.merchant.toLowerCase().includes(normalized) ||
@@ -63,7 +86,12 @@ export default function ActivityPage() {
           agent?.name.toLowerCase().includes(normalized))
       );
     });
-  }, [agentFilter, filter, getAgent, ledger, maxAmount, minAmount, query]);
+  }, [agentFilter, filter, getAgent, ledger, maxAmount, merchantFilter, minAmount, query, reasonFilter, timeFilter]);
+
+  const merchants = useMemo(
+    () => [...new Set(ledger.map((entry) => entry.merchant))].sort(),
+    [ledger],
+  );
 
   const groups = [
     {
@@ -87,8 +115,20 @@ export default function ActivityPage() {
   ];
   const advancedCount =
     Number(agentFilter !== "all") +
+    Number(merchantFilter !== "all") +
+    Number(timeFilter !== "all") +
+    Number(reasonFilter !== "") +
     Number(minAmount !== "") +
     Number(maxAmount !== "");
+
+  const clearAdvancedFilters = () => {
+    setAgentFilter("all");
+    setMerchantFilter("all");
+    setTimeFilter("all");
+    setReasonFilter("");
+    setMinAmount("");
+    setMaxAmount("");
+  };
 
   return (
     <div className="decisions-page space-y-7">
@@ -161,62 +201,159 @@ export default function ActivityPage() {
                   ) : null}
                 </Button>
               </SheetTrigger>
-              <SheetContent className="w-full sm:max-w-md">
-                <SheetHeader className="text-left">
-                  <SheetTitle>Advanced decision filters</SheetTitle>
-                  <SheetDescription>
-                    Narrow the operational record without losing your place.
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="mt-6 grid gap-5">
-                  <div className="grid gap-2">
-                    <Label htmlFor="filter-agent">Agent</Label>
-                    <select
-                      id="filter-agent"
-                      value={agentFilter}
-                      onChange={(event) => setAgentFilter(event.target.value)}
-                      className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              <SheetContent
+                side="bottom"
+                className="max-h-[88svh] overflow-y-auto rounded-t-[1.25rem] border-t p-0 [&>button]:right-5 [&>button]:top-5 [&>button]:grid [&>button]:h-9 [&>button]:w-9 [&>button]:place-items-center [&>button]:rounded-full [&>button]:border [&>button]:border-border [&>button]:bg-card [&>button]:opacity-100 [&>button]:shadow-sm [&>button>svg]:h-4 [&>button>svg]:w-4"
+              >
+                <div className="mx-auto w-full max-w-5xl px-5 py-5 sm:px-7 sm:py-6">
+                  <SheetHeader className="border-b border-border pb-4 pr-10 text-left">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <SheetTitle className="text-xl">Filter decisions</SheetTitle>
+                        <SheetDescription className="mt-1 max-w-xl">
+                          Combine agent, merchant, policy, time and amount filters.
+                        </SheetDescription>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {rows.length} {rows.length === 1 ? "result" : "results"}
+                      </p>
+                    </div>
+                  </SheetHeader>
+
+                  <div className="grid gap-5 py-5 lg:grid-cols-3">
+                    <fieldset className="grid content-start gap-4 rounded-lg border border-border bg-card/55 p-4">
+                      <legend className="px-2 text-sm font-semibold">Source</legend>
+                      <div className="grid gap-2">
+                        <Label htmlFor="filter-agent">Agent</Label>
+                        <Select value={agentFilter} onValueChange={setAgentFilter}>
+                          <SelectTrigger id="filter-agent" className="h-11 bg-background">
+                            <SelectValue placeholder="Every agent" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Every agent</SelectItem>
+                            {agents.map((agent) => (
+                              <SelectItem key={agent.id} value={agent.id}>
+                                {agent.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="filter-merchant">Merchant</Label>
+                        <Select value={merchantFilter} onValueChange={setMerchantFilter}>
+                          <SelectTrigger id="filter-merchant" className="h-11 bg-background">
+                            <SelectValue placeholder="Every merchant" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Every merchant</SelectItem>
+                            {merchants.map((merchant) => (
+                              <SelectItem key={merchant} value={merchant}>
+                                {merchant}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </fieldset>
+
+                    <fieldset className="grid content-start gap-4 rounded-lg border border-border bg-card/55 p-4">
+                      <legend className="px-2 text-sm font-semibold">Decision context</legend>
+                      <div className="grid gap-2">
+                        <Label htmlFor="filter-period">Evaluated within</Label>
+                        <Select value={timeFilter} onValueChange={setTimeFilter}>
+                          <SelectTrigger id="filter-period" className="h-11 bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All recorded time</SelectItem>
+                            <SelectItem value="24h">Last 24 hours</SelectItem>
+                            <SelectItem value="7">Last 7 days</SelectItem>
+                            <SelectItem value="30">Last 30 days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="filter-reason">Policy reason contains</Label>
+                        <Input
+                          id="filter-reason"
+                          value={reasonFilter}
+                          onChange={(event) => setReasonFilter(event.target.value)}
+                          placeholder="e.g. merchant, cap, revoked"
+                          className="h-11 bg-background"
+                        />
+                      </div>
+                    </fieldset>
+
+                    <fieldset className="grid content-start gap-4 rounded-lg border border-border bg-card/55 p-4">
+                      <legend className="px-2 text-sm font-semibold">Amount</legend>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-2">
+                          <Label htmlFor="filter-min">Minimum</Label>
+                          <Input
+                            id="filter-min"
+                            type="number"
+                            min="0"
+                            inputMode="numeric"
+                            value={minAmount}
+                            onChange={(event) => setMinAmount(event.target.value)}
+                            placeholder="₹0"
+                            className="h-11 bg-background"
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="filter-max">Maximum</Label>
+                          <Input
+                            id="filter-max"
+                            type="number"
+                            min="0"
+                            inputMode="numeric"
+                            value={maxAmount}
+                            onChange={(event) => setMaxAmount(event.target.value)}
+                            placeholder="No limit"
+                            className="h-11 bg-background"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2" aria-label="Amount presets">
+                        {[
+                          { label: "Under ₹1k", min: "", max: "1000" },
+                          { label: "₹1k–₹5k", min: "1000", max: "5000" },
+                          { label: "Above ₹5k", min: "5000", max: "" },
+                        ].map((preset) => (
+                          <button
+                            type="button"
+                            key={preset.label}
+                            onClick={() => {
+                              setMinAmount(preset.min);
+                              setMaxAmount(preset.max);
+                            }}
+                            className={cn(
+                              "rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground",
+                              minAmount === preset.min &&
+                                maxAmount === preset.max &&
+                                "border-primary/30 bg-primary/8 text-foreground",
+                            )}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+                  </div>
+
+                  <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <Button
+                      variant="ghost"
+                      onClick={clearAdvancedFilters}
+                      disabled={advancedCount === 0}
                     >
-                      <option value="all">Every agent</option>
-                      {agents.map((agent) => (
-                        <option key={agent.id} value={agent.id}>
-                          {agent.name}
-                        </option>
-                      ))}
-                    </select>
+                      Clear filters
+                    </Button>
+                    <SheetClose asChild>
+                      <Button>View {rows.length} decisions</Button>
+                    </SheetClose>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="grid gap-2">
-                      <Label htmlFor="filter-min">Minimum amount</Label>
-                      <Input
-                        id="filter-min"
-                        inputMode="numeric"
-                        value={minAmount}
-                        onChange={(e) => setMinAmount(e.target.value)}
-                        placeholder="₹0"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="filter-max">Maximum amount</Label>
-                      <Input
-                        id="filter-max"
-                        inputMode="numeric"
-                        value={maxAmount}
-                        onChange={(e) => setMaxAmount(e.target.value)}
-                        placeholder="No limit"
-                      />
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setAgentFilter("all");
-                      setMinAmount("");
-                      setMaxAmount("");
-                    }}
-                  >
-                    Clear advanced filters
-                  </Button>
                 </div>
               </SheetContent>
             </Sheet>
