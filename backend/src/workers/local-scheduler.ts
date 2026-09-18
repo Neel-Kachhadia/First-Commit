@@ -9,6 +9,11 @@ import { runInvariantMonitor } from "./invariant-monitor.js";
  * EventBridge Scheduler -> Lambda.
  * For this hackathon / local development, we run a setInterval loop
  * to visibly demonstrate the automation.
+ *
+ * Intervals:
+ *  Reconciliation  — 5 minutes  (only processes payments > 60s old)
+ *  Expiry          — 20 seconds (grants can expire any time)
+ *  Invariant       — 60 seconds (health check; quiet when clean)
  */
 
 let isRunning = false;
@@ -21,30 +26,35 @@ export function startLocalWorkers() {
   console.log("Starting Local Workers (EventBridge mock)");
   console.log("-----------------------------------------");
 
-  // Reconcile payments every 15 seconds for fast demo visibility
-  setInterval(async () => {
+  // Run once immediately on startup so you see state in the first sweep,
+  // then every 5 minutes thereafter (300 seconds).
+  const reconciliationInterval = 5 * 60 * 1000;
+
+  const runReconciliation = async () => {
     try {
       await runReconciliationSweep();
     } catch (e) {
-      console.error(e);
+      console.error("[LocalScheduler] Reconciliation error:", e);
     }
-  }, 15000);
+  };
+
+  setInterval(runReconciliation, reconciliationInterval);
 
   // Sweep for expired grants every 20 seconds
   setInterval(async () => {
     try {
       await runExpirySweep();
     } catch (e) {
-      console.error(e);
+      console.error("[LocalScheduler] Expiry sweep error:", e);
     }
   }, 20000);
 
-  // Run invariant monitor every 30 seconds
+  // Run invariant monitor every 60 seconds
   setInterval(async () => {
     try {
       await runInvariantMonitor();
     } catch (e) {
-      console.error(e);
+      console.error("[LocalScheduler] Invariant monitor error:", e);
     }
-  }, 30000);
+  }, 60000);
 }

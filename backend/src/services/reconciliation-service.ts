@@ -176,8 +176,7 @@ export class ReconciliationService {
       return "FAILED";
     } else {
       // Pending — Razorpay payment not yet resolved. Do NOT write a KMS-signed receipt
-      // on every sweep. Just log and signal RETRY.
-      console.log(`[Reconciliation] Intent ${intentId} remains PAYMENT_CREATED (${observedState}). Will retry next sweep.`);
+      // on every sweep. Metric is emitted by the worker; no console noise here.
       return "RETRY";
     }
   }
