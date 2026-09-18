@@ -79,7 +79,8 @@ describe("ReconciliationService", () => {
     mockAdapter.getOrder.mockResolvedValue({ status: "paid" });
     mockAdapter.getOrderPayments.mockResolvedValue([{ id: "pay_1", status: "captured" }]);
 
-    await reconciliationService.reconcile(mockIntentId);
+    const outcome = await reconciliationService.reconcile(mockIntentId);
+    expect(outcome).toBe("EXECUTED");
 
     expect(intentRepository.updateStatus).toHaveBeenCalledWith(mockIntentId, "EXECUTED", "PAYMENT_CREATED");
     expect(paymentService.updatePaymentStatus).toHaveBeenCalledWith(mockIntentId, "EXECUTED", "pay_1", "PAYMENT_CREATED");
@@ -101,7 +102,8 @@ describe("ReconciliationService", () => {
     mockAdapter.getOrder.mockResolvedValue({ status: "attempted" });
     mockAdapter.getOrderPayments.mockResolvedValue([{ id: "pay_1", status: "failed" }]);
 
-    await reconciliationService.reconcile(mockIntentId);
+    const outcome = await reconciliationService.reconcile(mockIntentId);
+    expect(outcome).toBe("FAILED");
 
     expect(intentRepository.updateStatus).toHaveBeenCalledWith(mockIntentId, "FAILED", "PAYMENT_CREATED");
     expect(paymentService.updatePaymentStatus).toHaveBeenCalledWith(mockIntentId, "FAILED", undefined, "PAYMENT_CREATED");
@@ -122,7 +124,8 @@ describe("ReconciliationService", () => {
       razorpayOrderId: mockRazorpayOrderId,
     } as any);
 
-    await reconciliationService.reconcile(mockIntentId);
+    const outcome = await reconciliationService.reconcile(mockIntentId);
+    expect(outcome).toBe("EXECUTED"); // terminal state treated as EXECUTED no-op
 
     expect(mockAdapter.getOrder).not.toHaveBeenCalled();
     expect(intentRepository.updateStatus).not.toHaveBeenCalled();
@@ -131,29 +134,23 @@ describe("ReconciliationService", () => {
   it("missing Razorpay order → handled safely", async () => {
     mockAdapter.getOrder.mockRejectedValue({ statusCode: 404 });
 
-    await reconciliationService.reconcile(mockIntentId);
+    const outcome = await reconciliationService.reconcile(mockIntentId);
 
     expect(intentRepository.updateStatus).not.toHaveBeenCalled();
-    expect(reconciliationRepository.createReconciliationEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        newPaymentState: "PAYMENT_CREATED",
-        razorpayObservedState: "No order",
-      })
-    );
+    // No longer writes a reconciliation event for transient errors — logs only
+    expect(reconciliationRepository.createReconciliationEvent).not.toHaveBeenCalled();
+    expect(outcome).toBe("UNKNOWN");
   });
 
   it("Razorpay API unavailable → retryable failure", async () => {
     mockAdapter.getOrder.mockRejectedValue(new Error("Network error"));
 
-    await reconciliationService.reconcile(mockIntentId);
+    const outcome = await reconciliationService.reconcile(mockIntentId);
 
     expect(intentRepository.updateStatus).not.toHaveBeenCalled();
-    expect(reconciliationRepository.createReconciliationEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        newPaymentState: "PAYMENT_CREATED",
-        razorpayObservedState: "API Unavailable / Error",
-      })
-    );
+    // No longer writes a reconciliation event for transient errors — logs only
+    expect(reconciliationRepository.createReconciliationEvent).not.toHaveBeenCalled();
+    expect(outcome).toBe("UNKNOWN");
   });
 
   it("duplicate reconciliation → idempotent", async () => {

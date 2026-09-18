@@ -4,24 +4,28 @@ import { reservationRepository } from "../store/reservation-repository.js";
 import { getRazorpayAdapter } from "../payments/razorpay-adapter.js";
 import { reconciliationRepository } from "../store/reconciliation-repository.js";
 import { ReceiptService } from "./receipt-service.js";
+import { metrics } from "../utils/metrics.js";
 
 const receiptService = new ReceiptService();
+
+/** Outcomes returned to the worker so it can emit the right metric. */
+export type ReconciliationOutcome = "EXECUTED" | "FAILED" | "RETRY" | "UNKNOWN";
 
 export class ReconciliationService {
   /**
    * Reconcile a stuck payment.
    * Ensures that KavachPay's state for the intent exactly matches Razorpay's authoritative state.
    */
-  async reconcile(intentId: string): Promise<void> {
+  async reconcile(intentId: string): Promise<ReconciliationOutcome> {
     const payment = await paymentService.getPaymentRecord(intentId);
     if (!payment) {
       console.log(`[Reconciliation] Intent ${intentId} has no payment record. Skipping.`);
-      return;
+      return "UNKNOWN";
     }
 
     if (payment.status === "EXECUTED" || payment.status === "FAILED") {
       console.log(`[Reconciliation] Intent ${intentId} already in terminal state ${payment.status}. Idempotent no-op.`);
-      return;
+      return "EXECUTED";
     }
 
     const adapter = getRazorpayAdapter();
@@ -32,39 +36,18 @@ export class ReconciliationService {
       order = await adapter.getOrder(payment.razorpayOrderId);
     } catch (err: any) {
       if (err.statusCode === 404 || err.error?.code === "BAD_REQUEST_ERROR") {
-        await this.logReconciliation(
-          intentId,
-          payment.status,
-          "PAYMENT_CREATED",
-          "No order",
-          "UNKNOWN / Retry",
-          payment.razorpayOrderId
-        );
-        return;
+        console.log(`[Reconciliation] Intent ${intentId}: Razorpay order not found. Will retry next sweep.`);
+        return "UNKNOWN";
       }
-      await this.logReconciliation(
-        intentId,
-        payment.status,
-        "PAYMENT_CREATED",
-        "API Unavailable / Error",
-        "UNKNOWN / Retry",
-        payment.razorpayOrderId
-      );
-      return;
+      console.log(`[Reconciliation] Intent ${intentId}: Razorpay API unavailable. Will retry next sweep.`);
+      return "UNKNOWN";
     }
 
     try {
       payments = await adapter.getOrderPayments(payment.razorpayOrderId);
     } catch (err: any) {
-      await this.logReconciliation(
-        intentId,
-        payment.status,
-        "PAYMENT_CREATED",
-        "API Unavailable / Error fetching payments",
-        "UNKNOWN / Retry",
-        payment.razorpayOrderId
-      );
-      return;
+      console.log(`[Reconciliation] Intent ${intentId}: Razorpay payments API unavailable. Will retry next sweep.`);
+      return "UNKNOWN";
     }
 
     let observedState = "UNKNOWN";
@@ -99,7 +82,7 @@ export class ReconciliationService {
       } catch (err: any) {
         if (err.name === "ConditionalCheckFailedException") {
           console.log(`[Reconciliation] Intent ${intentId} already updated concurrently.`);
-          return;
+          return "EXECUTED";
         }
         throw err;
       }
@@ -115,16 +98,13 @@ export class ReconciliationService {
       } catch (err: any) {
         if (err.name === "ConditionalCheckFailedException") {
           console.log(`[Reconciliation] Payment ${intentId} already updated concurrently.`);
-          return;
+          return "EXECUTED";
         }
         throw err;
       }
 
-      const intent = await intentRepository.getIntent(intentId);
-      
       const record = {
         intentId,
-
         paymentId: capturedPaymentId,
         previousPaymentState: payment.status,
         newPaymentState: "EXECUTED",
@@ -142,6 +122,7 @@ export class ReconciliationService {
       });
 
       console.log(`[Reconciliation] Intent ${intentId} repaired to EXECUTED.`);
+      return "EXECUTED";
 
     } else if (action === "FAILED") {
       // 1. Unconditionally release reservation
@@ -153,7 +134,7 @@ export class ReconciliationService {
       } catch (err: any) {
         if (err.name === "ConditionalCheckFailedException") {
           console.log(`[Reconciliation] Intent ${intentId} already updated concurrently.`);
-          return;
+          return "FAILED";
         }
         throw err;
       }
@@ -169,16 +150,13 @@ export class ReconciliationService {
       } catch (err: any) {
         if (err.name === "ConditionalCheckFailedException") {
           console.log(`[Reconciliation] Payment ${intentId} already updated concurrently.`);
-          return;
+          return "FAILED";
         }
         throw err;
       }
 
-      const intent = await intentRepository.getIntent(intentId);
-      
       const record = {
         intentId,
-
         previousPaymentState: payment.status,
         newPaymentState: "FAILED",
         razorpayOrderId: payment.razorpayOrderId,
@@ -195,16 +173,12 @@ export class ReconciliationService {
       });
 
       console.log(`[Reconciliation] Intent ${intentId} repaired to FAILED. Reservation released.`);
+      return "FAILED";
     } else {
-      await this.logReconciliation(
-        intentId,
-        payment.status,
-        payment.status,
-        observedState,
-        "Retained state / Unknown",
-        payment.razorpayOrderId
-      );
-      console.log(`[Reconciliation] Intent ${intentId} remains ${payment.status} (${observedState}).`);
+      // Pending — Razorpay payment not yet resolved. Do NOT write a KMS-signed receipt
+      // on every sweep. Just log and signal RETRY.
+      console.log(`[Reconciliation] Intent ${intentId} remains PAYMENT_CREATED (${observedState}). Will retry next sweep.`);
+      return "RETRY";
     }
   }
 
