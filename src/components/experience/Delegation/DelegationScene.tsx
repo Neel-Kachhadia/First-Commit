@@ -188,33 +188,13 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
       measureEvidenceGeometry();
       ScrollTrigger.addEventListener("refreshInit", measureEvidenceGeometry);
 
-      const evidenceBridgeIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=100px",
-        end: "top top",
-        scrub: true,
-        onUpdate: (self) => {
-          if (!evidenceInEl) return;
-          gsap.set(evidenceInEl, {
-            ...evidenceGeometry,
-            opacity: self.progress,
-          });
-        },
-      });
-
-      const evidenceSettleIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top",
-        end: "top top-=120px",
-        scrub: true,
-        onUpdate: (self) => {
-          if (!evidenceInEl) return;
-          gsap.set(evidenceInEl, {
-            ...evidenceGeometry,
-            opacity: 1 - self.progress,
-          });
-        },
-      });
+      // evidenceBridgeIn / evidenceSettleIn (opacity = self.progress over the
+      // 100px before track-top, then 1 - self.progress over the 120px after)
+      // used to fade [data-decision-evidence-incoming] here, racing
+      // applyBoundary0203()'s incomingCarrierWeight (motion-runtime.ts) which
+      // now owns this element's opacity for the shared 02→03 boundary. The
+      // geometry match above (position/scale) stays local -- only opacity
+      // moved to boundary ownership. Removed: one property, one owner.
 
       // The Grocery derived pass is the actual 03 -> 04 paper carrier. It keeps
       // the approved perforated authority artifact alive; chapter header never
@@ -224,32 +204,37 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
         gsap.set(derivedCarrierEl, { visibility: "visible", pointerEvents: "none" });
       }
 
-      const documentBridgeOut = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "bottom top+=100px",
-        end: "bottom top",
-        scrub: true,
-        onUpdate: (self) => {
-          if (derivedCarrierEl) gsap.set(derivedCarrierEl, { opacity: 1 - self.progress });
-        },
-      });
+      // documentBridgeOut (opacity = 1 - self.progress over the last 100px)
+      // used to fade [data-delegation-grocery] here, racing applyBoundary0304()'s
+      // outgoingCarrierWeight (motion-runtime.ts) which owns this element's
+      // opacity for the shared 03→04 boundary from p=0.54 onward. Removed:
+      // one property, one owner. Do not reintroduce a local opacity writer on
+      // this selector without removing it from the shared boundary first.
 
       // Accounting DOM helpers for deterministic scrub
       const allocatedEl = root.current.querySelector<HTMLElement>("[data-accounting-allocated]");
       const remainingEl = root.current.querySelector<HTMLElement>("[data-accounting-remaining]");
       const stockCapacityEl = root.current.querySelector<HTMLElement>("[data-stock-capacity]");
 
-      // Incoming evidence opacity is owned by the bridge until the boundary;
-      // the scene timeline then resolves the receipt into Shopping authority.
+      // Incoming evidence opacity is owned by the shared 02→03 boundary
+      // (applyBoundary0203, motion-runtime.ts); the scene timeline then
+      // resolves the receipt into Shopping authority.
       gsap.set("[data-decision-evidence-incoming]", { opacity: 0 });
-      gsap.set("[data-delegation-header]", { opacity: 0.85, y: 0 });
-      gsap.set("[data-delegation-footer]", { opacity: 0.85, y: 0 });
+      // Header/footer are also boundary-owned there (headerSwitch), same
+      // split as Step-Up's header/footer for 03→04 -- not part of entryTimeline.
+      gsap.set("[data-delegation-header]", { opacity: 0, y: 0 });
+      gsap.set("[data-delegation-footer]", { opacity: 0, y: 0 });
 
-      // Parent Pass starts centered, undelegated — primed at 0.00 so stage is never dead
+      // Parent Pass starts fully unbuilt. It used to be "primed" at opacity
+      // 0.62/scale 0.98 from mount as a dead-zone band-aid; the shared
+      // 02→03 boundary's entryTimeline (below) now builds it properly from
+      // 0, and boundaryProgress["02_03"] resolves to 1 well before any
+      // ordinary entry into Delegation's own local track, so the stage is
+      // never dead without needing a fake starting value.
       gsap.set("[data-delegation-parent]", {
-        opacity: 0.62,
-        scale: 0.98,
-        y: 4,
+        opacity: 0,
+        scale: 0.92,
+        y: 10,
       });
       gsap.set("[data-parent-accounting]", { opacity: 0, y: 6 });
       gsap.set("[data-allocation-stock]", { opacity: 0, y: 6 });
@@ -299,18 +284,34 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
 
 
       // =========================================================================
-      // BEAT 1: APPROVED EVIDENCE -> PARENT REGISTRATION (0.00 - 0.14)
-      // The approved Grocery receipt resolves into Shopping authority; ledger +
-      // derivation stock then register before any child authority exists.
+      // ENTRY CHOREOGRAPHY (formerly BEAT 1, local 0.00 - 0.16): the approved
+      // Grocery receipt resolves into Shopping authority; ledger + derivation
+      // stock register before any child authority exists. This is what
+      // visually ESTABLISHES Delegation during the 02→03 handoff.
+      //
+      // It used to be scrubbed on Delegation's own local track (~3060px) and
+      // completed almost immediately (local 0.00-0.14, ~120-430px) -- far
+      // shorter than the shared boundary's incoming half, and was masked by
+      // a hard-coded "primed" initial opacity of 0.62 as a dead-zone
+      // band-aid instead of being genuinely driven by the handoff.
+      //
+      // Ownership: the shared 02→03 boundary (motion-runtime.ts
+      // applyDelegationEntry) now drives this timeline's .progress()
+      // directly from boundaryProgress["02_03"], same mechanism proven for
+      // Step-Up's entryTimeline in 03→04. All original tween targets,
+      // easings, and durations are unchanged -- only the physical distance
+      // backing them changed. Header/footer are NOT here; they are directly
+      // curve-driven in applyBoundary0203 (same split as Step-Up's
+      // header/footer in applyBoundary0304).
+      //
+      // Do not attach a scrollTrigger to this timeline and do not tween
+      // these same properties/selectors elsewhere -- one owner per property.
       // =========================================================================
-      timeline
-        // Header and footer reach full registration
-        .to(
-          "[data-delegation-header], [data-delegation-footer]",
-          { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" },
-          0.01,
-        )
-        // Parent settles into full hero rest by 0.04
+      const entryTimeline = gsap.timeline({ paused: true, defaults: { ease: "none" } });
+      progressBus.registerTimeline("delegationEntry", entryTimeline);
+
+      entryTimeline
+        // Parent settles into full hero rest
         .to(
           "[data-delegation-parent]",
           { opacity: 1, scale: 1, y: 0, duration: 0.04, ease: "power2.out" },
@@ -338,6 +339,8 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
           { opacity: 1, y: 0, duration: 0.06, ease: "power2.out" },
           0.1,
         );
+
+      entryTimeline.progress(0);
 
       // =========================================================================
       // BEAT 2: GROCERY DERIVATION — the hero derivation (0.14 - 0.36)
@@ -659,24 +662,13 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
         .to("[data-delegation-footer]", { opacity: 1, duration: 0.04 }, 0.94)
         // 0.92 - 0.94: Full resting stillness hold sustained
         .set({}, {}, 0.94)
-        // Non-carrier passes compact away. Grocery remains the single physical
-        // perforated-document carrier into Step-Up.
-        .to(
-          "[data-delegation-parent], [data-delegation-delivery], [data-delegation-downstream]",
-          { scale: parentScaleSettle * 0.90, y: -30, opacity: 0.8, duration: 0.04, ease: "power2.inOut" },
-          0.955,
-        )
-        .to(
-          "[data-delegation-header]",
-          { opacity: 0, y: -8, duration: 0.03, ease: "power1.out" },
-          0.955,
-        )
-        // Supporting bodies recede; the Grocery pass alone holds the boundary.
-        .to(
-          "[data-delegation-parent], [data-delegation-delivery], [data-delegation-downstream], [data-delegation-footer], [data-registration-frame]",
-          { opacity: 0, duration: 0.02, ease: "power1.out" },
-          0.98,
-        )
+        // Terminal mass/header release into the 03→04 shared boundary is owned by
+        // applyBoundary0304() (motion-runtime.ts), which fades this same element
+        // set on the physical boundary clock instead of local track percentage.
+        // A local hard cut here raced the shared fade and produced a dead/blank
+        // stage right at the ownership switch. Do not reintroduce a local
+        // opacity-to-0 tween on these selectors without removing it from the
+        // shared boundary first.
         .set({}, {}, 1.0);
 
       // Support clean reverse scrubbing for accounting + event-log text
@@ -708,9 +700,8 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
       return () => {
         ScrollTrigger.removeEventListener("refreshInit", measureEvidenceGeometry);
         visibilityTrigger.kill();
-        evidenceBridgeIn.kill();
-        evidenceSettleIn.kill();
-        documentBridgeOut.kill();
+        progressBus.unregisterTimeline("delegationEntry");
+        entryTimeline.kill();
         timeline.scrollTrigger?.kill();
         timeline.kill();
       };

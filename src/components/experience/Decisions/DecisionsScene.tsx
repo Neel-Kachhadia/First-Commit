@@ -143,15 +143,9 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
       // Product-native evidence carrier (outgoing half): the approved Grocery
       // receipt becomes the physical handoff into Delegation. Only this receipt
       // survives the scene boundary; no administrative top bar crosses scenes.
-      const evidenceBridgeOut = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "bottom top+=100px",
-        end: "bottom top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set("[data-decision-evidence-outgoing]", { opacity: 1 - self.progress });
-        },
-      });
+      // Its opacity is owned by the shared 02→03 boundary (applyBoundary0203,
+      // motion-runtime.ts) via outgoingCarrierWeight -- a local pixel-triggered
+      // fade here used to race BEAT 5's own evidence-outgoing fade-in below.
 
       const startScale = isMobile ? 2.1 : 2.45;
 
@@ -451,76 +445,57 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         );
 
       // =========================================================================
-      // BEAT 5: FINAL EVIDENCE HARMONIZATION & ARCHIVE FILING (0.89 - 1.00)
+      // BEAT 5: FINAL EVIDENCE HARMONIZATION (0.89 - 0.93 local; release beyond
+      // that point is boundary-owned)
       // All three lanes settle into their authentic resting positions:
       // A = clear exit / continued
       // B = suspended / held with open path ahead
       // C = terminated / severed with dead end
       // 0.89 - 0.93: Completed Decisions operating state holds in clear readable rest.
-      // 0.93 - 0.965: Evidence files into the approved Grocery receipt docket;
-      // other receipts recede while the successful receipt becomes the carrier.
-      // 0.965 - 1.00: the docket holds alone for Delegation handoff.
+      //
+      // What used to run here from local 0.93-1.00 -- lane-tag/sprockets/gate/
+      // barrier/note fade, lane-track-line opacity, receipt-wrap opacity, the
+      // evidence-outgoing fade-in, and lanes-board/header/footer fade-out --
+      // is now owned by the shared 02→03 boundary (applyBoundary0203,
+      // motion-runtime.ts), which releases this same mass on the shared
+      // physical clock instead of a fixed ~220px local slice, and was racing
+      // a redundant local evidenceBridgeOut carrier fade. Geometry-only
+      // pieces with no opacity conflict (lane-track-line scaleX, receipt-wrap
+      // scale/yPercent) remain local below.
       // =========================================================================
       timeline
         .to("[data-lane='allow']", { opacity: 0.9, duration: 0.04 }, 0.89)
         .to("[data-lane='stepup']", { opacity: 0.95, duration: 0.04 }, 0.89)
         .to("[data-lane='deny']", { opacity: 0.95, duration: 0.04 }, 0.89)
-        .to("[data-receipt-wrap='allow']", { opacity: 0.95, duration: 0.04 }, 0.88)
-        .to("[data-decisions-footer]", { opacity: 1, duration: 0.04 }, 0.90)
         // Sustained terminal hold through 0.93
         .set({}, {}, 0.93)
-        // 0.93 - 0.965: Lanes relinquish dominance; non-carrier receipts file away.
-        .to(
-          "[data-lane-tag='allow'], [data-lane-tag='stepup'], [data-lane-tag='deny'], [data-lane-sprockets], [data-gate='stepup'], [data-barrier='deny'], [data-note]",
-          { opacity: 0, duration: 0.035, ease: "power1.out" },
-          0.93,
-        )
+        // Geometry-only: collapses the track line width without touching its
+        // now boundary-owned opacity.
         .to(
           "[data-lane-track-line]",
-          { scaleX: 0.3, opacity: 0, duration: 0.035, ease: "power1.in" },
+          { scaleX: 0.3, duration: 0.035, ease: "power1.in" },
           0.935,
         )
-        // The original lane receipt yields to an identical physical evidence
-        // docket at viewport datum. The docket, not a metadata bar, crosses scenes.
-        .set("[data-decision-evidence-outgoing]", { display: "block" }, 0.90)
-        .fromTo(
-          "[data-decision-evidence-outgoing]",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.065, ease: "power2.out" },
-          0.90,
-        )
+        // Geometry-only: scale/position, opacity owned by the boundary.
         .to(
           "[data-receipt-wrap='allow']",
-          { opacity: 0, scale: 0.94, duration: 0.035, ease: "power1.out" },
+          { scale: 0.94, duration: 0.035, ease: "power1.out" },
           0.93,
         )
         .to(
           "[data-receipt-wrap='stepup']",
-          { yPercent: -180, scale: 0.7, opacity: 0.5, duration: 0.035, ease: "power2.in" },
+          { yPercent: -180, scale: 0.7, duration: 0.035, ease: "power2.in" },
           0.935,
         )
         .to(
           "[data-receipt-wrap='deny']",
-          { yPercent: -240, scale: 0.7, opacity: 0.5, duration: 0.035, ease: "power2.in" },
+          { yPercent: -240, scale: 0.7, duration: 0.035, ease: "power2.in" },
           0.94,
-        )
-        // Non-carrier receipts dock and dissolve as approved evidence takes over.
-        .to(
-          "[data-receipt-wrap='stepup'], [data-receipt-wrap='deny']",
-          { opacity: 0, duration: 0.015, ease: "power1.out" },
-          0.965,
-        )
-        // Lane board fades down cleanly so only the physical receipt remains.
-        .to(
-          "[data-lanes-board], [data-decisions-header], [data-decisions-footer]",
-          { opacity: 0, duration: 0.03, ease: "power1.out" },
-          0.965,
         )
         .set({}, {}, 1.00);
 
       return () => {
         visibilityTrigger.kill();
-        evidenceBridgeOut.kill();
         timeline.scrollTrigger?.kill();
         timeline.kill();
       };

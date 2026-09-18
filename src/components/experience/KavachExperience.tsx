@@ -18,6 +18,11 @@ import { FilmIntro } from "./FilmIntro/FilmIntro";
 import { experienceStore, useExperienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import {
+  applyPrototypeMotion,
+  isPrototypeBoundaryActive,
+  readMotionGeometry,
+} from "@/lib/experience/motion-runtime";
+import {
   SCENE_BY_KEY,
   SCENE_REGISTRY,
   sceneFromHash,
@@ -179,7 +184,7 @@ export function KavachExperience() {
 
     const handleScene = (event: Event) => {
       const { id } = (event as SceneEvent).detail;
-      if (id !== "none") setActiveScene(id);
+      if (id !== "none" && !isPrototypeBoundaryActive()) setActiveScene(id);
     };
 
     window.addEventListener("kp:scene", handleScene);
@@ -393,11 +398,48 @@ export function KavachExperience() {
     () => null,
   );
 
+  // Global motion architecture prototype. One ScrollTrigger reads the cached
+  // physical track geometry and publishes the same deterministic snapshot to
+  // semantic ownership, carriers, diagnostics, and WebGL consumers. The first
+  // migration is intentionally limited to 03→04 until its visual proof passes.
+  useEffect(() => {
+    if (!heavyScenesReady || isLegacy) return;
+
+    let geometry = readMotionGeometry();
+    const apply = () => applyPrototypeMotion(window.scrollY, geometry);
+    let applyQueued = false;
+    const queueApply = () => {
+      if (applyQueued) return;
+      applyQueued = true;
+      queueMicrotask(() => {
+        applyQueued = false;
+        apply();
+      });
+    };
+    const measure = () => {
+      geometry = readMotionGeometry();
+    };
+
+    const globalTrigger = ScrollTrigger.create({
+      id: "kp-global-motion",
+      start: 0,
+      end: () => ScrollTrigger.maxScroll(window),
+      onUpdate: queueApply,
+      onRefreshInit: measure,
+      onRefresh: apply,
+    });
+
+    apply();
+    return () => {
+      globalTrigger.kill();
+    };
+  }, [heavyScenesReady, isLegacy]);
+
   return (
     <main className={styles.experience}>
       <FilmIntro onLock={lockForIntro} onRelease={releaseFromIntro} />
       <GlobalNavbar onNavigate={navigateScene} onMenuOpenChange={handleMenuOpenChange} />
-      <ExperienceCanvas />
+      {introComplete && <ExperienceCanvas />}
       {isLegacy ? (
         <div className={styles.editorialLayerLegacy}>
           <OpeningScene />
