@@ -24,6 +24,8 @@ export const DecisionReasonCodeSchema = z.enum([
   "RESERVATION_FAILED",
   "POLICY_DENIED",
   "INVALID_INTENT",
+  "MAX_DELEGATION_DEPTH_EXCEEDED",
+  "MAX_DELEGATION_CHILDREN_EXCEEDED",
 ]);
 
 export const DecisionSchema = z.object({

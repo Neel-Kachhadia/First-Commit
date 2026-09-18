@@ -11,6 +11,10 @@ import {
   type GrantEdge,
 } from "../store/grant-repository.js";
 
+import {
+  auditRepository,
+} from "../store/audit-repository.js";
+
 export interface CreateGrantInput {
   userId: string;
 
@@ -92,7 +96,64 @@ export class GrantService {
           "Delegation is not enabled on the parent grant."
         );
       }
+
+      /*
+       * ── maxDepth enforcement ────────────────────────────────────────────────
+       *
+       * Walk the ancestry chain from the parent to the root and compute
+       * the current depth of the parent node.  The new child will sit at
+       * depth + 1.  The root grant's maxDepth is the system-wide ceiling.
+       *
+       * Depth is 1-indexed: a root grant is at depth 1, its direct children
+       * are at depth 2, and so on.
+       */
+      const rootGrant = await this.findRootGrant(input.userId, parentGrant);
+      const maxDepth = rootGrant.maxDepth ?? 0;
+
+      if (maxDepth > 0) {
+        const parentDepth = await this.computeDepth(input.userId, parentGrant);
+        const childDepth = parentDepth + 1;
+
+        if (childDepth > maxDepth) {
+          throw Object.assign(
+            new Error(
+              `Delegation depth limit exceeded: attempted depth ${childDepth}, maximum is ${maxDepth}.`
+            ),
+            { code: "MAX_DELEGATION_DEPTH_EXCEEDED" }
+          );
+        }
+      }
+
+      /*
+       * ── maxChildren enforcement ─────────────────────────────────────────────
+       *
+       * Count existing children of the parent grant.
+       * maxChildren = 0 means unlimited.
+       */
+      const parentMaxChildren = parentGrant.maxChildren ?? 0;
+
+      if (parentMaxChildren > 0) {
+        const existingEdges = await grantRepository.listChildren(
+          parentGrant.grantId
+        );
+
+        // Only count edges whose child grants are ACTIVE
+        const activeChildCount = await this.countActiveChildren(
+          input.userId,
+          existingEdges.map((e) => e.childGrantId)
+        );
+
+        if (activeChildCount >= parentMaxChildren) {
+          throw Object.assign(
+            new Error(
+              `Delegation children limit exceeded: parent grant ${parentGrant.grantId} already has ${activeChildCount} active children (max: ${parentMaxChildren}).`
+            ),
+            { code: "MAX_DELEGATION_CHILDREN_EXCEEDED" }
+          );
+        }
+      }
     }
+
 
     /*
      * 2. Generate the grant ID.
@@ -341,6 +402,13 @@ export class GrantService {
       );
     }
 
+    await auditRepository.logEvent(
+      input.userId,
+      "GRANT_CREATED",
+      { grantId, parentGrantId: input.parentGrantId },
+      input.userId
+    );
+
     return grant;
   }
 
@@ -370,6 +438,13 @@ export class GrantService {
       grantId
     );
 
+    await auditRepository.logEvent(
+      userId,
+      "GRANT_REVOKED",
+      { grantId },
+      userId
+    );
+
     const revokedGrant =
       await grantRepository.getGrant(
         userId,
@@ -397,6 +472,68 @@ export class GrantService {
       userId,
       grantId
     );
+  }
+
+  /**
+   * Walk ancestry chain from a given grant to the root.
+   * Protects against cycles (max 20 hops).
+   */
+  private async findRootGrant(
+    userId: string,
+    grant: Grant
+  ): Promise<Grant> {
+    let current = grant;
+    let hops = 0;
+    const MAX_HOPS = 20;
+
+    while (current.parentGrantId && hops < MAX_HOPS) {
+      const parent = await this.findGrantById(userId, current.parentGrantId);
+      if (!parent) break;
+      current = parent;
+      hops++;
+    }
+
+    return current;
+  }
+
+  /**
+   * Compute how many delegation hops from a grant to the root.
+   * Root = depth 1, first child = depth 2, etc.
+   */
+  private async computeDepth(
+    userId: string,
+    grant: Grant
+  ): Promise<number> {
+    let depth = 1;
+    let current = grant;
+    const MAX_DEPTH = 20;
+
+    while (current.parentGrantId && depth < MAX_DEPTH) {
+      const parent = await this.findGrantById(userId, current.parentGrantId);
+      if (!parent) break;
+      current = parent;
+      depth++;
+    }
+
+    return depth;
+  }
+
+  /**
+   * Given a list of child grantIds, resolve them and count
+   * how many are still ACTIVE (revoked/expired do not count).
+   */
+  private async countActiveChildren(
+    userId: string,
+    childGrantIds: string[]
+  ): Promise<number> {
+    let count = 0;
+    for (const grantId of childGrantIds) {
+      const g = await this.findGrantById(userId, grantId);
+      if (g && g.status === "ACTIVE") {
+        count++;
+      }
+    }
+    return count;
   }
 }
 

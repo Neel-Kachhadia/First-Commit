@@ -88,6 +88,15 @@ export class ReservationRepository {
      * in the authority path.
      *
      * DynamoDB evaluates all conditions atomically.
+     *
+     * Conditions:
+     *  1. Grant must exist (attribute_exists)
+     *  2. Grant must be ACTIVE
+     *  3. Remaining budget must cover the reservation
+     *  4. Grant must not be expired — closes the race between
+     *     the authority engine evaluation and this write.
+     *     If a grant expires between evaluate() and reserve(),
+     *     the whole transaction is cancelled.
      */
     for (const grant of reservation.grants) {
       transactItems.push({
@@ -108,6 +117,7 @@ export class ReservationRepository {
             attribute_exists(PK)
             AND #status = :active
             AND #consumed <= :maxAllowedConsumed
+            AND (attribute_not_exists(expiresAt) OR expiresAt > :now)
           `,
 
           ExpressionAttributeNames: {
@@ -120,6 +130,7 @@ export class ReservationRepository {
             ":maxAllowedConsumed": grant.limit - reservation.amount,
             ":active": "ACTIVE",
             ":updatedAt": now,
+            ":now": now,
           },
         },
       });

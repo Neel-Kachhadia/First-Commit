@@ -75,14 +75,14 @@ export function DecisionDossier({
         .filter(
           (item) =>
             item.agentId === agent.id &&
-            item.status === "allowed" &&
+            item.status === "APPROVED" &&
             new Date(item.at).getTime() < new Date(entry.at).getTime(),
         )
         .reduce((sum, item) => sum + item.amount, 0)
     : 0;
   const before = Math.max(0, (agent?.rule.monthlyLimit ?? 0) - previousSpend);
   const after =
-    entry.status === "allowed" ? Math.max(0, before - entry.amount) : before;
+    entry.status === "APPROVED" ? Math.max(0, before - entry.amount) : before;
   const tone = ledgerTone(entry.status);
 
   return (
@@ -161,23 +161,23 @@ export function DecisionDossier({
           <TraceStep number="06" title="Execution">
             <p className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-muted-foreground" />
-              {entry.status === "allowed"
+              {entry.status === "APPROVED"
                 ? "Provider request issued"
-                : entry.status === "pending"
+                : entry.status === "PENDING"
                   ? "Provider request held before execution"
                   : "Provider request blocked before execution"}
             </p>
           </TraceStep>
           <TraceStep number="07" title="Result">
             <p className="flex items-center gap-2">
-              {entry.status === "allowed" ? (
+              {entry.status === "APPROVED" ? (
                 <Check className="h-4 w-4 text-success" />
               ) : (
                 <ShieldCheck className="h-4 w-4 text-destructive" />
               )}
-              {entry.status === "allowed"
+              {entry.status === "APPROVED"
                 ? "Payment completed successfully"
-                : entry.status === "pending"
+                : entry.status === "PENDING"
                   ? "Awaiting a one-time human decision"
                   : "No money moved"}
             </p>

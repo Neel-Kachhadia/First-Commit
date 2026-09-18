@@ -1,7 +1,7 @@
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 export const DEMO_USER_ID =
-  import.meta.env.VITE_DEMO_USER_ID ?? "u_frontend_demo";
+  process.env.NEXT_PUBLIC_DEMO_USER_ID ?? "u_frontend_demo";
 
 export interface CreateGrantPayload {
   label: string;

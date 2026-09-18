@@ -108,7 +108,7 @@ function evaluateDraft(
       label: "Merchant outside scope",
       merchant,
       amount,
-      status: "denied",
+      status: "DENIED",
       reason: `${merchant} is not in the current draft's approved merchant set.`,
     };
   if (amount > limit)
@@ -116,7 +116,7 @@ function evaluateDraft(
       label: "Authority exceeded",
       merchant,
       amount,
-      status: "denied",
+      status: "DENIED",
       reason: `Exceeds the ${formatINR(limit)} ${draft.period.toLowerCase()} authority.`,
     };
   if (amount > cap)
@@ -124,14 +124,14 @@ function evaluateDraft(
       label: "Step-up required",
       merchant,
       amount,
-      status: "pending",
+      status: "PENDING",
       reason: `Above the ${formatINR(cap)} automatic threshold; a one-time approval is required.`,
     };
   return {
     label: "Allowed automatically",
     merchant,
     amount,
-    status: "allowed",
+    status: "APPROVED",
     reason: `Matches ${draft.category}, approved merchant scope, period budget and automatic threshold.`,
   };
 }
@@ -524,9 +524,9 @@ export default function RulesPage() {
               <ul className="divide-y divide-border">
                 {tests.map((result, index) => {
                   const tone =
-                    result.status === "allowed"
+                    result.status === "APPROVED"
                       ? "allowed"
-                      : result.status === "pending"
+                      : result.status === "PENDING"
                         ? "stepup"
                         : "denied";
                   return (
@@ -536,7 +536,7 @@ export default function RulesPage() {
                           <StatusPill
                             tone={tone}
                             label={
-                              result.status === "pending"
+                              result.status === "PENDING"
                                 ? "Needs approval"
                                 : result.status
                             }

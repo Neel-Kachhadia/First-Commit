@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:visual": "playwright test"
+    "test:visual": "playwright test",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev --prefix backend\""
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
@@ -40,6 +41,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
+    "@tanstack/react-query": "^5.103.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -67,13 +69,14 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.1",
     "@playwright/test": "^1.63.0",
+    "@tailwindcss/postcss": "^4.2.1",
     "@types/howler": "^2.2.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.186.0",
+    "concurrently": "^9.2.4",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "typescript": "^5"

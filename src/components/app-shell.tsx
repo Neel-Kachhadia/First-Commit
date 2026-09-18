@@ -43,6 +43,7 @@ import { useKavach } from "@/lib/kavach-store";
 import { useTheme } from "@/lib/theme";
 import { formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api-client";
 
 const NAV = [
   {
@@ -187,6 +188,43 @@ function Brand({ className }: { className?: string }) {
   );
 }
 
+function ResetDemo() {
+  const [resetting, setResetting] = useState(false);
+
+  const handleReset = async () => {
+    if (resetting) return;
+
+    const confirmed = window.confirm(
+      "Reset the KavachPay demo? This will clear the current demo state."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setResetting(true);
+      await apiClient.resetDemo();
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to reset demo:", error);
+      window.alert("Failed to reset the demo. Please try again.");
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleReset}
+      disabled={resetting}
+      className="hidden sm:inline-flex"
+    >
+      {resetting ? "Resetting…" : "Reset Demo"}
+    </Button>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { frozen, approvals } = useKavach();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -290,6 +328,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </Link>
               </Button>
               <ThemeToggle />
+              <ResetDemo />
               <EmergencyStop />
             </div>
           </div>

@@ -1,21 +1,21 @@
 # Dependencies
-/node_modules/
-/.pnp
+node_modules/
+.pnp
 .pnp.*
 
 # Next.js build output
-/.next/
-/out/
+.next/
+out/
 
 # Generated build and audit output
-/.output/
-/output/
-/.tanstack/
-/.wrangler/
-/dist/
-/coverage/
-/playwright-report/
-/test-results/
+.output/
+output/
+.tanstack/
+.wrangler/
+dist/
+coverage/
+playwright-report/
+test-results/
 
 # Environment files
 .env

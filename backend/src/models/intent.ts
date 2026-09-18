@@ -6,6 +6,7 @@ export const IntentStatusSchema = z.enum([
   "APPROVED",
   "DENIED",
   "RESERVED",
+  "PAYMENT_CREATED",
   "EXECUTED",
   "FAILED",
   "REVERSED",

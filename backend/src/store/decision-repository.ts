@@ -140,14 +140,26 @@ export class DecisionRepository {
   }
 
   /**
-   * Store a deterministic decision receipt.
+   * Store a cryptographically authenticated decision receipt.
    *
-   * This is intentionally separate from the decision itself.
-   * Later the receipt will contain a cryptographic hash/signature.
+   * The receipt contains:
+   *  - receiptHash: SHA-256 of the canonical decision payload
+   *  - signature:   HMAC-SHA256 of the receiptHash
+   *  - algorithm:   "HMAC-SHA256"
+   *  - signedAt:    ISO timestamp of when the receipt was signed
+   *  - authorityPath, stateBefore, stateAfter: optional enrichment
    */
   async createReceipt(
     decision: Decision,
-    receiptHash: string
+    receiptHash: string,
+    auth: {
+      signature: string;
+      algorithm: string;
+      signedAt: string;
+      authorityPath?: string[];
+      stateBefore?: Record<string, number>;
+      stateAfter?: Record<string, number>;
+    }
   ): Promise<void> {
     await dynamo.send(
       new PutCommand({
@@ -161,11 +173,26 @@ export class DecisionRepository {
 
           decisionId: decision.decisionId,
           intentId: decision.intentId,
+          userId: decision.userId,
+          grantId: decision.grantId,
 
           decision: decision.decision,
           reasonCode: decision.reasonCode,
 
+          amount: decision.amount,
+          currency: decision.currency,
+          effectiveCapacity: decision.effectiveCapacity,
+          grantResidual: decision.grantResidual,
+          reserved: decision.reserved,
+
           receiptHash,
+          signature: auth.signature,
+          algorithm: auth.algorithm,
+          signedAt: auth.signedAt,
+
+          ...(auth.authorityPath && { authorityPath: auth.authorityPath }),
+          ...(auth.stateBefore && { stateBefore: auth.stateBefore }),
+          ...(auth.stateAfter && { stateAfter: auth.stateAfter }),
 
           createdAt: decision.createdAt,
         },
@@ -174,6 +201,42 @@ export class DecisionRepository {
           "attribute_not_exists(PK) AND attribute_not_exists(SK)",
       })
     );
+  }
+
+  /**
+   * Retrieve the stored receipt for a decision.
+   */
+  async getReceipt(
+    intentId: string,
+    decisionId: string
+  ): Promise<{
+    decisionId: string;
+    intentId: string;
+    receiptHash: string;
+    signature: string;
+    algorithm: string;
+    signedAt: string;
+    authorityPath?: string[];
+    stateBefore?: Record<string, number>;
+    stateAfter?: Record<string, number>;
+    createdAt: string;
+  } | null> {
+    const result = await dynamo.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+
+        Key: {
+          PK: `INTENT#${intentId}`,
+          SK: `RECEIPT#${decisionId}`,
+        },
+      })
+    );
+
+    if (!result.Item) {
+      return null;
+    }
+
+    return result.Item as any;
   }
 }
 

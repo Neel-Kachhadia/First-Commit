@@ -33,6 +33,14 @@ import {
   reservationRepository,
 } from "../store/reservation-repository.js";
 
+import {
+  applyTransition,
+} from "../engine/intent-state-machine.js";
+
+import {
+  auditRepository,
+} from "../store/audit-repository.js";
+
 export interface CreateIntentInput {
   intentId?: string;
 
@@ -194,6 +202,13 @@ export class IntentService {
       intent
     );
 
+    await auditRepository.logEvent(
+      intent.userId,
+      "INTENT_CREATED",
+      { intentId: intent.intentId, grantId: intent.grantId, amount: intent.amount },
+      intent.userId
+    );
+
     /*
      * 5. Resolve the authority path directly from
      *    DynamoDB.
@@ -244,12 +259,27 @@ export class IntentService {
           decision
         );
 
-        await intentRepository.updateStatus(
+        await applyTransition(
           intent.intentId,
+          intent.status,
           "RESERVED"
         );
 
         intent.status = "RESERVED";
+
+        await auditRepository.logEvent(
+          intent.userId,
+          "DECISION_MADE",
+          { intentId: intent.intentId, decision: decision.decision, reasonCode: decision.reasonCode },
+          intent.userId
+        );
+
+        await auditRepository.logEvent(
+          intent.userId,
+          "RESERVATION_CREATED",
+          { intentId: intent.intentId, amount: intent.amount },
+          intent.userId
+        );
       } catch (error) {
         /*
          * The Authority Engine may have observed sufficient
@@ -267,8 +297,9 @@ export class IntentService {
           decision
         );
 
-        await intentRepository.updateStatus(
+        await applyTransition(
           intent.intentId,
+          intent.status,
           "DENIED"
         );
 
@@ -279,23 +310,39 @@ export class IntentService {
         decision
       );
 
-      await intentRepository.updateStatus(
+      await applyTransition(
         intent.intentId,
+        intent.status,
         "STEP_UP_REQUIRED"
       );
 
       intent.status = "STEP_UP_REQUIRED";
+      
+      await auditRepository.logEvent(
+        intent.userId,
+        "DECISION_MADE",
+        { intentId: intent.intentId, decision: decision.decision, reasonCode: decision.reasonCode },
+        intent.userId
+      );
     } else {
       await receiptService.finalizeDecision(
         decision
       );
 
-      await intentRepository.updateStatus(
+      await applyTransition(
         intent.intentId,
+        intent.status,
         "DENIED"
       );
 
       intent.status = "DENIED";
+      
+      await auditRepository.logEvent(
+        intent.userId,
+        "DECISION_MADE",
+        { intentId: intent.intentId, decision: decision.decision, reasonCode: decision.reasonCode },
+        intent.userId
+      );
     }
 
     return {
@@ -374,12 +421,27 @@ export class IntentService {
 
       await receiptService.finalizeDecision(decision);
 
-      await intentRepository.updateStatus(
+      await applyTransition(
         intent.intentId,
+        intent.status,
         "RESERVED"
       );
 
       intent.status = "RESERVED";
+
+      await auditRepository.logEvent(
+        intent.userId,
+        "DECISION_MADE",
+        { intentId: intent.intentId, decision: decision.decision, reasonCode: decision.reasonCode },
+        intent.userId
+      );
+
+      await auditRepository.logEvent(
+        intent.userId,
+        "RESERVATION_CREATED",
+        { intentId: intent.intentId, amount: intent.amount },
+        intent.userId
+      );
 
       return {
         intent,
@@ -396,12 +458,20 @@ export class IntentService {
 
       await receiptService.finalizeDecision(decision);
 
-      await intentRepository.updateStatus(
+      await applyTransition(
         intent.intentId,
+        intent.status,
         "DENIED"
       );
 
       intent.status = "DENIED";
+
+      await auditRepository.logEvent(
+        intent.userId,
+        "DECISION_MADE",
+        { intentId: intent.intentId, decision: decision.decision, reasonCode: decision.reasonCode },
+        intent.userId
+      );
 
       return {
         intent,

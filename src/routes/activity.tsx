@@ -31,9 +31,9 @@ import { cn } from "@/lib/utils";
 
 const FILTERS: { key: LedgerStatus | "all"; label: string }[] = [
   { key: "all", label: "All decisions" },
-  { key: "allowed", label: "Allowed" },
-  { key: "pending", label: "Needs approval" },
-  { key: "denied", label: "Denied" },
+  { key: "APPROVED", label: "APPROVED" },
+  { key: "PENDING", label: "Needs approval" },
+  { key: "DENIED", label: "DENIED" },
 ];
 
 export default function ActivityPage() {
@@ -67,20 +67,20 @@ export default function ActivityPage() {
 
   const groups = [
     {
-      label: "Allowed",
-      entries: ledger.filter((entry) => entry.status === "allowed"),
+      label: "APPROVED",
+      entries: ledger.filter((entry) => entry.status === "APPROVED"),
       icon: CheckCircle2,
       tone: "text-success",
     },
     {
       label: "Needs approval",
-      entries: ledger.filter((entry) => entry.status === "pending"),
+      entries: ledger.filter((entry) => entry.status === "PENDING"),
       icon: Clock3,
       tone: "text-stepup",
     },
     {
-      label: "Denied",
-      entries: ledger.filter((entry) => entry.status === "denied"),
+      label: "DENIED",
+      entries: ledger.filter((entry) => entry.status === "DENIED"),
       icon: ShieldX,
       tone: "text-destructive",
     },

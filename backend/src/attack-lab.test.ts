@@ -162,3 +162,143 @@ describe("Attack Lab - Concurrency & Invariants", () => {
     expect(intentIds.size).toBe(1);
   });
 });
+
+// ─── Delegation Invariant Tests ────────────────────────────────────────────────
+
+import { assertTransition } from "./engine/intent-state-machine.js";
+
+describe("Delegation Invariants", () => {
+  const userId = `u_deleg_${generateSuffix()}`;
+
+  it("TEST 4: maxDepth — rejects grant creation beyond depth limit", async () => {
+    const root = await grantService.createGrant({
+      userId,
+      label: "Root",
+      limit: 10000,
+      hardMax: 5000,
+      window: "MONTHLY",
+      windowStart: new Date().toISOString(),
+      delegationEnabled: true,
+      maxDepth: 2,
+      maxChildren: 10,
+    });
+
+    const child1 = await grantService.createGrant({
+      userId,
+      label: "Child 1",
+      parentGrantId: root.grantId,
+      limit: 4000,
+      hardMax: 4000,
+      window: "MONTHLY",
+      windowStart: new Date().toISOString(),
+      delegationEnabled: true,
+      maxDepth: 0,
+      maxChildren: 0,
+    });
+
+    // Attempting depth 3 (root=1, child1=2, child2=3) should fail
+    await expect(
+      grantService.createGrant({
+        userId,
+        label: "Child 2 (too deep)",
+        parentGrantId: child1.grantId,
+        limit: 1000,
+        hardMax: 1000,
+        window: "MONTHLY",
+        windowStart: new Date().toISOString(),
+        delegationEnabled: false,
+        maxDepth: 0,
+        maxChildren: 0,
+      })
+    ).rejects.toThrow(/MAX_DELEGATION_DEPTH_EXCEEDED|depth limit exceeded/i);
+  });
+
+  it("TEST 5: maxChildren — rejects excess child grants on parent", async () => {
+    const root = await grantService.createGrant({
+      userId,
+      label: "Root",
+      limit: 10000,
+      hardMax: 5000,
+      window: "MONTHLY",
+      windowStart: new Date().toISOString(),
+      delegationEnabled: true,
+      maxDepth: 3,
+      maxChildren: 2,
+    });
+
+    const makeChild = () =>
+      grantService.createGrant({
+        userId,
+        label: "Child",
+        parentGrantId: root.grantId,
+        limit: 500,
+        hardMax: 500,
+        window: "MONTHLY",
+        windowStart: new Date().toISOString(),
+        delegationEnabled: false,
+        maxDepth: 0,
+        maxChildren: 0,
+      });
+
+    await makeChild(); // child 1
+    await makeChild(); // child 2
+
+    // Third child must be rejected
+    await expect(makeChild()).rejects.toThrow(
+      /MAX_DELEGATION_CHILDREN_EXCEEDED|children limit exceeded/i
+    );
+  });
+
+  it("TEST 6: expired grant — authority engine returns GRANT_EXPIRED", async () => {
+    const oneSecondAgo = new Date(Date.now() - 1000).toISOString();
+
+    const expired = await grantService.createGrant({
+      userId,
+      label: "Expired Grant",
+      limit: 5000,
+      hardMax: 5000,
+      window: "MONTHLY",
+      windowStart: new Date().toISOString(),
+      delegationEnabled: false,
+      maxDepth: 0,
+      maxChildren: 0,
+      expiresAt: oneSecondAgo,
+    });
+
+    const result = await intentService.createIntent({
+      userId,
+      grantId: expired.grantId,
+      amount: 100,
+      merchant: { merchantId: "m_exp", name: "Test", category: "GENERAL" },
+      idempotencyKey: `exp_${generateSuffix()}`,
+    });
+
+    expect(result.decision.decision).toBe("DENY");
+    expect(result.decision.reasonCode).toBe("GRANT_EXPIRED");
+    expect(result.decision.reserved).toBe(false);
+  });
+});
+
+// ─── State Machine Invariant Tests ─────────────────────────────────────────────
+
+describe("Intent State Machine Invariants", () => {
+  it("TEST 7: rejects invalid terminal transitions", () => {
+    expect(() => assertTransition("EXECUTED", "RESERVED")).toThrow(
+      /Invalid intent state transition/
+    );
+    expect(() => assertTransition("DENIED", "RESERVED")).toThrow(
+      /Invalid intent state transition/
+    );
+    expect(() => assertTransition("EXECUTED", "PENDING")).toThrow(
+      /Invalid intent state transition/
+    );
+  });
+
+  it("TEST 8: accepts valid transitions", () => {
+    expect(() => assertTransition("PENDING", "RESERVED")).not.toThrow();
+    expect(() => assertTransition("PENDING", "STEP_UP_REQUIRED")).not.toThrow();
+    expect(() => assertTransition("RESERVED", "PAYMENT_CREATED")).not.toThrow();
+    expect(() => assertTransition("PAYMENT_CREATED", "EXECUTED")).not.toThrow();
+    expect(() => assertTransition("PAYMENT_CREATED", "FAILED")).not.toThrow();
+  });
+});

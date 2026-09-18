@@ -11,7 +11,9 @@ import {
 
 import {
   getDecisionsHandler,
-} from "./handlers/decision-handler.js";
+  verifyReceiptHandler,
+  listAuditHandler,
+} from "./handlers/decisions.js";
 
 import {
   createGrantHandler,
@@ -46,6 +48,13 @@ import {
   resetDemoHandler,
 } from "./handlers/demo-handler.js";
 
+import {
+  runScenarioHandler,
+  listScenariosHandler,
+} from "./handlers/scenario-handler.js";
+
+import { checkDynamoDB } from "./store/health.js";
+
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), "backend/.env") });
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
@@ -71,10 +80,54 @@ export function createApp() {
   // Serve static frontend assets for checkout demo
   app.use(express.static(path.resolve(process.cwd(), "public")));
 
+  // ── Health ──────────────────────────────────────────────────────────────────
+
   app.get("/health", (_req, res) => {
     res.json({
       status: "ok",
       service: "kavachpay-backend",
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  /**
+   * GET /ready
+   *
+   * Dependency readiness check.  Verifies that DynamoDB is reachable and
+   * the signing key is configured.  Returns 200 only when all checks pass.
+   */
+  app.get("/ready", async (_req, res) => {
+    const checks: Record<string, { status: "ok" | "error"; detail?: string }> = {};
+
+    // DynamoDB
+    try {
+      const db = await checkDynamoDB();
+      checks["dynamodb"] = { status: "ok", detail: `Table ${db.tableName} is ${db.status}` };
+    } catch (err: any) {
+      checks["dynamodb"] = { status: "error", detail: err.message };
+    }
+
+    // Signing key
+    checks["signingKey"] = {
+      status: process.env.KAVACHPAY_SIGNING_KEY ? "ok" : "error",
+      detail: process.env.KAVACHPAY_SIGNING_KEY
+        ? "Signing key is configured"
+        : "KAVACHPAY_SIGNING_KEY is not set — receipts use dev fallback key",
+    };
+
+    // Razorpay credentials
+    checks["razorpay"] = {
+      status: (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) ? "ok" : "error",
+      detail: (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET)
+        ? "Razorpay credentials are configured"
+        : "RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is not set",
+    };
+
+    const allOk = Object.values(checks).every((c) => c.status === "ok");
+
+    res.status(allOk ? 200 : 503).json({
+      ready: allOk,
+      checks,
       timestamp: new Date().toISOString(),
     });
   });
@@ -137,14 +190,55 @@ export function createApp() {
     approveIntentHandler
   );
 
+  /*
+   * ── Decision & Receipt ──────────────────────────────────────────────────────
+   */
+
+  app.get(
+    "/v0/intents/:intentId/decisions",
+    getDecisionsHandler
+  );
+
+  /**
+   * GET /v0/decisions/:intentId/verify/:decisionId
+   *
+   * Verifies the HMAC-SHA256 authenticity of a stored decision receipt.
+   */
+  app.get(
+    "/v0/decisions/:intentId/verify/:decisionId",
+    verifyReceiptHandler
+  );
+
+  /*
+   * ── Audit Log ───────────────────────────────────────────────────────────────
+   */
+
+  app.get(
+    "/v0/audit",
+    listAuditHandler
+  );
+
+  /*
+   * ── Demo ────────────────────────────────────────────────────────────────────
+   */
+
   app.post(
     "/v0/demo/reset",
     resetDemoHandler
   );
 
+  /**
+   * GET  /v0/demo/scenarios          — list available scenarios
+   * POST /v0/demo/scenarios/:scenario — execute a scenario
+   */
   app.get(
-    "/v0/intents/:intentId/decisions",
-    getDecisionsHandler
+    "/v0/demo/scenarios",
+    listScenariosHandler
+  );
+
+  app.post(
+    "/v0/demo/scenarios/:scenario",
+    runScenarioHandler
   );
 
   return app;
@@ -168,6 +262,7 @@ if (process.env.AWS_LAMBDA_FUNCTION_NAME === undefined) {
 ║ Status : RUNNING                     ║
 ║ Port   : ${PORT}                     ║
 ║ Health : http://localhost:${PORT}/health ║
+║ Ready  : http://localhost:${PORT}/ready  ║
 ╚══════════════════════════════════════╝
     `);
   });
