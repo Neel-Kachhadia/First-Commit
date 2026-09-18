@@ -1,0 +1,191 @@
+- generic [ref=f4e1]:
+  - main [ref=f4e2]:
+    - navigation "KavachPay control index" [ref=f4e19]:
+      - button "KAVACHPAY" [ref=f4e20] [cursor=pointer]
+      - generic "Film chapters" [ref=f4e21]:
+        - button "00 OPENING / HERO" [ref=f4e22] [cursor=pointer]:
+          - generic [ref=f4e23]: "00"
+        - button "01 MANDATE" [ref=f4e24] [cursor=pointer]:
+          - generic [ref=f4e25]: "01"
+        - button "02 ALLOW / STEP-UP / DENY" [ref=f4e26] [cursor=pointer]:
+          - generic [ref=f4e27]: "02"
+        - button "03 DELEGATION" [ref=f4e28] [cursor=pointer]:
+          - generic [ref=f4e29]: "03"
+        - button "04 STEP-UP CLEARANCE" [ref=f4e30] [cursor=pointer]:
+          - generic [ref=f4e31]: "04"
+        - button "05 REVOCATION" [active] [ref=f4e32] [cursor=pointer]:
+          - generic [ref=f4e33]: "05"
+          - generic [ref=f4e34]: REVOCATION
+        - button "06 SPLIT-PAYMENT DEFENSE" [ref=f4e35] [cursor=pointer]:
+          - generic [ref=f4e36]: "06"
+        - button "07 BUDGET / CONCURRENCY" [ref=f4e37] [cursor=pointer]:
+          - generic [ref=f4e38]: "07"
+        - button "08 CAUSAL REPLAY" [ref=f4e39] [cursor=pointer]:
+          - generic [ref=f4e40]: "08"
+      - generic [ref=f4e41]:
+        - button "LOGIN" [disabled] [ref=f4e42] [cursor=pointer]
+        - button "SIGN UP" [disabled] [ref=f4e43] [cursor=pointer]
+        - button "ENTER KAVACHPAY" [disabled] [ref=f4e44] [cursor=pointer]
+      - status [ref=f4e45]
+    - generic [ref=f4e3]:
+      - generic [aria-hidden]:
+        - article:
+          - generic:
+            - generic:
+              - generic:
+                - generic: KavachPay
+                - generic: TX–1081
+              - generic:
+                - generic: Grocery Agent
+                - generic: "REF: KP–1967–M"
+            - generic:
+              - generic:
+                - generic: ₹
+                - generic: 1,249
+              - generic: GROCERY
+            - generic: APPROVED
+            - generic:
+              - generic: REC // AUTH CHECK
+              - generic: KP–1967–M
+      - region [ref=f4e48]:
+        - generic [ref=f4e49]:
+          - generic [ref=f4e51]:
+            - generic [ref=f4e52]:
+              - generic [ref=f4e53]: "05"
+              - generic [ref=f4e54]: /
+              - heading "REVOCATION" [level=2] [ref=f4e55]
+            - generic [ref=f4e56]:
+              - generic [ref=f4e57]: LINEAGE-AWARE REVOCATION.
+              - generic [ref=f4e58]: INDEPENDENT TRAVEL UNAFFECTED
+          - generic [ref=f4e60]:
+            - generic [ref=f4e61]:
+              - generic [ref=f4e62]: LINEAGE REGISTRATION DATUM // DATUM 05 ACTIVE
+              - generic [ref=f4e63]: ALL AUTHORITIES REGISTERED // IN FORCE
+            - generic [ref=f4e64]:
+              - 'article "SHOPPING AGENT, SHOPPING Authority Record: AUTH-0301" [ref=f4e65]':
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [ref=f4e66]:
+                  - generic:
+                    - generic [aria-hidden]: "SOCKET: EMPTY // WITHDRAWN"
+                  - generic [ref=f4e67]:
+                    - generic [ref=f4e68]: DATUM 05
+                    - generic [ref=f4e71]: REG-SPINE-AUTH-0301-ROOT
+                  - generic [ref=f4e72]:
+                    - generic [ref=f4e73]: SOURCE REGISTRATION SPINE
+                    - generic [ref=f4e75]: LOCKED
+                - generic [ref=f4e77]:
+                  - generic [ref=f4e78]: REG // SOURCE
+                  - strong [ref=f4e79]: AUTH-0301
+                  - generic [ref=f4e80]: SOURCE AUTHORITY
+                - generic [ref=f4e81]:
+                  - heading "SHOPPING" [level=3] [ref=f4e82]
+                  - generic [ref=f4e83]:
+                    - strong [ref=f4e84]: ₹4,000 / WEEK
+                    - generic [ref=f4e85]: ·
+                    - generic [ref=f4e86]: "MANDATE: KP–1967–M"
+                - generic [ref=f4e87]:
+                  - generic [ref=f4e88]:
+                    - generic [ref=f4e89]: STATUS
+                    - strong [ref=f4e90]: IN FORCE
+                  - generic: REVOKED
+              - 'article "GROCERY AGENT, GROCERY Authority Record: AUTH-0302" [ref=f4e91]':
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [ref=f4e92]:
+                  - generic [ref=f4e93]:
+                    - generic [ref=f4e94]: DATUM 05
+                    - generic [ref=f4e97]: REG-INHERIT-0301-A
+                  - generic [ref=f4e98]: INHERITED PROVENANCE BAND
+                - generic [ref=f4e101]:
+                  - generic [ref=f4e102]: REG // DEPENDENT
+                  - strong [ref=f4e103]: AUTH-0302
+                  - generic [ref=f4e104]: DERIVED AUTHORITY // SIBLING A
+                - generic [ref=f4e105]:
+                  - heading "GROCERY" [level=3] [ref=f4e106]
+                  - generic [ref=f4e107]:
+                    - strong [ref=f4e108]: ₹1,500 / WEEK
+                    - generic [ref=f4e109]: ·
+                    - generic [ref=f4e110]: "FROM: SHOPPING (AUTH-0301)"
+                - generic [ref=f4e111]:
+                  - generic [ref=f4e112]:
+                    - generic [ref=f4e113]: STATUS
+                    - strong [ref=f4e114]: IN FORCE
+                  - generic: WITHDRAWN
+              - 'article "DELIVERY AGENT, DELIVERY Authority Record: AUTH-0303" [ref=f4e115]':
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [ref=f4e116]:
+                  - generic [ref=f4e117]:
+                    - generic [ref=f4e118]: DATUM 05
+                    - generic [ref=f4e121]: REG-INHERIT-0301-B
+                  - generic [ref=f4e122]: INHERITED PROVENANCE BAND
+                - generic [ref=f4e125]:
+                  - generic [ref=f4e126]: REG // DEPENDENT
+                  - strong [ref=f4e127]: AUTH-0303
+                  - generic [ref=f4e128]: DERIVED AUTHORITY // SIBLING B
+                - generic [ref=f4e129]:
+                  - heading "DELIVERY" [level=3] [ref=f4e130]
+                  - generic [ref=f4e131]:
+                    - strong [ref=f4e132]: ₹1,000 / WEEK
+                    - generic [ref=f4e133]: ·
+                    - generic [ref=f4e134]: "FROM: SHOPPING (AUTH-0301)"
+                - generic [ref=f4e135]:
+                  - generic [ref=f4e136]:
+                    - generic [ref=f4e137]: STATUS
+                    - strong [ref=f4e138]: IN FORCE
+                  - generic: WITHDRAWN
+              - 'article "TRAVEL AGENT, TRAVEL Authority Record: AUTH-REQ-0401"':
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic [aria-hidden]: +
+                - generic:
+                  - generic:
+                    - generic: DATUM 05
+                    - generic: REG-INDEP-TX-1082-ACTIVE
+                  - generic: INDEPENDENT LINEAGE TRACK
+                - generic:
+                  - generic: REG // CONTROL
+                  - strong: AUTH-REQ-0401
+                  - generic: INDEPENDENT AUTHORITY // CONTROL CASE
+                  - generic: "TX REF: TX-1082"
+                - generic:
+                  - heading "TRAVEL" [level=3]
+                  - generic:
+                    - strong: ₹4,900
+                    - generic: ·
+                    - generic: "MANDATE: KP–1967–M"
+                - generic:
+                  - generic:
+                    - generic: STATUS
+                    - strong: ACTIVE
+            - generic [ref=f4e139]:
+              - generic [ref=f4e140]: LINEAGE INTEGRITY MONITORED // SIBLING DERIVATION COUPLING
+              - generic [ref=f4e141]: DATUM 05 // AUTHORITY AUDIT ARCHIVE
+          - generic [ref=f4e142]:
+            - generic [ref=f4e143]: KAVACHPAY
+            - generic [ref=f4e144]: LINEAGE-AWARE CONTROL. PRESERVED PROVENANCE.
+            - generic [ref=f4e145]: REVOCATION // 05
+      - generic:
+        - generic:
+          - generic:
+            - generic: ₹500
+            - generic: ₹0
+          - generic: REMAINING
+        - generic:
+          - generic: AUTHORITY STOCK
+          - generic: ₹500 SPENDABLE
+      - generic:
+        - generic: CASE DOCKET // TX–1081
+        - generic: ₹1,249
+        - generic: BLINKIT
+        - generic: COMMITTED
+        - generic: CALLED FOR FORENSIC REPLAY // TRACING CAUSAL LINEAGE
+  - alert [ref=f4e146]

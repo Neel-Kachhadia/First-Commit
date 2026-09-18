@@ -1,0 +1,44 @@
+- main [ref=f13e2]:
+  - navigation "KavachPay control index":
+    - button "KAVACHPAY"
+    - generic "Film chapters":
+      - button "00 OPENING / HERO":
+        - generic: "00"
+      - button "01 MANDATE":
+        - generic: "01"
+      - button "02 ALLOW / STEP-UP / DENY":
+        - generic: "02"
+      - button "03 DELEGATION":
+        - generic: "03"
+      - button "04 STEP-UP CLEARANCE":
+        - generic: "04"
+      - button "05 REVOCATION":
+        - generic: "05"
+      - button "06 SPLIT-PAYMENT DEFENSE":
+        - generic: "06"
+      - button "07 BUDGET / CONCURRENCY":
+        - generic: "07"
+      - button "08 CAUSAL REPLAY":
+        - generic: "08"
+    - generic:
+      - button "LOGIN" [disabled]
+      - button "SIGN UP" [disabled]
+      - button "ENTER KAVACHPAY" [disabled]
+    - status
+  - region [ref=f13e4]:
+    - generic [ref=f13e5]:
+      - generic [ref=f13e6]:
+        - generic [ref=f13e7]: AUTHORITY IS NOT ACCESS.
+        - generic [ref=f13e8]: IT IS A BOUND CONTRACT.
+      - heading "KavachPay" [level=1] [ref=f13e9]
+      - generic [ref=f13e10]:
+        - paragraph [ref=f13e11]: CONTROLTRAVELSFURTHER
+        - paragraph [ref=f13e12]: SAME MONEY.A SAFER TOMORROW.
+      - generic [aria-hidden] [ref=f13e13]: KP 01
+      - generic [aria-hidden]:
+        - generic: +
+        - generic: SEC-00 // REG. 48.0
+      - generic [ref=f13e15]:
+        - generic [ref=f13e16]: 01 / MANDATE
+        - strong [ref=f13e17]: Permission, made exact.
+        - generic [ref=f13e18]: INTENT → BOUND AUTHORITY
