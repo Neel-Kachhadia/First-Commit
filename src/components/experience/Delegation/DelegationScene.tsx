@@ -38,13 +38,37 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
 
       const prefersReduced = experienceStore.getState().reducedMotion;
       if (prefersReduced) {
-        if (root.current) {
-          root.current.style.visibility = "visible";
-          root.current.style.pointerEvents = "auto";
-        }
-        if (stageRef.current) {
-          stageRef.current.style.visibility = "visible";
-        }
+        if (!root.current || !stageRef.current) return;
+
+        // KP-MOTION-006: reduced motion changes animation behavior, not scene ownership --
+        // this used to force visibility/pointer-events on unconditionally, staying true
+        // (and interactive) even while a different scene owned the stage.
+        const reducedTriggerEl = trackRef?.current ?? "[data-track='delegation']";
+        const applyReducedVisibility = (visible: boolean) => {
+          if (!root.current || !stageRef.current) return;
+          root.current.style.visibility = visible ? "visible" : "hidden";
+          root.current.style.pointerEvents = visible ? "auto" : "none";
+          root.current.setAttribute("aria-hidden", visible ? "false" : "true");
+          stageRef.current.style.visibility = visible ? "visible" : "hidden";
+        };
+        applyReducedVisibility(false);
+
+        const reducedVisibilityTrigger = ScrollTrigger.create({
+          trigger: reducedTriggerEl,
+          start: "top top+=1px",
+          end: "bottom top",
+          onEnter: () => {
+            applyReducedVisibility(true);
+            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "delegation" } }));
+          },
+          onEnterBack: () => {
+            applyReducedVisibility(true);
+            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "delegation" } }));
+          },
+          onLeave: () => applyReducedVisibility(false),
+          onLeaveBack: () => applyReducedVisibility(false),
+        });
+
         // Set all elements to resting static layout with proper offsets
         gsap.set("[data-delegation-parent]", { opacity: 1, scale: parentScaleSettle, x: 0, y: 0 });
         gsap.set("[data-delegation-grocery]", { opacity: 1, scale: 1, xPercent: -50, yPercent: -50, x: groceryTargetX, y: groceryTargetY });
@@ -68,7 +92,7 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
         if (allocEl) allocEl.textContent = "₹2,500";
         if (remEl) remEl.textContent = "₹1,500";
         if (stockEl) stockEl.textContent = "₹1,500 UNALLOCATED";
-        return;
+        return () => reducedVisibilityTrigger.kill();
       }
 
       if (!root.current || !stageRef.current) return;

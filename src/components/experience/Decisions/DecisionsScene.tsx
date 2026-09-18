@@ -22,13 +22,43 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
     () => {
       const prefersReduced = experienceStore.getState().reducedMotion;
       if (prefersReduced) {
-        if (root.current) {
-          root.current.style.visibility = "visible";
-          root.current.style.pointerEvents = "auto";
-        }
-        if (stageRef.current) {
-          stageRef.current.style.visibility = "visible";
-        }
+        if (!root.current || !stageRef.current) return;
+
+        // KP-MOTION-006: reduced motion changes animation behavior, not scene ownership --
+        // this used to force visibility/pointer-events on unconditionally, which stayed
+        // true (and interactive) even while a different scene owned the stage. Mirror the
+        // same ownership-aware visibility trigger the full-motion branch below uses, just
+        // without the scrubbed timeline driving it.
+        const reducedTriggerEl =
+          trackRef?.current ?? (Boolean(trackRef) ? "[data-track='decisions']" : root.current);
+        const applyReducedVisibility = (visible: boolean) => {
+          if (root.current) {
+            root.current.style.visibility = visible ? "visible" : "hidden";
+            root.current.style.pointerEvents = visible ? "auto" : "none";
+            root.current.setAttribute("aria-hidden", visible ? "false" : "true");
+          }
+          if (stageRef.current) {
+            stageRef.current.style.visibility = visible ? "visible" : "hidden";
+          }
+        };
+        applyReducedVisibility(false);
+
+        const reducedVisibilityTrigger = ScrollTrigger.create({
+          trigger: reducedTriggerEl,
+          start: "top top+=100px",
+          end: "bottom top",
+          onEnter: () => {
+            applyReducedVisibility(true);
+            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "decisions" } }));
+          },
+          onEnterBack: () => {
+            applyReducedVisibility(true);
+            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "decisions" } }));
+          },
+          onLeave: () => applyReducedVisibility(false),
+          onLeaveBack: () => applyReducedVisibility(false),
+        });
+
         gsap.set(
           "[data-lane-tag='allow'], [data-lane-tag='stepup'], [data-lane-tag='deny']",
           {
@@ -40,7 +70,7 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
             letterSpacing: "-0.025em",
           },
         );
-        return;
+        return () => reducedVisibilityTrigger.kill();
       }
       if (!root.current || !stageRef.current) return;
 

@@ -3,7 +3,10 @@
 import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
 import { causalReplayDemo } from "@/lib/experience/demo-state";
-import { CAUSAL_REPLAY_STAGE_WINDOWS } from "@/lib/experience/causal-replay";
+import {
+  CAUSAL_REPLAY_STAGE_WINDOWS,
+  CAUSAL_REPLAY_TRANSITION_FRACTION,
+} from "@/lib/experience/causal-replay";
 import { experienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
@@ -126,10 +129,20 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
               el.style.visibility = "hidden";
             });
         },
-        onLeave: () => {
-          applyVisibility(false);
-          gsap.set("[data-replay-docket]", { opacity: 0, visibility: "hidden" });
-        },
+        // KP-MOTION-007: Causal Replay is the final registered scene -- there is no
+        // incoming Scene 09 that needs the stage, so its terminal composition must stay
+        // visible through the document's real maximum scroll. GSAP clamps this trigger's
+        // `end` ("bottom top") to ScrollTrigger.maxScroll() on refresh, so at the browser's
+        // actual max scroll this trigger's progress is clamped to exactly 1 and fires
+        // onLeave -- which used to hide the root at the very last pixel. Only skip the hide
+        // for the persistent (in-app, always-last) mount; a standalone/legacy mount still
+        // owns its own self-contained track and should hide normally.
+        onLeave: isPersistent
+          ? undefined
+          : () => {
+              applyVisibility(false);
+              gsap.set("[data-replay-docket]", { opacity: 0, visibility: "hidden" });
+            },
         onLeaveBack: () => {
           applyVisibility(false);
           gsap.set("[data-replay-docket]", { opacity: 0, visibility: "hidden" });
@@ -180,10 +193,19 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
         const selector = `[data-evidence-exposure="${i}"]`;
 
         const windowLen = end - start;
-        const transit = Math.min(0.022, windowLen * 0.20);
-        const enterStart = isFirst ? start - 0.015 : start - transit;
-        const enterEnd = start + transit * 0.4;
-        const exitStart = isLast ? 1.05 : end - transit;
+        // Mirror the WebGL transport's hold/transition split (CausalReplayRibbon.tsx) so the
+        // evidence card's fade spans exactly the same progress range the film is physically
+        // sliding through. Previously this used a fixed, much-narrower transit window, so
+        // the card looked seated for a stretch of progress where the transport had already
+        // started moving (KP-MOTION-004: film sliding beneath stationary evidence).
+        const prevWindowLen = isFirst
+          ? windowLen
+          : CAUSAL_REPLAY_STAGE_WINDOWS[i - 1][1] - CAUSAL_REPLAY_STAGE_WINDOWS[i - 1][0];
+        const enterTransit = prevWindowLen * CAUSAL_REPLAY_TRANSITION_FRACTION;
+        const exitTransit = windowLen * CAUSAL_REPLAY_TRANSITION_FRACTION;
+        const enterStart = isFirst ? start - 0.015 : start - enterTransit;
+        const enterEnd = start;
+        const exitStart = isLast ? 1.05 : end - exitTransit;
         const exitEnd = end;
 
         // Mechanical seating into aperture

@@ -29,13 +29,36 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
       const fallbackExitY = isMobile ? 320 : 0;
 
       if (prefersReduced) {
-        if (root.current) {
-          root.current.style.visibility = "visible";
-          root.current.style.pointerEvents = "auto";
-        }
-        if (stageRef.current) {
-          stageRef.current.style.visibility = "visible";
-        }
+        if (!root.current || !stageRef.current) return;
+
+        // KP-MOTION-006: reduced motion changes animation behavior, not scene ownership --
+        // this used to force visibility/pointer-events on unconditionally, staying true
+        // (and interactive) even while a different scene owned the stage.
+        const reducedTriggerEl = trackRef?.current ?? "[data-track='step-up']";
+        const applyReducedVisibility = (visible: boolean) => {
+          if (!root.current || !stageRef.current) return;
+          root.current.style.visibility = visible ? "visible" : "hidden";
+          root.current.style.pointerEvents = visible ? "auto" : "none";
+          root.current.setAttribute("aria-hidden", visible ? "false" : "true");
+          stageRef.current.style.visibility = visible ? "visible" : "hidden";
+        };
+        applyReducedVisibility(false);
+
+        const reducedVisibilityTrigger = ScrollTrigger.create({
+          trigger: reducedTriggerEl,
+          start: "top top+=1px",
+          end: "bottom top",
+          onEnter: () => {
+            applyReducedVisibility(true);
+            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "stepUp" } }));
+          },
+          onEnterBack: () => {
+            applyReducedVisibility(true);
+            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "stepUp" } }));
+          },
+          onLeave: () => applyReducedVisibility(false),
+          onLeaveBack: () => applyReducedVisibility(false),
+        });
 
         // Reduced motion: Show complete static record with full document, stamps, and route
         gsap.set("[data-stepup-header]", { opacity: 1, y: 0 });
@@ -57,7 +80,7 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
         gsap.set("[data-referral-notice]", { opacity: 1 });
         gsap.set("[data-action-controls]", { opacity: 1 });
         gsap.set("[data-clear-seal]", { opacity: 1, scale: 1 });
-        return;
+        return () => reducedVisibilityTrigger.kill();
       }
 
       if (!root.current || !stageRef.current) return;

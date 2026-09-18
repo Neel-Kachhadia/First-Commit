@@ -451,8 +451,6 @@
   .section {
     height: auto;
     margin-top: 0;
-    visibility: visible !important;
-    pointer-events: auto !important;
   }
 
   .stage {

@@ -28,13 +28,36 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
       const travelAdvanceX = isMobile ? 16 : 28;
 
       if (prefersReduced) {
-        if (root.current) {
-          root.current.style.visibility = "visible";
-          root.current.style.pointerEvents = "auto";
-        }
-        if (stageRef.current) {
-          stageRef.current.style.visibility = "visible";
-        }
+        if (!root.current || !stageRef.current) return;
+
+        // KP-MOTION-006: reduced motion changes animation behavior, not scene ownership --
+        // this used to force visibility/pointer-events on unconditionally, staying true
+        // (and interactive) even while a different scene owned the stage.
+        const reducedTriggerEl = trackRef?.current ?? "[data-track='revocation']";
+        const applyReducedVisibility = (visible: boolean) => {
+          if (!root.current || !stageRef.current) return;
+          root.current.style.visibility = visible ? "visible" : "hidden";
+          root.current.style.pointerEvents = visible ? "auto" : "none";
+          root.current.setAttribute("aria-hidden", visible ? "false" : "true");
+          stageRef.current.style.visibility = visible ? "visible" : "hidden";
+        };
+        applyReducedVisibility(false);
+
+        const reducedVisibilityTrigger = ScrollTrigger.create({
+          trigger: reducedTriggerEl,
+          start: "top top+=1px",
+          end: "bottom top",
+          onEnter: () => {
+            applyReducedVisibility(true);
+            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "revocation" } }));
+          },
+          onEnterBack: () => {
+            applyReducedVisibility(true);
+            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "revocation" } }));
+          },
+          onLeave: () => applyReducedVisibility(false),
+          onLeaveBack: () => applyReducedVisibility(false),
+        });
 
         // Reduced motion: Show complete final historical state
         gsap.set("[data-revocation-header]", { opacity: 1 });
@@ -67,7 +90,7 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
           innerText: "ACTIVE",
           color: "var(--kp-ink)",
         });
-        return;
+        return () => reducedVisibilityTrigger.kill();
       }
 
       if (!root.current || !stageRef.current) return;
