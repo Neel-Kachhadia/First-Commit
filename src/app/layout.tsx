@@ -1,19 +1,16 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Plus_Jakarta_Sans, Barlow_Condensed, IBM_Plex_Mono, Instrument_Serif } from "next/font/google";
+import { Barlow_Condensed, Crimson_Text, IBM_Plex_Mono } from "next/font/google";
+import Script from "next/script";
+import { themeBootstrapScript } from "@/lib/theme";
 import "./globals.css";
 import "../styles.css";
 
-const sans = Plus_Jakarta_Sans({
-  variable: "--font-sans",
+const body = Crimson_Text({
+  variable: "--font-crimson-text",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const display = Instrument_Serif({
-  variable: "--font-instrument-serif",
-  subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "600", "700"],
+  style: ["normal", "italic"],
 });
 
 const admin = Barlow_Condensed({
@@ -39,8 +36,13 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${display.variable} ${admin.variable} ${mono.variable}`} suppressHydrationWarning>
-      <body>{children}</body>
+    <html lang="en" className={`${body.variable} ${admin.variable} ${mono.variable}`} suppressHydrationWarning>
+      <body>
+        <Script id="kavachpay-theme-bootstrap" strategy="beforeInteractive">
+          {themeBootstrapScript}
+        </Script>
+        {children}
+      </body>
     </html>
   );
 }

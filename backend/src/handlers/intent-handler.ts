@@ -88,6 +88,38 @@ export async function approveIntentHandler(
   }
 }
 
+export async function denyIntentHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const intentId = req.params.id as string;
+
+    if (!intentId) {
+      res.status(400).json({
+        success: false,
+        error: "Intent ID is required.",
+      });
+      return;
+    }
+
+    const intent = await intentService.denyIntent(intentId);
+    res.status(200).json({ success: true, intent });
+  } catch (error) {
+    console.error("denyIntentHandler error:", error);
+
+    const message =
+      error instanceof Error ? error.message : "Failed to deny intent";
+    const statusCode = message.includes("was not found")
+      ? 404
+      : message.includes("cannot be denied")
+        ? 409
+        : 400;
+
+    res.status(statusCode).json({ success: false, error: message });
+  }
+}
+
 export async function listIntentsHandler(
   req: Request,
   res: Response

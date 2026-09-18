@@ -411,6 +411,29 @@ export class IntentService {
     }
   }
 
+  async denyIntent(intentId: string): Promise<Intent> {
+    const intent = await intentRepository.getIntent(intentId);
+
+    if (!intent) {
+      throw new Error(`Intent ${intentId} was not found.`);
+    }
+
+    if (intent.status !== "STEP_UP_REQUIRED") {
+      throw new Error(
+        `Intent ${intentId} cannot be denied because its current status is ${intent.status}.`
+      );
+    }
+
+    await intentRepository.updateStatus(
+      intent.intentId,
+      "DENIED",
+      "STEP_UP_REQUIRED"
+    );
+
+    intent.status = "DENIED";
+    return intent;
+  }
+
   /**
    * Retrieve stored decision for replay.
    * Includes bounded polling since the intent is persisted

@@ -1,7 +1,11 @@
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:4000";
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  process.env.VITE_API_BASE_URL ??
+  "http://localhost:4000";
 export const DEMO_USER_ID =
-  import.meta.env.VITE_DEMO_USER_ID ?? "u_frontend_demo";
+  process.env.NEXT_PUBLIC_DEMO_USER_ID ??
+  process.env.VITE_DEMO_USER_ID ??
+  "u_frontend_demo";
 
 export interface CreateGrantPayload {
   label: string;
@@ -73,6 +77,15 @@ export const apiClient = {
       headers: { "Content-Type": "application/json" },
     });
     if (!res.ok) throw new Error("Failed to approve intent");
+    return res.json();
+  },
+
+  denyIntent: async (intentId: string) => {
+    const res = await fetch(`${API_BASE_URL}/v0/intents/${intentId}/deny`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!res.ok) throw new Error("Failed to deny intent");
     return res.json();
   },
 

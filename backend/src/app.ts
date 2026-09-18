@@ -6,6 +6,7 @@ import path from "path";
 import {
   createIntentHandler,
   approveIntentHandler,
+  denyIntentHandler,
   listIntentsHandler,
 } from "./handlers/intent-handler.js";
 
@@ -135,6 +136,11 @@ export function createApp() {
   app.post(
     "/v0/intents/:id/approve",
     approveIntentHandler
+  );
+
+  app.post(
+    "/v0/intents/:id/deny",
+    denyIntentHandler
   );
 
   app.post(

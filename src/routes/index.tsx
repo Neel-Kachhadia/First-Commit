@@ -2,27 +2,21 @@
 
 import Link from "next/link";
 import {
-  Activity,
   ArrowRight,
   Check,
-  ChevronRight,
   CircleAlert,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  AnimatedList,
   CountUpValue,
 } from "@/components/ui/motion-primitives";
 import {
-  AuthorityBar,
   StatusPill,
-  agentTone,
   ledgerTone,
 } from "@/components/kavach/primitives";
 import { AuthorityRing } from "@/components/kavach/authority-ring";
 import {
-  AgentGlyph,
   ApprovalGlyph,
   DecisionGlyph,
   MandatePlusGlyph,
@@ -185,68 +179,53 @@ export default function Overview() {
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(330px,0.85fr)]">
         <div className="surface-card overflow-hidden">
-          <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5">
             <div>
               <div className="flex items-center gap-2">
-                <AgentGlyph className="h-4 w-4 text-primary" />
-                <h2 className="text-base font-semibold">Live authority</h2>
+                <DecisionGlyph className="h-4 w-4 text-primary" />
+                <h2 className="text-base font-semibold">Decision feed</h2>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Remaining authority across every connected agent.
+                An explainable record of every recent payment intent.
               </p>
             </div>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/agents">
-                View all <ArrowRight className="h-3.5 w-3.5" />
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/activity">
+                Open decisions <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </Button>
           </div>
-          <AnimatedList>
-            {agents.map((agent) => {
-              const tone = agentTone(agent.status);
-              const remaining = remainingFor(agent);
-              return (
-                <Link
-                  key={agent.id}
-                  href={`/agents/${agent.id}`}
-                  className="agent-row group grid gap-4 border-b border-border px-5 py-4 last:border-b-0 sm:grid-cols-[minmax(180px,1.1fr)_minmax(150px,1fr)_auto] sm:items-center"
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="grid h-8 w-8 shrink-0 place-items-center border border-border bg-muted/35 text-[10px] font-semibold text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary">
-                        {agent.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {agent.name}
-                        </p>
-                        <p className="amount truncate text-[11px] text-muted-foreground">
-                          {agent.mandateId}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex justify-between text-[11px] text-muted-foreground">
-                      <span>{formatINR(agent.consumed)} used</span>
-                      <span className="amount text-foreground">
-                        {formatINR(remaining)} left
-                      </span>
-                    </div>
-                    <AuthorityBar
-                      consumed={agent.consumed}
-                      limit={agent.rule.monthlyLimit}
-                      muted={agent.status === "revoked" || frozen}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between gap-3 sm:justify-end">
-                    <StatusPill tone={tone.tone} label={tone.label} />
-                    <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
-                  </div>
-                </Link>
-              );
-            })}
-          </AnimatedList>
+          <div className="overflow-x-auto">
+            <table className="decision-table w-full min-w-[700px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                  <th className="px-5 py-3 font-medium">Merchant & intent</th>
+                  <th className="px-4 py-3 font-medium">Agent</th>
+                  <th className="px-4 py-3 text-right font-medium">Amount</th>
+                  <th className="px-4 py-3 font-medium">Decision</th>
+                  <th className="px-5 py-3 text-right font-medium">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledger.slice(0, 5).map((entry) => {
+                  const tone = ledgerTone(entry.status);
+                  const agent = agents.find((item) => item.id === entry.agentId);
+                  return (
+                    <tr key={entry.id} className="border-b border-border last:border-b-0 hover:bg-muted/25">
+                      <td className="px-5 py-3.5">
+                        <p className="font-medium">{entry.merchant}</p>
+                        <p className="max-w-[250px] truncate text-xs text-muted-foreground">{entry.description}</p>
+                      </td>
+                      <td className="px-4 py-3.5 text-xs text-muted-foreground">{agent?.name ?? "Unknown"}</td>
+                      <td className="amount px-4 py-3.5 text-right font-medium">{formatINR(entry.amount)}</td>
+                      <td className="px-4 py-3.5"><StatusPill tone={tone.tone} label={tone.label} /></td>
+                      <td className="whitespace-nowrap px-5 py-3.5 text-right text-xs text-muted-foreground">{formatDateTime(entry.at)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="surface-card flex min-h-[370px] flex-col overflow-hidden">
@@ -354,68 +333,6 @@ export default function Overview() {
         </div>
       </section>
 
-      <section className="surface-card overflow-hidden">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5">
-          <div>
-            <div className="flex items-center gap-2">
-              <DecisionGlyph className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold">Decision feed</h2>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              An explainable record of every recent payment intent.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/activity">
-              Open decisions <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </Button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="decision-table w-full min-w-[720px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-border text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                <th className="px-5 py-3 font-medium">Merchant & intent</th>
-                <th className="px-4 py-3 font-medium">Agent</th>
-                <th className="px-4 py-3 text-right font-medium">Amount</th>
-                <th className="px-4 py-3 font-medium">Decision</th>
-                <th className="px-5 py-3 text-right font-medium">Time</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ledger.slice(0, 5).map((entry) => {
-                const tone = ledgerTone(entry.status);
-                const agent = agents.find((item) => item.id === entry.agentId);
-                return (
-                  <tr
-                    key={entry.id}
-                    className="border-b border-border last:border-b-0 hover:bg-muted/25"
-                  >
-                    <td className="px-5 py-3.5">
-                      <p className="font-medium">{entry.merchant}</p>
-                      <p className="max-w-[340px] truncate text-xs text-muted-foreground">
-                        {entry.description}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3.5 text-xs text-muted-foreground">
-                      {agent?.name ?? "Unknown"}
-                    </td>
-                    <td className="amount px-4 py-3.5 text-right font-medium">
-                      {formatINR(entry.amount)}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <StatusPill tone={tone.tone} label={tone.label} />
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-3.5 text-right text-xs text-muted-foreground">
-                      {formatDateTime(entry.at)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 }

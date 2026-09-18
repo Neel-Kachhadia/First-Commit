@@ -31,14 +31,14 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "status-chip inline-flex items-center gap-1.5 rounded-[5px] border px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.045em] whitespace-nowrap",
+        "status-chip inline-flex items-center rounded-[5px] border font-mono font-medium uppercase whitespace-nowrap",
         toneStyles[tone],
         className,
       )}
     >
       <span
         className={cn(
-          "h-1.5 w-1.5 shrink-0 rounded-full",
+          "status-chip-dot shrink-0 rounded-full",
           dotStyles[tone],
           tone === "active" && "status-live-dot",
         )}
@@ -102,7 +102,7 @@ export function PageHeader({
     <header className="page-heading relative grid gap-4 border-b border-border pb-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
       <div className="min-w-0">
         <p className="mb-1.5 text-xs font-medium text-destructive">KavachPay control plane</p>
-        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.035em] sm:text-[2rem]">
+        <h1 className="text-[2.15rem] font-semibold leading-tight tracking-[-0.035em] sm:text-[2.55rem]">
           {title}
         </h1>
         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
