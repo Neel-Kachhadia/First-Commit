@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { SCENE_BY_KEY, SCENE_REGISTRY, type RegisteredSceneKey } from "@/lib/experience/scene-registry";
 import { useExperienceStore } from "@/lib/experience/store";
 import styles from "./GlobalNavbar.module.css";
@@ -19,6 +20,7 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
   const [notice, setNotice] = useState("");
   const navRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
   const active = activeScene === "none" ? null : SCENE_BY_KEY[activeScene];
 
   const setOpen = useCallback((open: boolean) => {
@@ -105,13 +107,13 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
       </div>
 
       <div className={styles.actions}>
-        <button type="button" className={styles.secondaryAction} aria-disabled="true" onClick={() => announceUnavailable("Login")}>
+        <button type="button" className={styles.secondaryAction} onClick={() => router.push("/dashboard")}>
           LOGIN
         </button>
-        <button type="button" className={styles.secondaryAction} aria-disabled="true" onClick={() => announceUnavailable("Sign up")}>
+        <button type="button" className={styles.secondaryAction} onClick={() => router.push("/dashboard")}>
           SIGN UP
         </button>
-        <button type="button" className={styles.primaryAction} aria-disabled="true" onClick={() => announceUnavailable("Enter KavachPay")}>
+        <button type="button" className={styles.primaryAction} onClick={() => router.push("/dashboard")}>
           ENTER KAVACHPAY
         </button>
       </div>
@@ -159,9 +161,9 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
           })}
         </div>
         <div className={styles.mobileActions}>
-          <button type="button" aria-disabled="true" onClick={() => announceUnavailable("Login")}>LOGIN</button>
-          <button type="button" aria-disabled="true" onClick={() => announceUnavailable("Sign up")}>SIGN UP</button>
-          <button type="button" className={styles.primaryAction} aria-disabled="true" onClick={() => announceUnavailable("Enter KavachPay")}>ENTER KAVACHPAY</button>
+          <button type="button" onClick={() => router.push("/dashboard")}>LOGIN</button>
+          <button type="button" onClick={() => router.push("/dashboard")}>SIGN UP</button>
+          <button type="button" className={styles.primaryAction} onClick={() => router.push("/dashboard")}>ENTER KAVACHPAY</button>
         </div>
       </div>
 
