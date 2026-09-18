@@ -1,3 +1,7 @@
+import { MANDATE_CATEGORIES } from "../../shared/categories";
+export { MANDATE_CATEGORIES };
+export type { MandateCategory } from "../../shared/categories";
+
 export type AgentStatus = "active" | "exhausted" | "frozen" | "revoked";
 export type LedgerStatus =
   | "allowed"
@@ -66,14 +70,11 @@ export interface AuthorityEvent {
   maxSpend: number;
 }
 
-export const CATEGORIES = [
-  "Groceries",
-  "Pharmacy / Healthcare",
-  "Travel",
-  "Retail & apparel",
-  "Food delivery",
-  "Utilities",
-] as const;
+/**
+ * CATEGORIES is the canonical label list shared between the backend NLU prompt
+ * and all frontend dropdowns. Always edit shared/categories.ts — never here.
+ */
+export const CATEGORIES = MANDATE_CATEGORIES;
 
 export const seedAgents: Agent[] = [
   {

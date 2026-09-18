@@ -333,15 +333,15 @@ export default function RulesPage() {
           next.purpose = diff.purpose;
           markAiFilled("purpose");
         }
-        if (diff.monthlyLimit !== undefined) {
+        if (diff.monthlyLimit != null) {
           next.limit = String(diff.monthlyLimit);
           markAiFilled("limit");
         }
-        if (diff.perTransactionCap !== undefined) {
+        if (diff.perTransactionCap != null) {
           next.cap = String(diff.perTransactionCap);
           markAiFilled("cap");
         }
-        if (diff.approvedMerchants && diff.approvedMerchants.length > 0) {
+        if (diff.approvedMerchants != null && diff.approvedMerchants.length > 0) {
           next.merchants = diff.approvedMerchants.join(", ");
           markAiFilled("merchants");
         }
@@ -619,39 +619,33 @@ export default function RulesPage() {
               )}
             </Field>
             <div className="grid gap-1.5">
-              <Label htmlFor="agent-category">Category</Label>
-              <Select
-                value={draft.category}
-                onValueChange={(value) => {
-                  const preset =
-                    CATEGORY_PRESETS[value] ?? CATEGORY_PRESETS["Groceries"]!;
-                  setDraft((current) => ({
-                    ...current,
-                    category: value,
-                    purpose: preset.purpose,
-                    merchants: preset.merchants.join(", "),
-                  }));
-                  clearAiFilled("category");
-                  setTested(false);
-                  setTests([]);
-                }}
+              <Label>Category</Label>
+              <div
+                className={cn(
+                  "flex min-h-[2.25rem] items-center rounded-md border border-border bg-muted/30 px-3 py-1.5",
+                  aiClass("category", aiFilled, voice.unresolvedFields)
+                )}
               >
-                <SelectTrigger
-                  id="agent-category"
-                  className={aiClass("category", aiFilled, voice.unresolvedFields)}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {draft.category ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-0.5 text-sm font-medium text-primary-foreground">
+                    <Check className="h-3 w-3 shrink-0" />
+                    {draft.category}
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground/60 italic">
+                    Speak mandate to detect category
+                  </span>
+                )}
+              </div>
               {aiFilled["category"] && <AiFilledBadge />}
+              {voice.unresolvedFields.includes("category") && (
+                <p className="text-xs text-amber-500">
+                  Category unclear — try mentioning it in your mandate (e.g. "groceries", "pharmacy").
+                </p>
+              )}
             </div>
+
+
             <Field
               label="Purpose"
               id="agent-purpose"

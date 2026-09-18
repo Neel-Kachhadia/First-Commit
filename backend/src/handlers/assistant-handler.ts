@@ -135,12 +135,12 @@ export async function extractMandateVoiceHandler(
 
     // ── Audit log ─────────────────────────────────────────────────────────────
     const filledFields = [
-      extraction.agentName !== undefined && "agentName",
-      extraction.category !== undefined && "category",
-      extraction.purpose !== undefined && "purpose",
-      extraction.monthlyLimit !== undefined && "monthlyLimit",
-      extraction.perTransactionCap !== undefined && "perTransactionCap",
-      extraction.approvedMerchants !== undefined && "approvedMerchants",
+      extraction.agentName != null && "agentName",
+      extraction.category != null && "category",
+      extraction.purpose != null && "purpose",
+      extraction.monthlyLimit != null && "monthlyLimit",
+      extraction.perTransactionCap != null && "perTransactionCap",
+      extraction.approvedMerchants != null && "approvedMerchants",
     ].filter(Boolean);
 
     console.log(

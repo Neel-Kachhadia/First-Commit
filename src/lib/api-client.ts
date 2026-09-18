@@ -62,14 +62,14 @@ export interface SimulatePaymentPayload {
 
 /** Diff returned by the NLU extraction step. Mirrors MandateExtractionSchema on the backend. */
 export interface MandateExtraction {
-  agentName?: string;
-  category?: string;
-  purpose?: string;
-  monthlyLimit?: number;
-  perTransactionCap?: number;
-  approvedMerchants?: string[];
+  agentName: string | null;
+  category: string | null;
+  purpose: string | null;
+  monthlyLimit: number | null;
+  perTransactionCap: number | null;
+  approvedMerchants: string[] | null;
   unresolvedFields: string[];
-  ambiguities?: string;
+  ambiguities: string | null;
 }
 
 export interface MandateFormState {

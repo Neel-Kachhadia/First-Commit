@@ -244,8 +244,10 @@ export function FilmIntro({ onLock, onRelease }: FilmIntroProps) {
         .call(release, [], "release")
         .to(rule, { scaleX: 1, duration: 0.16, ease: "power1.inOut" }, "release")
         .set(root, { pointerEvents: "none" }, "release")
-        .to(flash, { opacity: 0.9, duration: 0.08, ease: "none" }, "release+=0.14")
-        .to(flash, { opacity: 0, duration: 0.12, ease: "none" }, "release+=0.22")
+        // Release exposure: a brief restrained optical bloom (the clap flash above stays the
+        // one full-strength exposure), easing into the live Scene 00 rather than flashing white.
+        .to(flash, { opacity: 0.36, duration: 0.06, ease: "power1.out" }, "release+=0.14")
+        .to(flash, { opacity: 0, duration: 0.2, ease: "power1.in" }, "release+=0.2")
         .to(root, { opacity: 0, duration: 0.3, ease: "power1.in" }, "release+=0.2");
     }, root);
 

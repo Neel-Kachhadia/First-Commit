@@ -3,7 +3,11 @@
 import { useRef } from "react";
 import { useGSAP } from "@gsap/react";
 import { causalReplayDemo } from "@/lib/experience/demo-state";
-import { CAUSAL_REPLAY_STAGE_WINDOWS } from "@/lib/experience/causal-replay";
+import {
+  exposureState,
+  firstExposureSeat,
+  replayFrame,
+} from "@/lib/experience/causal-replay";
 import { experienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
@@ -20,46 +24,6 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
   useGSAP(
     () => {
       const prefersReduced = experienceStore.getState().reducedMotion;
-
-      if (prefersReduced) {
-        if (!root.current || !stageRef.current) return;
-
-        const triggerEl = trackRef?.current ?? "[data-track='causal-replay']";
-        const applyReducedVisibility = (visible: boolean) => {
-          if (!root.current || !stageRef.current) return;
-          root.current.style.visibility = visible ? "visible" : "hidden";
-          root.current.style.pointerEvents = visible ? "auto" : "none";
-          root.current.setAttribute("aria-hidden", visible ? "false" : "true");
-          stageRef.current.style.visibility = visible ? "visible" : "hidden";
-        };
-        applyReducedVisibility(false);
-
-        const reducedVisibilityTrigger = ScrollTrigger.create({
-          trigger: triggerEl,
-          start: "top top+=1px",
-          end: "bottom top",
-          onEnter: () => {
-            applyReducedVisibility(true);
-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }));
-          },
-          onEnterBack: () => {
-            applyReducedVisibility(true);
-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }));
-          },
-          onLeave: () => applyReducedVisibility(false),
-          onLeaveBack: () => applyReducedVisibility(false),
-        });
-
-        gsap.set("[data-replay-docket]", { opacity: 1, y: 0 });
-        gsap.set("[data-replay-header]", { opacity: 1 });
-        gsap.set("[data-replay-footer]", { opacity: 1 });
-        gsap.set("[data-evidence-exposure]", { opacity: 0, y: 0, scale: 1 });
-        gsap.set("[data-evidence-exposure='7']", { opacity: 1 });
-        gsap.set("[data-gate-reticle]", { opacity: 1 });
-        gsap.set("[data-full-chain]", { opacity: 1, y: 0 });
-        return () => reducedVisibilityTrigger.kill();
-      }
-
       if (!root.current || !stageRef.current) return;
 
       const isPersistent = Boolean(trackRef);
@@ -77,6 +41,68 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
         }
       };
 
+      // Body visibility. 1px epsilon (not an authored overlap): GSAP's onEnter for a
+      // non-scrubbed trigger needs progress strictly > 0. Scene 07 -> 08 has no film:
+      // Scene 07's body releases at its own end and Scene 08 takes the stage here.
+      const announce = () =>
+        window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }));
+      const createVisibilityTrigger = () =>
+        ScrollTrigger.create({
+        trigger: triggerEl,
+        start: "top top+=1px",
+        end: "bottom top",
+        onEnter: () => {
+          applyVisibility(true);
+          announce();
+        },
+        onEnterBack: () => {
+          applyVisibility(true);
+          announce();
+        },
+        onLeave: () => applyVisibility(false),
+        onLeaveBack: () => applyVisibility(false),
+      });
+
+      const exposures = Array.from(
+        root.current.querySelectorAll<HTMLElement>("[data-evidence-exposure]"),
+      );
+
+      // Reduced motion: no transport and no exposure changes. The stage is the static
+      // replay apparatus with the complete causal record (final origin frame + full chain).
+      if (prefersReduced) {
+        const visibilityTrigger = createVisibilityTrigger();
+        applyVisibility(false);
+        gsap.set("[data-replay-docket]", { opacity: 1, y: 0 });
+        gsap.set("[data-replay-footer], [data-gate-reticle], [data-full-chain]", { opacity: 1, y: 0 });
+        exposures.forEach((el, i) => {
+          el.style.opacity = i === exposures.length - 1 ? "1" : "0";
+          el.style.visibility = i === exposures.length - 1 ? "visible" : "hidden";
+        });
+        return () => visibilityTrigger.kill();
+      }
+
+      // ---- The single evidence writer -----------------------------------------------------
+      // Every exposure is a pure function of scene progress via the SAME replayFrame(p) the
+      // WebGL film transport uses. Nothing else touches exposure opacity / transform / visibility.
+      const last = new Map<HTMLElement, string>();
+      const applyExposures = (p: number) => {
+        const f = replayFrame(p);
+        exposures.forEach((el, i) => {
+          const state = exposureState(i, f);
+          const phase = state.phase;
+          const weight = i === 0 ? state.weight * firstExposureSeat(p) : state.weight;
+          const seatY = phase < 0 ? 12 * (1 - weight) : -12 * (1 - weight);
+          const key = `${weight.toFixed(3)}|${seatY.toFixed(2)}`;
+          if (last.get(el) === key) return;
+          last.set(el, key);
+          el.style.opacity = weight.toFixed(3);
+          el.style.transform = `translate3d(0, ${seatY.toFixed(2)}px, 0) scale(${(0.97 + 0.03 * weight).toFixed(4)})`;
+          el.style.visibility = weight > 0.001 ? "visible" : "hidden";
+        });
+      };
+
+      // (The scroll-scrubbed timeline is created BEFORE the visibility trigger: the checkpoint
+      // helpers resolve a scene's progress from the first ScrollTrigger bound to its track.)
       const timeline = gsap.timeline({
         defaults: { ease: "none" },
         scrollTrigger: {
@@ -93,129 +119,36 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
               }
             }
             progressBus.set("causalReplay", self.progress);
+            applyExposures(self.progress);
           },
         },
       });
 
-      const visibilityTrigger = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=1px",
-        end: "bottom top",
-        onEnter: () => {
-          applyVisibility(true);
-          gsap.set("[data-replay-docket]", { visibility: "visible", opacity: 1 });
-          window.dispatchEvent(
-            new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
-          );
-          // Suppress any lingering carrier elements from earlier scenes during Causal Replay
-          document
-            .querySelectorAll<HTMLElement>("[data-decision-register]")
-            .forEach((el) => {
-              el.style.visibility = "hidden";
-            });
-        },
-        onEnterBack: () => {
-          applyVisibility(true);
-          gsap.set("[data-replay-docket]", { visibility: "visible", opacity: 1 });
-          window.dispatchEvent(
-            new CustomEvent("kp:scene", { detail: { id: "causalReplay" } }),
-          );
-          document
-            .querySelectorAll<HTMLElement>("[data-decision-register]")
-            .forEach((el) => {
-              el.style.visibility = "hidden";
-            });
-        },
-        onLeave: () => {
-          applyVisibility(false);
-          gsap.set("[data-replay-docket]", { opacity: 0, visibility: "hidden" });
-        },
-        onLeaveBack: () => {
-          applyVisibility(false);
-          gsap.set("[data-replay-docket]", { opacity: 0, visibility: "hidden" });
-          document
-            .querySelectorAll<HTMLElement>("[data-decision-register]")
-            .forEach((el) => {
-              el.style.visibility = "";
-            });
-        },
-      });
+      const visibilityTrigger = createVisibilityTrigger();
 
-      // 07 -> 08 has no video transition; Scene 08 uses only its own entrance
-      // (below) once the ownership trigger above reveals it.
-      gsap.set("[data-replay-docket]", { opacity: 0, visibility: "visible", pointerEvents: "none" });
-
+      // ---- Initial state: a dark archival stage. Only the case docket and header are up;
+      // the apparatus (reels, rollers, film, gate reticle), the footer, the evidence and the
+      // full chain establish themselves in order as the scene progresses.
+      gsap.set("[data-replay-docket]", { opacity: 1, y: -12 });
       gsap.set("[data-replay-footer]", { opacity: 0 });
-      gsap.set("[data-evidence-exposure]", { opacity: 0, y: 16, scale: 0.98 });
-      gsap.set("[data-full-chain]", { opacity: 0, y: 14 });
       gsap.set("[data-gate-reticle]", { opacity: 0 });
+      gsap.set("[data-full-chain]", { opacity: 0, y: 14 });
+      applyExposures(0);
 
-      // 0.00 - 0.10: Case docket establishes; depth opens around it.
+      // A hold 0.00-0.04 | B docket settles 0.00-0.08, footer 0.06-0.12, the WebGL apparatus
+      // establishes 0.03-0.15 (replayReveal), the gate reticle registers 0.10-0.18, the first
+      // exposure seats 0.165-0.20 | C-G eight exposures, one per authored window (hold, then
+      // film advance) | H terminal hold, the full chain resolves 0.96-1.00.
       timeline
-        .fromTo(
-          "[data-replay-docket]",
-          { y: -12 },
-          { y: 0, duration: 0.08, ease: "power1.out" },
-          0.0,
-        )
+        .to("[data-replay-docket]", { y: 0, duration: 0.08, ease: "power1.out" }, 0)
         .to("[data-replay-footer]", { opacity: 1, duration: 0.06 }, 0.06)
-        // 0.10 - 0.20: Physical inspection gate resolves in space; registration aperture activates
-        .to("[data-gate-reticle]", { opacity: 1, duration: 0.08, ease: "power2.out" }, 0.12);
-
-      // 0.20 - 0.96: 8 Causal Exposures pass mechanically through the inspection gate
-      // Each exposure holds rock-solid in the aperture, then cleanly advances with zero text ghosting
-      CAUSAL_REPLAY_STAGE_WINDOWS.forEach(([start, end], i) => {
-        const isFirst = i === 0;
-        const isLast = i === CAUSAL_REPLAY_STAGE_WINDOWS.length - 1;
-        const selector = `[data-evidence-exposure="${i}"]`;
-
-        const windowLen = end - start;
-        const transit = Math.min(0.022, windowLen * 0.20);
-        const enterStart = isFirst ? start - 0.015 : start - transit;
-        const enterEnd = start + transit * 0.4;
-        const exitStart = isLast ? 1.05 : end - transit;
-        const exitEnd = end;
-
-        // Mechanical seating into aperture
-        timeline.fromTo(
-          selector,
-          { opacity: 0, y: 12, scale: 0.97 },
-          {
-            opacity: 1,
-            y: 0,
-            scale: 1,
-            duration: Math.max(0.01, enterEnd - enterStart),
-            ease: "power2.out",
-          },
-          enterStart,
-        );
-
-        // Mechanical release from aperture towards take-up reel
-        if (!isLast) {
-          timeline.to(
-            selector,
-            {
-              opacity: 0,
-              y: -12,
-              scale: 0.97,
-              duration: Math.max(0.01, exitEnd - exitStart),
-              ease: "power2.in",
-            },
-            exitStart,
-          );
-        }
-      });
-
-      // 0.96 - 1.00: Terminal Causal Reel composition holds
-      // The complete unbroken chain is perceived across the continuous physical film
-      timeline.to(
-        "[data-full-chain]",
-        { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" },
-        0.96,
-      );
+        .to("[data-gate-reticle]", { opacity: 1, duration: 0.08, ease: "power2.out" }, 0.1)
+        .to("[data-full-chain]", { opacity: 1, y: 0, duration: 0.04, ease: "power2.out" }, 0.96)
+        .set({}, {}, 1);
 
       return () => {
         visibilityTrigger.kill();
+        timeline.scrollTrigger?.kill();
         timeline.kill();
       };
     },
