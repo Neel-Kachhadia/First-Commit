@@ -1,7 +1,9 @@
 import type { Request, Response } from "express";
 import { grantRepository } from "../store/grant-repository.js";
 import { dynamo } from "../store/dynamodb.js";
+import { TABLE_NAME } from "../store/table.js";
 import { ScanCommand, DeleteItemCommand } from "@aws-sdk/client-dynamodb";
+import { auditRepository } from "../store/audit-repository.js";
 
 export async function resetDemoHandler(req: Request, res: Response): Promise<void> {
   try {
@@ -13,14 +15,15 @@ export async function resetDemoHandler(req: Request, res: Response): Promise<voi
       return;
     }
 
-    console.log("[DemoHandler] Resetting demo state for user ");
+    console.log(`[DemoHandler] Resetting demo state for user ${userId} on table ${TABLE_NAME}`);
 
     const scanCmd = new ScanCommand({
-      TableName: process.env.DYNAMODB_TABLE_NAME || "KavachPay",
+      TableName: TABLE_NAME,
     });
     
     const { Items } = await dynamo.send(scanCmd);
     
+    let deletedCount = 0;
     if (Items && Items.length > 0) {
       for (const item of Items) {
         let belongsToUser = false;
@@ -33,16 +36,19 @@ export async function resetDemoHandler(req: Request, res: Response): Promise<voi
 
         if (belongsToUser) {
           const deleteCmd = new DeleteItemCommand({
-            TableName: process.env.DYNAMODB_TABLE_NAME || "KavachPay",
+            TableName: TABLE_NAME,
             Key: {
               PK: item.PK,
               SK: item.SK,
             },
           });
           await dynamo.send(deleteCmd);
+          deletedCount++;
         }
       }
     }
+
+    console.log(`[DemoHandler] Deleted ${deletedCount} item(s) for user ${userId}.`);
 
     // Seed the initial ROOT grant
     const rootGrantId = "g_root_" + Date.now();
@@ -66,7 +72,9 @@ export async function resetDemoHandler(req: Request, res: Response): Promise<voi
       maxChildren: 10
     });
 
-    console.log("[DemoHandler] Reset complete. Seeded root grant ");
+    await auditRepository.logEvent(userId, "DEMO_RESET", { rootGrantId, deletedCount }, "SYSTEM");
+
+    console.log(`[DemoHandler] Reset complete. Seeded root grant ${rootGrantId}.`);
 
     res.status(200).json({ success: true, message: "Demo environment reset", rootGrantId });
   } catch (err: any) {
