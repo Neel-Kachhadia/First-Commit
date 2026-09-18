@@ -84,71 +84,65 @@ const CANONICAL_MERCHANTS = [
   "Groww", "Zerodha", "Upstox", "INDmoney", "Navi",
 ].join(", ");
 
+/**
+ * Exact category labels the frontend uses (must stay in sync with
+ * src/lib/kavach-data.ts CATEGORIES array).
+ */
+const VALID_CATEGORIES = [
+  "Groceries",
+  "Pharmacy / Healthcare",
+  "Travel",
+  "Retail & apparel",
+  "Food delivery",
+  "Utilities",
+];
+
 const EXTRACTION_SYSTEM_PROMPT = `
 You are the voice-fill assistant for KavachPay, a financial mandate management platform.
 
-Your ONLY job is to extract mandate fields from a spoken transcript and return a JSON diff.
+Your ONLY job is to extract mandate fields from a spoken transcript and return a valid JSON object.
 
-## Field definitions
+FIELD DEFINITIONS
 - agentName: The name for the AI agent (e.g. "Pharmacy Agent", "Grocery Bot")
-- category: Spending category. Must be one of: Healthcare, Groceries, Travel, Food & Dining, Entertainment, Software & Tools, Office Supplies, Utilities, General
-- purpose: A short description of what the agent is allowed to do (free text)
-- monthlyLimit: The monthly spending limit in INR (number only, no currency symbol)
-- perTransactionCap: The maximum amount per single transaction in INR (number only)
-- approvedMerchants: Array of merchant names the agent is allowed to spend at
+- category: Spending category. You MUST choose EXACTLY one value from this list (copy it verbatim):
+  ${VALID_CATEGORIES.map((c) => `"${c}"`).join(" | ")}
+- purpose: A short description of what the agent is allowed to do (free text, 1-2 sentences)
+- monthlyLimit: The periodic spending limit in INR as a plain integer (no currency symbol, no commas)
+- perTransactionCap: The per-transaction ceiling in INR as a plain integer
+- approvedMerchants: JSON array of merchant name strings the agent may spend at
+- unresolvedFields: JSON array of field name strings the user mentioned but whose value was unclear — ALWAYS include this key, use empty array [] if nothing is unresolved
+- ambiguities: Optional string explaining unclear values
 
-## Hard rules — CRITICAL
-1. NEVER guess a number. If a number is mentioned but its meaning is ambiguous (e.g. unclear if it's monthly or per-transaction), put the relevant field in unresolvedFields and explain in ambiguities.
-2. NEVER invent merchant names not explicitly stated.
-3. If a field is not mentioned at all, omit it entirely — do NOT include it in the response.
-4. Only return fields you are confident about from the transcript.
-5. If a value is mentioned but unclear, put the field name in unresolvedFields (e.g. ["monthlyLimit"]).
+HARD RULES
+1. NEVER guess a number. If a number's meaning is ambiguous, add the field name to unresolvedFields.
+2. NEVER invent merchant names not explicitly stated by the user.
+3. Omit any field that was not mentioned in the transcript.
+4. Always include "unresolvedFields" — use [] if nothing is unresolved.
+5. Output ONLY the raw JSON object. No explanation, no markdown code fences.
 
-## Merchant name correction — IMPORTANT
-If a merchant name in the transcript sounds like or is a phonetic variant of a known Indian brand,
-use the canonical spelling from this list: ${CANONICAL_MERCHANTS}
-Examples of corrections:
-- "Farm Easy" or "farm easy" → "PharmEasy"
-- "Blink it" or "blinkit" → "Blinkit"
+MERCHANT NAME CORRECTIONS
+Use canonical spellings when a transcript uses a phonetic variant:
+- "Farm Easy" / "farm easy" / "farmeasy" → "PharmEasy"
+- "Blink it" / "blinkit" → "Blinkit"
 - "Big Basket" → "BigBasket"
 - "Make My Trip" → "MakeMyTrip"
+- "Jio mart" → "JioMart"
 - "net meds" → "Netmeds"
-- "1 mg" → "1mg"
+- "1 mg" / "one mg" → "1mg"
+- "Phone Pe" → "PhonePe"
+Canonical brand list for reference: ${CANONICAL_MERCHANTS}
 
-## Indian number formats
-Convert Indian number words and suffixes to plain integers before filling monetary fields:
-- "X lakh" → X × 100,000 (e.g. "2 lakh" → 200000, "2.5 lakh" → 250000)
-- "X crore" → X × 10,000,000 (e.g. "1 crore" → 10000000)
-- "X thousand" → X × 1,000 (e.g. "5 thousand" → 5000)
-- "X hundred" → X × 100
+INDIAN NUMBER FORMATS
+- "X lakh" → X × 100000 (e.g. "2 lakh" → 200000)
+- "X crore" → X × 10000000
+- "X thousand" → X × 1000
 
-## currentFormState
-You will also receive the current form state. Do not overwrite a field that is already filled unless the user explicitly re-stated a new value for it.
+CURRENT FORM STATE
+The user message includes a currentFormState JSON object. Do not overwrite already-filled fields unless the user explicitly stated a new value.
 
-## Few-shot example
-Input transcript: "Allow Farm Easy and Blink it to spend up to 2 lakh per month on medicines"
-Expected output:
-{
-  "category": "Healthcare",
-  "purpose": "medicines",
-  "monthlyLimit": 200000,
-  "approvedMerchants": ["PharmEasy", "Blinkit"],
-  "unresolvedFields": []
-}
-
-## Output format
-Return ONLY valid JSON. No explanation text. No markdown. Just the JSON object.
-
-{
-  "agentName": "string or omit",
-  "category": "string or omit",
-  "purpose": "string or omit",
-  "monthlyLimit": number or omit,
-  "perTransactionCap": number or omit,
-  "approvedMerchants": ["string", ...] or omit,
-  "unresolvedFields": ["fieldName", ...],
-  "ambiguities": "explanation of anything unclear, or omit"
-}
+FEW-SHOT EXAMPLE
+User says: "Allow Farm Easy and Blink it to spend up to 3000 rupees a month, 800 per transaction, for medicines"
+Return exactly: {"category":"Pharmacy / Healthcare","purpose":"Prescription and medicine purchases","monthlyLimit":3000,"perTransactionCap":800,"approvedMerchants":["PharmEasy","Blinkit"],"unresolvedFields":[]}
 `.trim();
 
 // ─── Groq Service ─────────────────────────────────────────────────────────────
@@ -261,7 +255,7 @@ export class GroqService {
           { role: "user", content: userMessage },
         ],
         temperature: 0,
-        max_tokens: 512,
+        max_tokens: 800,
         response_format: { type: "json_object" },
       }),
     });
@@ -282,16 +276,44 @@ export class GroqService {
       throw new Error("Groq returned an empty NLU response.");
     }
 
+    // Strip markdown fences some models emit despite json_object mode
+    const jsonText = rawContent
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```\s*$/i, "")
+      .trim();
+
     let parsed: unknown;
     try {
-      parsed = JSON.parse(rawContent);
+      parsed = JSON.parse(jsonText);
     } catch {
       throw new Error(
-        `Groq returned invalid JSON for mandate extraction: ${rawContent}`
+        `Groq returned invalid JSON for mandate extraction: ${jsonText.slice(0, 300)}`
       );
     }
 
-    return MandateExtractionSchema.parse(parsed);
+    // Validate with Zod; fall back to a safe empty extraction rather than
+    // crashing the whole request if a non-critical field has an unexpected type.
+    const result = MandateExtractionSchema.safeParse(parsed);
+    if (result.success) {
+      return result.data;
+    }
+
+    // Attempt a more lenient extraction by picking only the known-safe fields
+    const raw = parsed as Record<string, unknown>;
+    return MandateExtractionSchema.parse({
+      agentName: typeof raw["agentName"] === "string" ? raw["agentName"] : undefined,
+      category: typeof raw["category"] === "string" ? raw["category"] : undefined,
+      purpose: typeof raw["purpose"] === "string" ? raw["purpose"] : undefined,
+      monthlyLimit: typeof raw["monthlyLimit"] === "number" ? raw["monthlyLimit"] : undefined,
+      perTransactionCap: typeof raw["perTransactionCap"] === "number" ? raw["perTransactionCap"] : undefined,
+      approvedMerchants: Array.isArray(raw["approvedMerchants"])
+        ? (raw["approvedMerchants"] as unknown[]).filter((v): v is string => typeof v === "string")
+        : undefined,
+      unresolvedFields: Array.isArray(raw["unresolvedFields"])
+        ? (raw["unresolvedFields"] as unknown[]).filter((v): v is string => typeof v === "string")
+        : [],
+      ambiguities: typeof raw["ambiguities"] === "string" ? raw["ambiguities"] : undefined,
+    });
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

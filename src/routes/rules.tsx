@@ -307,9 +307,23 @@ export default function RulesPage() {
           markAiFilled("name");
         }
         if (diff.category) {
-          const matched = CATEGORIES.find(
-            (c) => c.toLowerCase() === diff.category!.toLowerCase()
-          );
+          const needle = diff.category.toLowerCase();
+          // Pass 1: exact case-insensitive match
+          let matched = CATEGORIES.find((c) => c.toLowerCase() === needle);
+          // Pass 2: one contains the other (handles "Pharmacy" → "Pharmacy / Healthcare")
+          if (!matched) {
+            matched = CATEGORIES.find(
+              (c) => c.toLowerCase().includes(needle) || needle.includes(c.toLowerCase())
+            );
+          }
+          // Pass 3: any word in the needle matches a word in the category
+          if (!matched) {
+            const needleWords = needle.split(/[\s/&,]+/).filter(Boolean);
+            matched = CATEGORIES.find((c) => {
+              const catWords = c.toLowerCase().split(/[\s/&,]+/).filter(Boolean);
+              return needleWords.some((w) => catWords.includes(w));
+            });
+          }
           if (matched) {
             next.category = matched;
             markAiFilled("category");
