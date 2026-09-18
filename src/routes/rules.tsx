@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -10,6 +10,9 @@ import {
   Check,
   FileCheck2,
   FlaskConical,
+  Mic,
+  MicOff,
+  Square,
 } from "lucide-react";
 import { ApprovalGlyph, MandateGlyph } from "@/components/kavach/icons";
 import { Button } from "@/components/ui/button";
@@ -24,10 +27,125 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PageHeader, StatusPill } from "@/components/kavach/primitives";
+import { PageHeader } from "@/components/kavach/primitives";
 import { useKavach } from "@/lib/kavach-store";
 import { CATEGORIES, formatINR, type LedgerStatus } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
+import { useVoiceFill } from "@/hooks/use-voice-fill";
+import type { MandateExtraction } from "@/lib/api-client";
+
+// ─── AI-filled field highlight classes ───────────────────────────────────────
+
+const AI_RING =
+  "ring-2 ring-primary/40 ring-offset-1 bg-primary/5 transition-shadow";
+const UNRESOLVED_RING =
+  "ring-2 ring-amber-400/60 ring-offset-1 transition-shadow";
+
+function aiClass(
+  fieldKey: string,
+  aiFilled: Record<string, boolean>,
+  unresolvedFields: string[]
+): string {
+  if (aiFilled[fieldKey]) return AI_RING;
+  if (unresolvedFields.includes(fieldKey)) return UNRESOLVED_RING;
+  return "";
+}
+
+// ─── Mic button component ─────────────────────────────────────────────────────
+
+function MicButton({
+  state,
+  onStart,
+  onStop,
+}: {
+  state: "idle" | "recording" | "processing";
+  onStart: () => void;
+  onStop: () => void;
+}) {
+  if (state === "recording") {
+    return (
+      <button
+        type="button"
+        onClick={onStop}
+        aria-label="Stop recording"
+        className="group flex items-center gap-2 rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
+      >
+        {/* Pulsing dot */}
+        <span className="relative flex h-2 w-2 shrink-0">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
+        </span>
+        Listening…
+        <Square className="h-3 w-3" aria-hidden="true" />
+      </button>
+    );
+  }
+
+  if (state === "processing") {
+    return (
+      <button
+        type="button"
+        disabled
+        aria-label="Processing voice input"
+        className="flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground"
+      >
+        {/* Spinner */}
+        <svg
+          className="h-3 w-3 animate-spin"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+          />
+        </svg>
+        Processing…
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onStart}
+      aria-label="Start voice dictation"
+      className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/8 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15 hover:border-primary/50"
+    >
+      <Mic className="h-3.5 w-3.5" aria-hidden="true" />
+      Speak mandate
+    </button>
+  );
+}
+
+// ─── AI-filled badge ──────────────────────────────────────────────────────────
+
+function AiFilledBadge() {
+  return (
+    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-primary/70">
+      <span aria-hidden="true">✦</span> AI filled — verify before confirming
+    </span>
+  );
+}
+
+function UnresolvedBadge({ fieldLabel }: { fieldLabel: string }) {
+  return (
+    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-amber-500">
+      <span aria-hidden="true">⚠</span> Unclear from voice — please enter{" "}
+      {fieldLabel} manually
+    </span>
+  );
+}
 
 const CATEGORY_PRESETS: Record<
   string,
@@ -108,7 +226,7 @@ function evaluateDraft(
       label: "Merchant outside scope",
       merchant,
       amount,
-      status: "denied",
+      status: "DENIED",
       reason: `${merchant} is not in the current draft's approved merchant set.`,
     };
   if (amount > limit)
@@ -116,7 +234,7 @@ function evaluateDraft(
       label: "Authority exceeded",
       merchant,
       amount,
-      status: "denied",
+      status: "DENIED",
       reason: `Exceeds the ${formatINR(limit)} ${draft.period.toLowerCase()} authority.`,
     };
   if (amount > cap)
@@ -124,14 +242,14 @@ function evaluateDraft(
       label: "Step-up required",
       merchant,
       amount,
-      status: "pending",
+      status: "PENDING",
       reason: `Above the ${formatINR(cap)} automatic threshold; a one-time approval is required.`,
     };
   return {
     label: "Allowed automatically",
     merchant,
     amount,
-    status: "allowed",
+    status: "APPROVED",
     reason: `Matches ${draft.category}, approved merchant scope, period budget and automatic threshold.`,
   };
 }
@@ -147,6 +265,22 @@ export default function RulesPage() {
   const [customMerchant, setCustomMerchant] = useState("Apollo Pharmacy");
   const [customAmount, setCustomAmount] = useState("750");
 
+  // ── AI-filled tracking ─────────────────────────────────────────────────────
+  const [aiFilled, setAiFilled] = useState<Record<string, boolean>>({});
+
+  const markAiFilled = useCallback((field: string) => {
+    setAiFilled((prev) => ({ ...prev, [field]: true }));
+  }, []);
+
+  const clearAiFilled = useCallback((field: string) => {
+    setAiFilled((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
+
   const merchantList = useMemo(
     () =>
       draft.merchants
@@ -155,11 +289,98 @@ export default function RulesPage() {
         .filter(Boolean),
     [draft.merchants],
   );
+
   const update = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
+    clearAiFilled(key as string);
     setTested(false);
     setTests([]);
   };
+
+  // ── Voice fill integration ──────────────────────────────────────────────────
+  const handleExtracted = useCallback(
+    (diff: MandateExtraction) => {
+      setDraft((current) => {
+        const next = { ...current };
+        if (diff.agentName) {
+          next.name = diff.agentName;
+          markAiFilled("name");
+        }
+        if (diff.category) {
+          const matched = CATEGORIES.find(
+            (c) => c.toLowerCase() === diff.category!.toLowerCase()
+          );
+          if (matched) {
+            next.category = matched;
+            markAiFilled("category");
+          }
+        }
+        if (diff.purpose) {
+          next.purpose = diff.purpose;
+          markAiFilled("purpose");
+        }
+        if (diff.monthlyLimit !== undefined) {
+          next.limit = String(diff.monthlyLimit);
+          markAiFilled("limit");
+        }
+        if (diff.perTransactionCap !== undefined) {
+          next.cap = String(diff.perTransactionCap);
+          markAiFilled("cap");
+        }
+        if (diff.approvedMerchants && diff.approvedMerchants.length > 0) {
+          next.merchants = diff.approvedMerchants.join(", ");
+          markAiFilled("merchants");
+        }
+        return next;
+      });
+
+      const filledCount = [
+        diff.agentName,
+        diff.category,
+        diff.purpose,
+        diff.monthlyLimit,
+        diff.perTransactionCap,
+        diff.approvedMerchants?.length,
+      ].filter(Boolean).length;
+
+      if (filledCount > 0) {
+        toast.success(`Voice filled ${filledCount} field${filledCount > 1 ? "s" : ""}`, {
+          description: diff.unresolvedFields.length
+            ? `Couldn't resolve: ${diff.unresolvedFields.join(", ")} — please fill manually.`
+            : "Review highlighted fields before continuing to test.",
+        });
+      } else {
+        toast.warning("No fields extracted", {
+          description:
+            diff.ambiguities ??
+            "Try speaking more clearly, e.g. 'Pharmacy agent, 3000 rupees monthly, 800 per transaction, Apollo and Tata 1mg'.",
+        });
+      }
+    },
+    [markAiFilled]
+  );
+
+  const voice = useVoiceFill({
+    currentFormState: {
+      ...(draft.name && { agentName: draft.name }),
+      ...(draft.category && { category: draft.category }),
+      ...(draft.purpose && { purpose: draft.purpose }),
+      ...(draft.limit && { monthlyLimit: Number(draft.limit) }),
+      ...(draft.cap && { perTransactionCap: Number(draft.cap) }),
+      ...(draft.merchants && {
+        approvedMerchants: draft.merchants.split(",").map((s) => s.trim()).filter(Boolean),
+      }),
+    },
+    onExtracted: handleExtracted,
+  });
+
+  const micState =
+    voice.state === "recording"
+      ? "recording"
+      : voice.isProcessing
+        ? "processing"
+        : "idle";
+
   const validate = () => {
     const next: Record<string, string> = {};
     const limit = Number(draft.limit);
@@ -184,23 +405,22 @@ export default function RulesPage() {
     const approvedMerchant = merchantList[0] ?? "Approved merchant";
     const cap = Number(draft.cap);
     const limit = Number(draft.limit);
-    setTests([
-      evaluateDraft(
-        draft,
-        approvedMerchant,
-        Math.max(1, Math.floor(cap * 0.75)),
-      ),
-      evaluateDraft(
-        draft,
-        approvedMerchant,
-        Math.min(limit, cap + Math.max(100, Math.floor(cap * 0.4))),
-      ),
-      evaluateDraft(
-        draft,
-        "Unapproved Merchant",
-        Math.max(1, Math.floor(cap * 0.5)),
-      ),
-    ]);
+    const suite: TestResult[] = [
+      evaluateDraft(draft, approvedMerchant, Math.max(100, Math.floor(cap / 2))),
+      evaluateDraft(draft, approvedMerchant, cap + 1),
+      evaluateDraft(draft, "Rogue Merchant Unknown", 500),
+      evaluateDraft(draft, approvedMerchant, limit + 1),
+    ];
+    setTests(suite);
+    setTested(true);
+  };
+  const runCustom = (event: React.FormEvent) => {
+    event.preventDefault();
+    const amount = Number(customAmount);
+    if (!customMerchant.trim() || !Number.isFinite(amount) || amount <= 0)
+      return;
+    const item = evaluateDraft(draft, customMerchant.trim(), amount);
+    setTests((current) => [item, ...current]);
     setTested(true);
   };
   const activate = () => {
@@ -278,17 +498,92 @@ export default function RulesPage() {
 
       {step === 1 ? (
         <section className="surface-card overflow-hidden">
+          {/* Panel header with mic button */}
           <div className="border-b border-border p-5 sm:p-6">
-            <div className="flex items-center gap-2">
-              <FileCheck2 className="h-4 w-4 text-primary" />
-              <h2 className="text-base font-semibold">
-                01 / Define the mandate
-              </h2>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <FileCheck2 className="h-4 w-4 text-primary" />
+                  <h2 className="text-base font-semibold">
+                    01 / Define the mandate
+                  </h2>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Every field below becomes an enforceable policy boundary.
+                </p>
+              </div>
+              <MicButton
+                state={micState}
+                onStart={voice.startRecording}
+                onStop={voice.stopRecording}
+              />
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Every field below becomes an enforceable policy boundary.
-            </p>
+
+            {/* Transcript — editable before extraction fires */}
+            {voice.transcript !== null && (
+              <div className="mt-4 rounded-md border border-border bg-muted/40 p-3 text-xs leading-relaxed">
+                <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+                  <span aria-hidden="true">💬</span>
+                  Heard — edit if needed, then confirm:
+                </p>
+                <textarea
+                  id="voice-transcript-editor"
+                  aria-label="Voice transcript — edit before extracting"
+                  value={voice.transcript}
+                  onChange={(e) => voice.editTranscript(e.target.value)}
+                  rows={3}
+                  className="w-full resize-none rounded border border-border bg-background px-2 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+
+                {/* Confirm & Extract — shown while reviewing or after done (re-extract) */}
+                {(voice.state === "pending_review" || voice.state === "done" || voice.state === "extracting") && (
+                  <button
+                    id="voice-confirm-extract-btn"
+                    type="button"
+                    onClick={voice.confirmAndExtract}
+                    disabled={voice.isProcessing || !voice.transcript?.trim()}
+                    className="mt-2 flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {voice.state === "extracting" ? (
+                      <>
+                        <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                        </svg>
+                        Extracting…
+                      </>
+                    ) : (
+                      <>
+                        <span aria-hidden="true">✦</span>
+                        {voice.state === "done" ? "Re-extract" : "Confirm & Extract"}
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {voice.ambiguities && (
+                  <p className="mt-2 flex items-start gap-1.5 text-amber-500">
+                    <MicOff
+                      className="mt-0.5 h-3 w-3 shrink-0"
+                      aria-hidden="true"
+                    />
+                    {voice.ambiguities}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Error message */}
+            {voice.error && (
+              <p
+                role="alert"
+                className="mt-3 text-xs text-destructive"
+              >
+                {voice.error}
+              </p>
+            )}
           </div>
+
           <form
             className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"
             onSubmit={(event) => {
@@ -302,7 +597,12 @@ export default function RulesPage() {
                 id="agent-name"
                 value={draft.name}
                 onChange={(e) => update("name", e.target.value)}
+                className={aiClass("name", aiFilled, voice.unresolvedFields)}
               />
+              {aiFilled["name"] && <AiFilledBadge />}
+              {voice.unresolvedFields.includes("agentName") && (
+                <UnresolvedBadge fieldLabel="agent name" />
+              )}
             </Field>
             <div className="grid gap-1.5">
               <Label htmlFor="agent-category">Category</Label>
@@ -317,11 +617,15 @@ export default function RulesPage() {
                     purpose: preset.purpose,
                     merchants: preset.merchants.join(", "),
                   }));
+                  clearAiFilled("category");
                   setTested(false);
                   setTests([]);
                 }}
               >
-                <SelectTrigger id="agent-category">
+                <SelectTrigger
+                  id="agent-category"
+                  className={aiClass("category", aiFilled, voice.unresolvedFields)}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -332,6 +636,7 @@ export default function RulesPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {aiFilled["category"] && <AiFilledBadge />}
             </div>
             <Field
               label="Purpose"
@@ -344,7 +649,12 @@ export default function RulesPage() {
                 rows={3}
                 value={draft.purpose}
                 onChange={(e) => update("purpose", e.target.value)}
+                className={aiClass("purpose", aiFilled, voice.unresolvedFields)}
               />
+              {aiFilled["purpose"] && <AiFilledBadge />}
+              {voice.unresolvedFields.includes("purpose") && (
+                <UnresolvedBadge fieldLabel="purpose" />
+              )}
             </Field>
             <div className="grid gap-1.5">
               <Label htmlFor="period">Budget period</Label>
@@ -371,7 +681,12 @@ export default function RulesPage() {
                 inputMode="numeric"
                 value={draft.limit}
                 onChange={(e) => update("limit", e.target.value)}
+                className={aiClass("limit", aiFilled, voice.unresolvedFields)}
               />
+              {aiFilled["limit"] && <AiFilledBadge />}
+              {voice.unresolvedFields.includes("monthlyLimit") && (
+                <UnresolvedBadge fieldLabel="period authority" />
+              )}
             </Field>
             <Field
               label="Automatic threshold (₹)"
@@ -383,7 +698,12 @@ export default function RulesPage() {
                 inputMode="numeric"
                 value={draft.cap}
                 onChange={(e) => update("cap", e.target.value)}
+                className={aiClass("cap", aiFilled, voice.unresolvedFields)}
               />
+              {aiFilled["cap"] && <AiFilledBadge />}
+              {voice.unresolvedFields.includes("perTransactionCap") && (
+                <UnresolvedBadge fieldLabel="automatic threshold" />
+              )}
             </Field>
             <Field label="Expiry" id="expiry" error={errors["expiresOn"]}>
               <Input
@@ -403,11 +723,16 @@ export default function RulesPage() {
                 id="merchants"
                 value={draft.merchants}
                 onChange={(e) => update("merchants", e.target.value)}
+                className={aiClass("merchants", aiFilled, voice.unresolvedFields)}
               />
               <p className="text-xs text-muted-foreground">
                 Category presets keep purpose and merchant scope consistent.
                 Separate custom names with commas.
               </p>
+              {aiFilled["merchants"] && <AiFilledBadge />}
+              {voice.unresolvedFields.includes("approvedMerchants") && (
+                <UnresolvedBadge fieldLabel="approved merchants" />
+              )}
             </Field>
             <div className="flex items-center justify-between gap-4 rounded-md border border-border p-4 sm:col-span-2">
               <div>
@@ -471,124 +796,100 @@ export default function RulesPage() {
                 label="Threshold"
                 value={formatINR(Number(draft.cap))}
               />
-              <SummaryRow label="Merchants" value={merchantList.join(" · ")} />
+              <SummaryRow label="Approved" value={merchantList.join(", ")} />
             </dl>
-            <Button className="mt-5 w-full" onClick={runSuite}>
-              Run allow / step-up / deny suite
-            </Button>
-            <div className="mt-6 border-t border-border pt-5">
-              <p className="text-sm font-medium">Custom hypothetical</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <Input
-                  aria-label="Custom merchant"
-                  value={customMerchant}
-                  onChange={(e) => setCustomMerchant(e.target.value)}
-                  placeholder="Merchant"
-                />
-                <Input
-                  aria-label="Custom amount"
-                  inputMode="numeric"
-                  value={customAmount}
-                  onChange={(e) => setCustomAmount(e.target.value)}
-                  placeholder="Amount"
-                />
-              </div>
-              <Button
-                variant="outline"
-                className="mt-3 w-full"
-                onClick={() => {
-                  const amount = Number(customAmount);
-                  if (Number.isFinite(amount) && amount > 0) {
-                    setTests((current) => [
-                      ...current,
-                      evaluateDraft(draft, customMerchant, amount),
-                    ]);
-                    setTested(true);
-                  }
-                }}
-              >
-                Evaluate custom intent
+            <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
+              <Button onClick={runSuite}>Run standard test suite</Button>
+              <Button variant="outline" onClick={() => setStep(1)}>
+                <ArrowLeft className="h-4 w-4" /> Edit draft
               </Button>
             </div>
           </div>
-          <div className="surface-card overflow-hidden">
-            <div className="border-b border-border p-5">
-              <h2 className="text-base font-semibold">
-                Evidence from this draft
-              </h2>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Each result cites the exact boundary that produced it.
-              </p>
-            </div>
-            {tests.length ? (
-              <ul className="divide-y divide-border">
-                {tests.map((result, index) => {
-                  const tone =
-                    result.status === "allowed"
-                      ? "allowed"
-                      : result.status === "pending"
-                        ? "stepup"
-                        : "denied";
-                  return (
-                    <li key={`${result.label}-${index}`} className="p-5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <StatusPill
-                            tone={tone}
-                            label={
-                              result.status === "pending"
-                                ? "Needs approval"
-                                : result.status
-                            }
-                          />
-                          <p className="mt-3 text-sm font-medium">
-                            {result.label}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {result.merchant}
-                          </p>
-                        </div>
-                        <p className="amount text-lg font-medium">
-                          {formatINR(result.amount)}
-                        </p>
-                      </div>
-                      <p className="mt-3 rounded-md border border-border bg-muted/20 p-3 text-xs leading-relaxed text-muted-foreground">
-                        {result.reason}
-                      </p>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <div className="grid min-h-64 place-items-center p-8 text-center">
-                <div>
-                  <FlaskConical className="mx-auto h-6 w-6 text-muted-foreground" />
-                  <p className="mt-3 text-sm font-medium">
-                    No stale assumptions
-                  </p>
-                  <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                    Run the suite to evaluate the exact draft shown at left.
-                  </p>
+          <div className="surface-card p-5 sm:p-6">
+            <h3 className="text-sm font-semibold">Custom scenario</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Simulate any arbitrary transaction against this draft.
+            </p>
+            <form
+              className="mt-4 grid gap-3 sm:grid-cols-[1.2fr_.8fr_auto]"
+              onSubmit={runCustom}
+            >
+              <Input
+                placeholder="Merchant"
+                value={customMerchant}
+                onChange={(e) => setCustomMerchant(e.target.value)}
+              />
+              <Input
+                placeholder="Amount (₹)"
+                inputMode="numeric"
+                value={customAmount}
+                onChange={(e) => setCustomAmount(e.target.value)}
+              />
+              <Button type="submit" variant="outline">
+                Run test
+              </Button>
+            </form>
+            <div className="mt-5 space-y-2">
+              {tests.map((test, index) => (
+                <div
+                  key={`${test.merchant}-${test.amount}-${index}`}
+                  className="flex items-start justify-between gap-4 rounded-md border border-border bg-card p-3 text-xs"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 font-medium">
+                      <span>{test.merchant}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span>{formatINR(test.amount)}</span>
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{test.reason}</p>
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.06em]",
+                      test.status === "APPROVED" &&
+                        "border border-success/30 bg-success/10 text-success",
+                      test.status === "PENDING" &&
+                        "border border-stepup/30 bg-stepup/10 text-stepup",
+                      test.status === "DENIED" &&
+                        "border border-destructive/30 bg-destructive/10 text-destructive",
+                    )}
+                  >
+                    {test.label}
+                  </span>
                 </div>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-wrap justify-between gap-3 xl:col-span-2">
-            <Button variant="outline" onClick={() => setStep(1)}>
-              <ArrowLeft className="h-4 w-4" /> Back to define
-            </Button>
-            <Button disabled={!tested} onClick={() => setStep(3)}>
-              Review mandate <ArrowRight className="h-4 w-4" />
-            </Button>
+              ))}
+              {tests.length === 0 ? (
+                <p className="p-8 text-center text-xs text-muted-foreground">
+                  Run the standard suite or evaluate a custom transaction to
+                  verify this draft.
+                </p>
+              ) : null}
+            </div>
+            <div className="mt-6 flex justify-end border-t border-border pt-5">
+              <Button disabled={!tested} onClick={() => setStep(3)}>
+                Proceed to review <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </section>
       ) : null}
 
       {step === 3 ? (
-        <section className="mx-auto max-w-3xl surface-card overflow-hidden">
-          <div className="border-b border-border bg-raised p-6">
-            <p className="label-caps">03 / Review & activate</p>
-            <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em]">
+        <section className="surface-card overflow-hidden">
+          <div className="border-b border-border p-6">
+            <div className="flex items-center gap-2">
+              <FileCheck2 className="h-4 w-4 text-primary" />
+              <h2 className="text-base font-semibold">
+                03 / Review policy contract
+              </h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Verify the exact financial mandate before minting live authority.
+            </p>
+          </div>
+          <div className="border-b border-border bg-muted/20 p-6">
+            <p className="label-caps">Agent identity</p>
+            <h2 className="mt-1 font-serif text-2xl font-bold tracking-tight">
               {draft.name}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">

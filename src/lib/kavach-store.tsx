@@ -102,7 +102,7 @@ export function KavachProvider({ children }: { children: ReactNode }) {
     if (!ledgerData?.intents) return [];
     return ledgerData.intents
       .map(intentToApproval)
-      .filter((a): a is ApprovalRequest => a !== null);
+      .filter((a: ApprovalRequest | null): a is ApprovalRequest => a !== null);
   }, [ledgerData]);
 
   // Derived state
@@ -115,26 +115,26 @@ export function KavachProvider({ children }: { children: ReactNode }) {
   );
 
   const maxPossibleSpend = useMemo(
-    () => agents.reduce((sum, a) => sum + remainingAuthority(a, frozen), 0),
+    () => agents.reduce((sum: number, a: Agent) => sum + remainingAuthority(a, frozen), 0),
     [agents, frozen],
   );
 
   const totalAuthority = useMemo(
     () =>
       agents.reduce(
-        (sum, a) => sum + (a.status === "revoked" ? 0 : a.rule.monthlyLimit),
+        (sum: number, a: Agent) => sum + (a.status === "revoked" ? 0 : a.rule.monthlyLimit),
         0,
       ),
     [agents],
   );
 
   const totalConsumed = useMemo(
-    () => agents.reduce((sum, a) => sum + a.consumed, 0),
+    () => agents.reduce((sum: number, a: Agent) => sum + a.consumed, 0),
     [agents],
   );
 
   const getAgent = useCallback(
-    (id: string) => agents.find((a) => a.id === id),
+    (id: string) => agents.find((a: Agent) => a.id === id),
     [agents],
   );
 

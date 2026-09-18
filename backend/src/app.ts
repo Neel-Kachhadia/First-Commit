@@ -28,6 +28,13 @@ import {
 } from "./handlers/bedrock-handler.js";
 
 import {
+  audioUpload,
+  transcribeHandler,
+  extractMandateVoiceHandler,
+  audioUploadErrorHandler,
+} from "./handlers/assistant-handler.js";
+
+import {
   getExposureHandler,
 } from "./handlers/exposure-handler.js";
 
@@ -95,6 +102,26 @@ export function createApp() {
   app.post(
     "/v0/mandates/extract",
     extractMandateHandler
+  );
+
+  /*
+   * ── Voice-to-Form-Fill API ──────────────────────────────────────────────────
+   */
+
+  // POST /api/assistant/transcribe
+  // Receives multipart audio upload → returns Groq Whisper transcript
+  app.post(
+    "/api/assistant/transcribe",
+    audioUpload.single("audio"),
+    transcribeHandler,
+    audioUploadErrorHandler
+  );
+
+  // POST /api/assistant/extract-mandate
+  // Receives { transcript, currentFormState } → returns MandateExtraction diff
+  app.post(
+    "/api/assistant/extract-mandate",
+    extractMandateVoiceHandler
   );
 
   app.post(
