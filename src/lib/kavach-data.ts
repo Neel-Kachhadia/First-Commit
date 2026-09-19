@@ -38,6 +38,8 @@ export interface SpendingRule {
   category: string;
   merchants: string[];
   window: string;
+  blockedCategories?: string[];
+  blockedItems?: string[];
   expiresOn?: string;
   allowDelegation?: boolean;
   delegationDepth?: number;
@@ -63,7 +65,12 @@ export interface LedgerEntry {
   amount: number;
   status: LedgerStatus;
   reason: string;
+  reasonCode?: string;
   at: string;
+  blockedItem?: string;
+  blockedCategory?: string;
+  matchedPolicy?: string;
+  providerStatus?: "NOT_INVOKED" | "INVOKED" | "SKIPPED";
 }
 
 export interface ApprovalRequest {

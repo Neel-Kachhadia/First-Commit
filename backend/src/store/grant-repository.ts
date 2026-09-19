@@ -33,6 +33,9 @@ export interface Grant {
   merchantAllow?: string[];
   merchantDeny?: string[];
 
+  blockedCategories?: string[];
+  blockedItems?: string[];
+
   delegationEnabled: boolean;
   maxDepth: number;
   maxChildren: number;

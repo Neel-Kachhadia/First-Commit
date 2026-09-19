@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import { GoogleGenAI } from "@google/genai";
 
 // ─── Shared types ────────────────────────────────────────────────────────────
@@ -50,11 +51,92 @@ export const MandateExtractionSchema = z.object({
   monthlyLimit: numberOrNull,
   perTransactionCap: numberOrNull,
   approvedMerchants: z.array(z.string()).nullable(),
+  blockedCategories: z.array(z.string()).default([]),
+  blockedItems: z.array(z.string()).default([]),
   unresolvedFields: z.array(z.string()),
   ambiguities: stringOrNull,
 });
 
 export type MandateExtraction = z.infer<typeof MandateExtractionSchema>;
+
+// ─── Voice Workflow schema ────────────────────────────────────────────────────
+
+export const VoiceCreateMandateParamsSchema = z.object({
+  label: z.string().min(1),
+  category: z.string().min(1),
+  monthlyLimit: z.number().positive(),
+  perTransactionCap: z.number().positive(),
+  merchants: z.array(z.string()).default([]),
+  purpose: z.string().default(""),
+  window: z.enum(["TRANSACTION", "DAILY", "WEEKLY", "MONTHLY"]).default("MONTHLY"),
+  blockedCategories: z.array(z.string()).default([]),
+  blockedItems: z.array(z.string()).default([]),
+});
+
+export const VoiceCreateDelegationParamsSchema = z.object({
+  label: z.string().min(1),
+  capacity: z.number().positive(),
+  parentActionId: z.string().min(1),
+});
+
+export const VoiceStartAgentParamsSchema = z.object({
+  agentActionId: z.string().min(1),
+});
+
+export const VoiceOrderItemSchema = z.union([
+  z.string().transform((name) => ({ name, category: undefined as string | undefined })),
+  z.object({
+    name: z.string().min(1),
+    category: z.string().optional(),
+    amount: z.number().optional(),
+    quantity: z.number().optional(),
+  }),
+]);
+
+export const VoiceCreateOrderParamsSchema = z.object({
+  merchant: z.string().min(1),
+  category: z.string().min(1),
+  items: z.array(VoiceOrderItemSchema).min(1),
+  estimatedAmount: z.number().positive(),
+  agentActionId: z.string().min(1),
+});
+
+export const VoiceActionSchema = z.discriminatedUnion("type", [
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("CREATE_MANDATE"),
+    dependsOn: z.array(z.string()).default([]),
+    params: VoiceCreateMandateParamsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("CREATE_DELEGATION"),
+    dependsOn: z.array(z.string()),
+    params: VoiceCreateDelegationParamsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("START_AGENT"),
+    dependsOn: z.array(z.string()),
+    params: VoiceStartAgentParamsSchema,
+  }),
+  z.object({
+    id: z.string().min(1),
+    type: z.literal("CREATE_ORDER"),
+    dependsOn: z.array(z.string()),
+    params: VoiceCreateOrderParamsSchema,
+  }),
+]);
+
+export const VoiceWorkflowSchema = z.object({
+  commandId: z.string().min(1),
+  actions: z.array(VoiceActionSchema).min(1),
+  missingFields: z.array(z.string()).default([]),
+  warnings: z.array(z.string()).default([]),
+});
+
+export type VoiceAction = z.infer<typeof VoiceActionSchema>;
+export type VoiceWorkflow = z.infer<typeof VoiceWorkflowSchema>;
 
 // ─── API constants ────────────────────────────────────────────────────────────
 
@@ -103,6 +185,8 @@ FIELD DEFINITIONS
 - monthlyLimit: The periodic spending limit in INR as a plain integer (no currency symbol, no commas)
 - perTransactionCap: The per-transaction ceiling in INR as a plain integer
 - approvedMerchants: JSON array of merchant name strings the agent may spend at
+- blockedCategories: JSON array of uppercase prohibited category codes if explicitly blocked by the user (e.g. ["ALCOHOL", "TOBACCO", "GAMBLING"]). If none mentioned, return []
+- blockedItems: JSON array of specific item/SKU names explicitly forbidden by the user (e.g. ["alcohol", "beer", "wine", "gift cards"]). If none mentioned, return []
 - unresolvedFields: JSON array of field name strings the user mentioned but whose value was unclear
 - ambiguities: string or null — explanation of any unclear values
 
@@ -136,6 +220,152 @@ The user message includes a currentFormState JSON object. Do not overwrite alrea
 FEW-SHOT EXAMPLE
 User says: "Allow Farm Easy and Blink it to spend up to 3000 rupees a month, 800 per transaction, for medicines"
 Return exactly: {"category":"${categories[1] ?? categories[0] ?? ""}","purpose":"Prescription and medicine purchases","monthlyLimit":3000,"perTransactionCap":800,"approvedMerchants":["PharmEasy","Blinkit"],"unresolvedFields":[]}
+`.trim();
+}
+
+function buildWorkflowExtractionPrompt(categories: string[], brandNames: string[]): string {
+  const categoryChoices = categories.map((c) => `"${c}"`).join(" | ");
+  const canonicalMerchants = brandNames.join(", ");
+
+  return `
+You are the workflow compiler for KavachPay, a financial authority management platform.
+You will be given a spoken instruction (transcript) and must compile it into a structured, executable action bundle.
+
+OUTPUT FORMAT
+Return ONLY a single raw JSON object matching this exact schema. No explanation, no markdown fences.
+{
+  "commandId": "VCMD-<unique 6-char hex>",
+  "actions": [ ...action objects... ],
+  "missingFields": [ ...field names that are critical but absent from the transcript ],
+  "warnings": [ ...non-blocking notes ]
+}
+
+ACTION TYPES
+Each action must have: id ("A1", "A2", ...), type, dependsOn (array of action ids), params.
+
+1. CREATE_MANDATE
+   dependsOn: [] (always the root, no dependencies)
+   params: { label, category, monthlyLimit, perTransactionCap, merchants, purpose, window, blockedCategories, blockedItems }
+   - category MUST be one of: ${categoryChoices}
+     * Household supplies, household essentials, stationery, electronics, apparel map to "Retail & apparel".
+     * Groceries, food items map to "Groceries".
+     * Medicines, prescription refills map to "Pharmacy / Healthcare".
+   - window: "MONTHLY" | "WEEKLY" | "DAILY" (default "MONTHLY". If user says "weekly limit" or "per week", set "WEEKLY").
+   - monthlyLimit and perTransactionCap: positive integers in INR. "lakh" = ×100000, "crore" = ×10000000. monthlyLimit represents the period authority amount.
+   - perTransactionCap: The "automatic threshold", "auto-approval limit", "cap", or "per-transaction limit".
+     CRITICAL: When the user mentions an "automatic threshold", "auto limit", "cap", or "per-transaction cap" (e.g. "weekly 10000 with automatic approval limit of 5000"), perTransactionCap MUST be set to that specific threshold (5000), which is less than the limit.
+   - blockedCategories: array of UPPERCASE categories explicitly prohibited by the user (e.g. ["ALCOHOL"], ["TOBACCO"], ["GAMBLING"]). If user says "Alcohol is explicitly blocked", output: ["ALCOHOL"].
+   - blockedItems: array of specific item names explicitly prohibited (e.g. ["Gift Card", "Lottery Ticket"]).
+   - merchants: array of canonical merchant names from transcript.
+
+2. CREATE_DELEGATION
+   dependsOn: [id of CREATE_MANDATE it delegates from]
+   params: { label, capacity, parentActionId }
+   - capacity must NOT exceed the parent mandate's limit
+   - label is the agent name (e.g. "Grocery Agent", "Shopping Bot")
+
+3. START_AGENT
+   dependsOn: [id of CREATE_DELEGATION or CREATE_MANDATE to activate]
+   params: { agentActionId } — the id of the delegation/mandate to start
+   Include START_AGENT if the user says "start", "activate", "launch" the agent.
+   If no explicit start is mentioned but an order is requested, still include START_AGENT.
+
+4. CREATE_ORDER
+   dependsOn: [id of delegation/mandate + id of START_AGENT]
+   params: { merchant, category, items, estimatedAmount, agentActionId }
+   - Only include if user explicitly mentions ordering or purchasing specific items.
+   - items: array of structured objects: [{ "name": "Notebooks", "category": "STATIONERY" }, { "name": "Earphone", "category": "ELECTRONICS" }, { "name": "Alcohol", "category": "ALCOHOL" }].
+   - estimatedAmount: your best estimate for the items at the named merchant in INR.
+   - category must match the parent mandate's category.
+
+DEPENDENCY RULES
+- CREATE_DELEGATION depends on CREATE_MANDATE
+- START_AGENT depends on CREATE_DELEGATION (or CREATE_MANDATE if no delegation)
+- CREATE_ORDER depends on START_AGENT (and CREATE_DELEGATION if present)
+
+CANONICAL MERCHANT NAMES
+Use correct spellings: ${canonicalMerchants}
+
+MISSING FIELDS
+If monthlyLimit or perTransactionCap is missing or unclear, add to missingFields: ["monthlyLimit"] or ["perTransactionCap"].
+Do NOT guess critical financial values.
+
+EXAMPLE 1
+Transcript: "Create a grocery mandate for 4000 rupees a month, per transaction cap 1500, Blinkit and Zepto, delegate 2500 to Grocery Agent, order milk and eggs from Blinkit, start the agent"
+Output:
+{
+  "commandId": "VCMD-ab12ef",
+  "actions": [
+    { "id": "A1", "type": "CREATE_MANDATE", "dependsOn": [], "params": { "label": "Grocery Mandate", "category": "${categories[0] ?? "Groceries"}", "monthlyLimit": 4000, "perTransactionCap": 1500, "merchants": ["Blinkit", "Zepto"], "purpose": "Weekly grocery shopping from approved merchants.", "window": "MONTHLY", "blockedCategories": [], "blockedItems": [] } },
+    { "id": "A2", "type": "CREATE_DELEGATION", "dependsOn": ["A1"], "params": { "label": "Grocery Agent", "capacity": 2500, "parentActionId": "A1" } },
+    { "id": "A3", "type": "START_AGENT", "dependsOn": ["A2"], "params": { "agentActionId": "A2" } },
+    { "id": "A4", "type": "CREATE_ORDER", "dependsOn": ["A2", "A3"], "params": { "merchant": "Blinkit", "category": "${categories[0] ?? "Groceries"}", "items": [{ "name": "Milk", "category": "GROCERY" }, { "name": "Eggs", "category": "GROCERY" }], "estimatedAmount": 320, "agentActionId": "A2" } }
+  ],
+  "missingFields": [],
+  "warnings": []
+}
+
+EXAMPLE 2
+Transcript: "Create a pharmacy mandate for 10000 monthly with automatic threshold 2000 Apollo Pharmacy and PharmEasy"
+Output:
+{
+  "commandId": "VCMD-cd34ef",
+  "actions": [
+    { "id": "A1", "type": "CREATE_MANDATE", "dependsOn": [], "params": { "label": "Pharmacy Mandate", "category": "${categories[1] ?? "Pharmacy / Healthcare"}", "monthlyLimit": 10000, "perTransactionCap": 2000, "merchants": ["Apollo Pharmacy", "PharmEasy"], "purpose": "Prescription refills and healthcare purchases.", "window": "MONTHLY", "blockedCategories": [], "blockedItems": [] } }
+  ],
+  "missingFields": [],
+  "warnings": []
+}
+
+EXAMPLE 3
+Transcript: "create a mandate named Retail Agent the category for this is HouseHold supplies. Create a absolute threshold of 10000 rupees weekly limit with automatic approval limit of 5000 rupees. The purpose is to buy household essentials from platforms like amazon zepto blinkit flipkart. The items to buy are notebooks diaries earphone alcohol. Alcohol is explicitly blocked. after creation of mandate launch the payment agent"
+Output:
+{
+  "commandId": "VCMD-ef56ab",
+  "actions": [
+    {
+      "id": "A1",
+      "type": "CREATE_MANDATE",
+      "dependsOn": [],
+      "params": {
+        "label": "Retail Agent",
+        "category": "Retail & apparel",
+        "window": "WEEKLY",
+        "monthlyLimit": 10000,
+        "perTransactionCap": 5000,
+        "merchants": ["Amazon", "Zepto", "Blinkit", "Flipkart"],
+        "purpose": "Buy household essentials from approved platforms.",
+        "blockedCategories": ["ALCOHOL"],
+        "blockedItems": []
+      }
+    },
+    {
+      "id": "A2",
+      "type": "START_AGENT",
+      "dependsOn": ["A1"],
+      "params": { "agentActionId": "A1" }
+    },
+    {
+      "id": "A3",
+      "type": "CREATE_ORDER",
+      "dependsOn": ["A1", "A2"],
+      "params": {
+        "merchant": "Amazon",
+        "category": "Retail & apparel",
+        "items": [
+          { "name": "Notebooks", "category": "STATIONERY" },
+          { "name": "Diaries", "category": "STATIONERY" },
+          { "name": "Earphone", "category": "ELECTRONICS" },
+          { "name": "Alcohol", "category": "ALCOHOL" }
+        ],
+        "estimatedAmount": 4200,
+        "agentActionId": "A1"
+      }
+    }
+  ],
+  "missingFields": [],
+  "warnings": ["Requested item 'Alcohol' falls under explicitly blocked category 'ALCOHOL'; this transaction will be rejected by policy at runtime."]
+}
 `.trim();
 }
 
@@ -335,6 +565,95 @@ export class GroqService {
         if (this.isTransientError(err)) {
           console.warn(
             `[NLU] Model ${model} returned transient error. Trying fallback model...`
+          );
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    throw (
+      lastError ??
+      new Error("All Gemini models are currently experiencing high demand. Please try again.")
+    );
+  }
+
+  /**
+   * Parse a transcript into a structured multi-action VoiceWorkflow bundle.
+   *
+   * Understands: CREATE_MANDATE, CREATE_DELEGATION, START_AGENT, CREATE_ORDER.
+   * Does NOT execute any mutations — parsing only.
+   */
+  async parseVoiceWorkflow(
+    transcript: string,
+    categories: string[] = [],
+    brandNames: string[] = []
+  ): Promise<VoiceWorkflow> {
+    this.assertGeminiKeyConfigured();
+
+    const systemPrompt = buildWorkflowExtractionPrompt(categories, brandNames);
+    const commandId = `VCMD-${randomUUID().replace(/-/g, "").slice(0, 6)}`;
+    const userMessage = JSON.stringify({ transcript, commandId });
+
+    let lastError: unknown;
+    for (const model of NLU_MODELS) {
+      try {
+        const config: Record<string, unknown> = {
+          systemInstruction: systemPrompt,
+          temperature: 0,
+          maxOutputTokens: 4096,
+          responseMimeType: "application/json",
+        };
+
+        if (!model.includes("lite")) {
+          config.thinkingConfig = { thinkingBudget: 0 };
+        }
+
+        const response = await this.client.models.generateContent({
+          model,
+          contents: [{ role: "user", parts: [{ text: userMessage }] }],
+          config,
+        });
+
+        const rawContent = response.text?.trim();
+        console.log(`[VoiceWorkflow] Gemini (${model}) response:`, rawContent?.slice(0, 600));
+
+        if (!rawContent) {
+          throw new Error("Gemini returned empty content for workflow extraction.");
+        }
+
+        const jsonText = rawContent
+          .replace(/^```(?:json)?\r?\n?/i, "")
+          .replace(/\r?\n?```$/, "")
+          .trim();
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(jsonText);
+        } catch {
+          throw new Error(
+            `Gemini returned invalid JSON for workflow extraction. Content: ${jsonText.slice(0, 300)}`
+          );
+        }
+
+        // Ensure commandId is present (model may omit it)
+        if (parsed && typeof parsed === "object" && !(parsed as Record<string, unknown>).commandId) {
+          (parsed as Record<string, unknown>).commandId = commandId;
+        }
+
+        const result = VoiceWorkflowSchema.safeParse(parsed);
+        if (!result.success) {
+          throw new Error(
+            `Gemini workflow response failed schema validation: ${result.error.message}`
+          );
+        }
+
+        return result.data;
+      } catch (err) {
+        lastError = err;
+        if (this.isTransientError(err)) {
+          console.warn(
+            `[VoiceWorkflow] Model ${model} returned transient error. Trying fallback...`
           );
           continue;
         }

@@ -292,10 +292,12 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
       stepUpAbove: input.rule.perTransactionCap,
       merchantAllow: input.rule.merchants,
       category: input.rule.category.toUpperCase().replace(/ & /g, "_").replace(/ /g, "_"),
-      window: "MONTHLY",
+      window: input.rule.window || "MONTHLY",
       windowStart: new Date().toISOString(),
       delegationEnabled: input.rule.allowDelegation ?? false,
       parentGrantId: input.parentGrantId,
+      blockedCategories: input.rule.blockedCategories,
+      blockedItems: input.rule.blockedItems,
     };
     const res = await createGrantMutation.mutateAsync(payload);
     return res.grant?.grantId || res.grantId || "unknown"; // Assuming backend returns { grant: { grantId } }

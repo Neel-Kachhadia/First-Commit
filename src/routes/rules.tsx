@@ -150,6 +150,8 @@ type Draft = {
   expiresOn: string;
   allowDelegation: boolean;
   delegationDepth: string;
+  blockedCategories: string[];
+  blockedItems: string;
 };
 type TestResult = {
   label: string;
@@ -170,12 +172,15 @@ const initialDraft: Draft = {
   expiresOn: "2026-09-30",
   allowDelegation: false,
   delegationDepth: "0",
+  blockedCategories: [],
+  blockedItems: "",
 };
 
 function evaluateDraft(
   draft: Draft,
   merchant: string,
   amount: number,
+  itemName?: string,
 ): TestResult {
   const approved = draft.merchants
     .split(",")
@@ -183,6 +188,34 @@ function evaluateDraft(
     .filter(Boolean);
   const limit = Number(draft.limit);
   const cap = Number(draft.cap);
+
+  // Prohibited item / category check
+  if (itemName && itemName.trim()) {
+    const lowerItem = itemName.trim().toLowerCase();
+    const blockedItemsList = draft.blockedItems
+      .split(",")
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+
+    const matchesItem = blockedItemsList.some((blocked) => lowerItem.includes(blocked));
+    const matchesCategory = draft.blockedCategories.some((cat) => {
+      if (cat === "ALCOHOL" && /alcohol|beer|wine|vodka|whiskey|liquor/i.test(lowerItem)) return true;
+      if (cat === "TOBACCO" && /tobacco|cigarette|vape|cigar/i.test(lowerItem)) return true;
+      if (cat === "GAMBLING" && /lottery|bet|casino|gambl/i.test(lowerItem)) return true;
+      return false;
+    });
+
+    if (matchesItem || matchesCategory) {
+      return {
+        label: "Prohibited item blocked",
+        merchant,
+        amount,
+        status: "DENIED",
+        reason: `Item "${itemName}" is prohibited by mandate policy (${matchesCategory ? "restricted category" : "explicitly blocked item"}). Payment provider not invoked.`,
+      };
+    }
+  }
+
   if (!approved.includes(merchant.trim().toLowerCase()))
     return {
       label: "Merchant outside scope",
@@ -229,6 +262,7 @@ export default function RulesPage() {
   const [tests, setTests] = useState<TestResult[]>([]);
   const [customMerchant, setCustomMerchant] = useState("Apollo Pharmacy");
   const [customAmount, setCustomAmount] = useState("750");
+  const [customItem, setCustomItem] = useState("");
   const transcriptRef = useRef<HTMLTextAreaElement>(null);
 
   // ── AI-filled tracking ─────────────────────────────────────────────────────
@@ -311,6 +345,18 @@ export default function RulesPage() {
           next.merchants = diff.approvedMerchants.join(", ");
           markAiFilled("merchants");
         }
+        if (diff.blockedCategories && diff.blockedCategories.length > 0) {
+          next.blockedCategories = Array.from(new Set([...next.blockedCategories, ...diff.blockedCategories]));
+          markAiFilled("blockedCategories");
+        }
+        if (diff.blockedItems && diff.blockedItems.length > 0) {
+          const combined = [
+            ...next.blockedItems.split(",").map((s) => s.trim()).filter(Boolean),
+            ...diff.blockedItems,
+          ];
+          next.blockedItems = Array.from(new Set(combined)).join(", ");
+          markAiFilled("blockedItems");
+        }
         return next;
       });
 
@@ -321,6 +367,8 @@ export default function RulesPage() {
         diff.monthlyLimit,
         diff.perTransactionCap,
         diff.approvedMerchants?.length,
+        diff.blockedCategories?.length,
+        diff.blockedItems?.length,
       ].filter(Boolean).length;
 
       if (filledCount > 0) {
@@ -349,6 +397,10 @@ export default function RulesPage() {
       ...(draft.cap && { perTransactionCap: Number(draft.cap) }),
       ...(draft.merchants && {
         approvedMerchants: draft.merchants.split(",").map((s) => s.trim()).filter(Boolean),
+      }),
+      ...(draft.blockedCategories.length > 0 && { blockedCategories: draft.blockedCategories }),
+      ...(draft.blockedItems && {
+        blockedItems: draft.blockedItems.split(",").map((s) => s.trim()).filter(Boolean),
       }),
     },
     onExtracted: handleExtracted,
@@ -395,6 +447,14 @@ export default function RulesPage() {
       evaluateDraft(draft, "Rogue Merchant Unknown", 500),
       evaluateDraft(draft, approvedMerchant, limit + 1),
     ];
+    if (draft.blockedCategories.length > 0 || draft.blockedItems.trim().length > 0) {
+      const prohibitedTestItem = draft.blockedCategories.includes("ALCOHOL")
+        ? "Alcohol / Wine"
+        : draft.blockedCategories.includes("TOBACCO")
+        ? "Tobacco"
+        : draft.blockedItems.split(",")[0]?.trim() || "Prohibited Item";
+      suite.push(evaluateDraft(draft, approvedMerchant, 250, prohibitedTestItem));
+    }
     setTests(suite);
     setTested(true);
   };
@@ -403,7 +463,7 @@ export default function RulesPage() {
     const amount = Number(customAmount);
     if (!customMerchant.trim() || !Number.isFinite(amount) || amount <= 0)
       return;
-    const item = evaluateDraft(draft, customMerchant.trim(), amount);
+    const item = evaluateDraft(draft, customMerchant.trim(), amount, customItem);
     setTests((current) => [item, ...current]);
     setTested(true);
   };
@@ -420,7 +480,11 @@ export default function RulesPage() {
           perTransactionCap: Number(draft.cap),
           category: draft.category,
           merchants: merchantList,
-          window: draft.period,
+          window: draft.period.toLowerCase().includes("week") ? "WEEKLY" : "MONTHLY",
+          blockedCategories: draft.blockedCategories,
+          blockedItems: draft.blockedItems
+            ? draft.blockedItems.split(",").map((s) => s.trim()).filter(Boolean)
+            : [],
           expiresOn: draft.expiresOn,
           allowDelegation: draft.allowDelegation,
           delegationDepth: draft.allowDelegation
@@ -728,6 +792,77 @@ export default function RulesPage() {
                 <UnresolvedBadge fieldLabel="approved merchants" />
               )}
             </Field>
+
+            {/* Prohibited Items & Categories Section */}
+            <div className="sm:col-span-2 rounded-lg border border-destructive/20 bg-destructive/5 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                    <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                    Prohibited Categories & Items (Zero-Tolerance Policy)
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Any transaction matching these items or categories is deterministically <strong className="text-destructive">DENIED</strong> by KavachPay&apos;s authorization engine. Payment provider is never invoked.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <span className="text-xs font-medium text-muted-foreground">Standard Restricted Categories:</span>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "ALCOHOL", label: "Alcohol & Liquor" },
+                    { id: "TOBACCO", label: "Tobacco & Vapes" },
+                    { id: "GAMBLING", label: "Gambling & Lottery" },
+                  ].map((cat) => {
+                    const isSelected = draft.blockedCategories.includes(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          update(
+                            "blockedCategories",
+                            isSelected
+                              ? draft.blockedCategories.filter((c) => c !== cat.id)
+                              : [...draft.blockedCategories, cat.id]
+                          );
+                        }}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                          isSelected
+                            ? "border-destructive bg-destructive/15 text-destructive font-semibold"
+                            : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                        )}
+                      >
+                        <span>{isSelected ? "✕" : "+"}</span>
+                        <span>{cat.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid gap-1.5 pt-1">
+                <Label htmlFor="blocked-items" className="text-xs font-medium text-muted-foreground">
+                  Explicitly Blocked Items / SKUs (Comma-separated)
+                </Label>
+                <Input
+                  id="blocked-items"
+                  placeholder="e.g. Alcohol, Gift Cards, Lottery Tickets, Crypto Vouchers"
+                  value={draft.blockedItems}
+                  onChange={(e) => update("blockedItems", e.target.value)}
+                  className={cn(
+                    "border-destructive/30 focus-visible:ring-destructive/30",
+                    aiClass("blockedItems", aiFilled, voice.unresolvedFields)
+                  )}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Matches item names or line items in payment intents (case-insensitive substring match).
+                </p>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between gap-4 rounded-md border border-border p-4 sm:col-span-2">
               <div>
                 <Label htmlFor="delegation">Allow child delegation</Label>
@@ -791,6 +926,17 @@ export default function RulesPage() {
                 value={formatINR(Number(draft.cap))}
               />
               <SummaryRow label="Approved" value={merchantList.join(", ")} />
+              <SummaryRow
+                label="Prohibited"
+                value={
+                  [
+                    ...draft.blockedCategories.map((c) => `Category: ${c}`),
+                    ...(draft.blockedItems
+                      ? draft.blockedItems.split(",").map((s) => s.trim()).filter(Boolean).map((i) => `Item: ${i}`)
+                      : []),
+                  ].join(" · ") || "None"
+                }
+              />
             </dl>
             <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
               <Button onClick={runSuite}>Run standard test suite</Button>
@@ -805,13 +951,18 @@ export default function RulesPage() {
               Simulate any arbitrary transaction against this draft.
             </p>
             <form
-              className="mt-4 grid gap-3 sm:grid-cols-[1.2fr_.8fr_auto]"
+              className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_.8fr_auto]"
               onSubmit={runCustom}
             >
               <Input
                 placeholder="Merchant"
                 value={customMerchant}
                 onChange={(e) => setCustomMerchant(e.target.value)}
+              />
+              <Input
+                placeholder="Item (e.g. Alcohol / Notebooks)"
+                value={customItem}
+                onChange={(e) => setCustomItem(e.target.value)}
               />
               <Input
                 placeholder="Amount (₹)"
@@ -914,6 +1065,17 @@ export default function RulesPage() {
               <ReviewItem
                 label="Approved merchants"
                 value={merchantList.join(" · ")}
+              />
+              <ReviewItem
+                label="Prohibited restrictions"
+                value={
+                  [
+                    ...draft.blockedCategories.map((c) => `Category: ${c}`),
+                    ...(draft.blockedItems
+                      ? draft.blockedItems.split(",").map((s) => s.trim()).filter(Boolean).map((i) => `Item: ${i}`)
+                      : []),
+                  ].join(" · ") || "None specified"
+                }
               />
               <ReviewItem
                 label="Delegation"

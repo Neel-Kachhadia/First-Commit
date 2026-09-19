@@ -204,6 +204,73 @@ export async function extractMandateVoiceHandler(
   }
 }
 
+// ─── POST /api/assistant/voice/parse ──────────────────────────────────────────
+
+/**
+ * Receives { transcript } and returns a structured VoiceWorkflow bundle.
+ * This endpoint is interpretation-only: no mutations are performed.
+ * The workflow must be reviewed by the user and submitted to /voice/execute
+ * under an authenticated session before any financial actions are taken.
+ */
+export async function parseVoiceWorkflowHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const rawTranscript = req.body?.transcript;
+
+    if (
+      typeof rawTranscript !== "string" ||
+      rawTranscript.trim().length === 0
+    ) {
+      res.status(400).json({
+        success: false,
+        error: "transcript is required and must be a non-empty string.",
+      });
+      return;
+    }
+
+    const transcript = truncate(sanitizeText(rawTranscript), 3000);
+
+    if (transcript.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: "Transcript was empty after sanitization.",
+      });
+      return;
+    }
+
+    // Fetch dynamic categories + brand list for the NLU prompt
+    const userId = req.user?.sub ?? "__anonymous__";
+    const allCategories = await categoryService.listCategories(userId);
+    const categoryNames = allCategories.map((c) => c.name);
+    const brandNames = categoryService.buildCanonicalBrandList();
+
+    const workflow = await groqService.parseVoiceWorkflow(
+      transcript,
+      categoryNames,
+      brandNames
+    );
+
+    console.log(
+      JSON.stringify({
+        event: "voice_workflow_parsed",
+        timestamp: new Date().toISOString(),
+        commandId: workflow.commandId,
+        actionCount: workflow.actions.length,
+        actionTypes: workflow.actions.map((a) => a.type),
+        missingFields: workflow.missingFields,
+      })
+    );
+
+    res.status(200).json({ success: true, workflow });
+  } catch (error) {
+    console.error("[parseVoiceWorkflowHandler] error:", error);
+    const { message, status } = formatAiErrorMessage(error, "Voice workflow parsing failed.");
+    res.status(status).json({ success: false, error: message });
+  }
+}
+
 // ─── Multer error handler middleware ──────────────────────────────────────────
 
 /**

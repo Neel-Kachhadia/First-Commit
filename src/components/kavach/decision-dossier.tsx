@@ -166,6 +166,43 @@ export function DecisionDossier({
           </TraceStep>
           <TraceStep number="05" title="Policy evaluation">
             <p>{entry.reason}</p>
+            {(entry.reasonCode === "ITEM_BLOCKED" || entry.blockedItem || entry.blockedCategory) && (
+              <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs space-y-2">
+                <div className="flex items-center gap-1.5 font-semibold text-destructive">
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>Item-Level Enforcement Violation</span>
+                </div>
+                <dl className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
+                  {entry.blockedItem && (
+                    <div>
+                      <dt className="text-muted-foreground">Prohibited Item</dt>
+                      <dd className="text-destructive font-semibold">{entry.blockedItem}</dd>
+                    </div>
+                  )}
+                  {entry.blockedCategory && (
+                    <div>
+                      <dt className="text-muted-foreground">Blocked Category</dt>
+                      <dd className="text-destructive font-semibold">{entry.blockedCategory}</dd>
+                    </div>
+                  )}
+                  {entry.matchedPolicy && (
+                    <div>
+                      <dt className="text-muted-foreground">Matched Policy</dt>
+                      <dd className="text-foreground">{entry.matchedPolicy}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-muted-foreground">PSP Execution</dt>
+                    <dd className="font-semibold text-emerald-500">
+                      {entry.providerStatus ?? "NOT_INVOKED"} (Razorpay bypassed)
+                    </dd>
+                  </div>
+                </dl>
+                <p className="text-[10px] text-muted-foreground pt-1 border-t border-destructive/20">
+                  Evidence: KMS-backed, tamper-evident signed decision evidence recorded in audit log.
+                </p>
+              </div>
+            )}
           </TraceStep>
           <TraceStep number="06" title="Execution">
             <p className="flex items-center gap-2">
