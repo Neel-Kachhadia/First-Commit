@@ -47,4 +47,24 @@ next-env.d.ts
 /.claude/
 /.agents/
 /.codex/
+/codex-skills/
+# AWS CDK
+infrastructure/cdk.out/
+infrastructure/cdk.context.json
+infrastructure/cdk-template.yaml
 
+# Local/debug files
+logs.json
+logs.txt
+cfg.json
+msg.json
+msg2.json
+secret.json
+
+# Local helper scripts
+infrastructure/getLogs.js
+
+# Temporary backend scripts
+backend/src/dump-demo-user.ts
+backend/src/test-handler.ts
+backend/src/test-scenario.ts

@@ -54,6 +54,31 @@ export function intentToLedgerEntry(intent: any): LedgerEntry {
     status = "PENDING";
   }
 
+  let executionStatus: import("./kavach-data").ProviderExecutionStatus = "NOT_INVOKED";
+  if (rawStatus === "EXECUTED" || rawStatus === "PAYMENT_CAPTURED" || rawStatus === "PROVIDER_CAPTURED") {
+    executionStatus = "PROVIDER_CAPTURED";
+  } else if (rawStatus === "RESERVED" || rawStatus === "PAYMENT_CREATED" || rawStatus === "SUBMITTED_TO_PROVIDER") {
+    executionStatus = "SUBMITTED_TO_PROVIDER";
+  } else if (rawStatus === "FAILED" || rawStatus === "PROVIDER_FAILED") {
+    executionStatus = "PROVIDER_FAILED";
+  } else if (rawStatus === "PROVIDER_PENDING") {
+    executionStatus = "PROVIDER_PENDING";
+  }
+
+  // The backend response is the source of truth. We use available fields.
+  const execution: import("./kavach-data").ProviderExecution | undefined = (status === "APPROVED" || status === "STEP_UP_REQUIRED") ? {
+    provider: "RAZORPAY",
+    environment: "TEST_MODE",
+    orderId: intent.orderId || intent.providerOrderId || undefined,
+    paymentId: intent.paymentId || intent.providerPaymentId || undefined,
+    status: executionStatus,
+    webhookVerified: intent.webhookVerified || false,
+  } : {
+    provider: "RAZORPAY",
+    environment: "TEST_MODE",
+    status: "NOT_INVOKED",
+  };
+
   return {
     id: intent.intentId,
     agentId: intent.grantId,
@@ -73,6 +98,7 @@ export function intentToLedgerEntry(intent: any): LedgerEntry {
     blockedCategory: intent.blockedCategory,
     matchedPolicy: intent.matchedPolicy,
     providerStatus: intent.providerStatus ?? "NOT_INVOKED",
+    execution,
   };
 }
 

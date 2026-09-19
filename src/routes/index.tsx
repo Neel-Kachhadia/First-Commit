@@ -74,6 +74,11 @@ export default function Overview() {
     ? agents.find((agent) => agent.id === primaryApproval.agentId)
     : undefined;
 
+  const ordersCreated = ledger.filter(entry => entry.execution && entry.execution.status !== "NOT_INVOKED").length;
+  const ordersCaptured = ledger.filter(entry => entry.execution?.status === "PROVIDER_CAPTURED").length;
+  const ordersFailed = ledger.filter(entry => entry.execution?.status === "PROVIDER_FAILED").length;
+  const ordersPending = ledger.filter(entry => entry.execution?.status === "PROVIDER_PENDING" || entry.execution?.status === "SUBMITTED_TO_PROVIDER").length;
+
   return (
     <div className="space-y-6 lg:space-y-7">
       <header className="page-heading relative flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
@@ -174,6 +179,33 @@ export default function Overview() {
             helper={`${approvals.length} ${approvals.length === 1 ? "request" : "requests"} awaiting your decision`}
             tone="stepup"
           />
+        </div>
+        
+        <div className="border-t border-border bg-muted/20 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div>
+            <p className="text-xs font-semibold tracking-wider text-muted-foreground label-caps">Payment Provider</p>
+            <p className="text-sm font-medium mt-1 flex items-center gap-2">
+              Razorpay <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border">TEST MODE</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+            <div>
+              <span className="text-muted-foreground">Orders created</span>
+              <span className="font-medium ml-2">{ordersCreated}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Captured</span>
+              <span className="font-medium ml-2">{ordersCaptured}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Failed</span>
+              <span className="font-medium ml-2">{ordersFailed}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Pending</span>
+              <span className="font-medium ml-2">{ordersPending}</span>
+            </div>
+          </div>
         </div>
       </section>
 
