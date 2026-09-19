@@ -50,15 +50,6 @@ export interface CreateGrantPayload {
 }
 
 export interface Category {
-  slug: string;
-  name: string;
-  purpose: string;
-  merchants: string[];
-  source: "system" | "user";
-  createdAt: string;
-}
-
-export type Category = {
   id: string;
   slug: string;
   name: string;
@@ -66,7 +57,7 @@ export type Category = {
   merchants: string[];
   source: "system" | "user";
   createdAt: string;
-};
+}
 
 export interface SimulatePaymentPayload {
   amount: number;
@@ -153,6 +144,7 @@ export const apiClient = {
   getCategories: async (): Promise<Category[]> => {
     const res = await fetch(`${API_BASE_URL}/v0/categories`, {
       headers: await authHeaders(),
+      cache: "no-store",
     });
     if (!res.ok) {
       throw new Error(`Failed to fetch categories: ${res.status}`);
@@ -260,15 +252,7 @@ export const apiClient = {
     return res.json();
   },
 
-  getCategories: async (): Promise<Category[]> => {
-    const res = await fetch(`${API_BASE_URL}/v0/categories`, {
-      headers: await authHeaders(),
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error("Failed to fetch categories");
-    const json = await res.json();
-    return json.categories ?? [];
-  },
+
 
   /**
    * Create a payment intent via POST /v0/intents.
