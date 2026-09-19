@@ -23,6 +23,7 @@ export const DecisionReasonCodeSchema = z.enum([
   "INVALID_AUTHORITY_PATH",
   "RESERVATION_FAILED",
   "POLICY_DENIED",
+  "ITEM_BLOCKED",
   "INVALID_INTENT",
   "MAX_DELEGATION_DEPTH_EXCEEDED",
   "MAX_DELEGATION_CHILDREN_EXCEEDED",
@@ -64,6 +65,14 @@ export const DecisionSchema = z.object({
    * Whether a reservation was successfully created.
    */
   reserved: z.boolean(),
+
+  /**
+   * Forensics for item-level policy violations.
+   */
+  blockedItem: z.string().optional(),
+  blockedCategory: z.string().optional(),
+  matchedPolicy: z.string().optional(),
+  providerStatus: z.enum(["NOT_INVOKED", "INVOKED", "SKIPPED"]).optional().default("NOT_INVOKED"),
 
   /**
    * Policy engine result, when evaluated.

@@ -15,10 +15,12 @@ export function grantToAgent(grant: any): Agent {
     issuedOn: grant.createdAt,
     rule: {
       monthlyLimit: grant.limit,
-      perTransactionCap: grant.hardMax || 0,
+      perTransactionCap: (grant.stepUpAbove != null && grant.stepUpAbove > 0) ? grant.stepUpAbove : (grant.hardMax || 0),
       category: grant.category || "General",
       merchants: grant.merchantAllow || [],
       window: grant.window || "MONTHLY",
+      blockedCategories: grant.blockedCategories || [],
+      blockedItems: grant.blockedItems || [],
     },
   };
 }
@@ -66,6 +68,11 @@ export function intentToLedgerEntry(intent: any): LedgerEntry {
           ? (intent.reason || "Denied by authority rules")
           : (intent.reason || "Authorized"),
     at: intent.createdAt,
+    reasonCode: intent.reasonCode,
+    blockedItem: intent.blockedItem,
+    blockedCategory: intent.blockedCategory,
+    matchedPolicy: intent.matchedPolicy,
+    providerStatus: intent.providerStatus ?? "NOT_INVOKED",
   };
 }
 

@@ -60,6 +60,7 @@ import { useTheme } from "@/lib/theme";
 import { formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
+import { GlobalVoiceTrigger } from "@/components/voice/GlobalVoiceTrigger";
 
 const NAV = [
   {
@@ -468,6 +469,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </kbd>
               </Link>
             </div>
+
+            <GlobalVoiceTrigger />
 
             <div className="flex shrink-0 items-center gap-2">
               <span className="hidden items-center gap-1.5 rounded-md border border-success/20 bg-success/8 px-2 py-1 text-[10px] font-medium text-success sm:inline-flex">

@@ -64,8 +64,20 @@ export function assertTransition(
 export async function applyTransition(
   intentId: string,
   from: IntentStatus,
-  to: IntentStatus
+  to: IntentStatus,
+  metadata?: {
+    reason?: string;
+    reasonCode?: string;
+    blockedItem?: string;
+    blockedCategory?: string;
+    matchedPolicy?: string;
+    providerStatus?: "NOT_INVOKED" | "INVOKED" | "SKIPPED";
+  }
 ): Promise<void> {
   assertTransition(from, to);
-  await intentRepository.updateStatus(intentId, to, from);
+  if (metadata) {
+    await intentRepository.updateDecision(intentId, { status: to, ...metadata }, from);
+  } else {
+    await intentRepository.updateStatus(intentId, to, from);
+  }
 }

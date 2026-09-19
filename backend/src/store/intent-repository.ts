@@ -102,6 +102,82 @@ export class IntentRepository {
   }
 
   /**
+   * Update intent with decision metadata and status atomically.
+   */
+  async updateDecision(
+    intentId: string,
+    updates: {
+      status: Intent["status"];
+      reason?: string;
+      reasonCode?: string;
+      blockedItem?: string;
+      blockedCategory?: string;
+      matchedPolicy?: string;
+      providerStatus?: "NOT_INVOKED" | "INVOKED" | "SKIPPED";
+    },
+    expectedStatus?: Intent["status"]
+  ): Promise<void> {
+    let conditionExpression = "attribute_exists(PK)";
+    const expressionAttributeValues: Record<string, unknown> = {
+      ":status": updates.status,
+    };
+    const expressionAttributeNames: Record<string, string> = {
+      "#status": "status",
+    };
+    const setClauses: string[] = ["#status = :status"];
+
+    if (updates.reason !== undefined) {
+      setClauses.push("#reason = :reason");
+      expressionAttributeNames["#reason"] = "reason";
+      expressionAttributeValues[":reason"] = updates.reason;
+    }
+    if (updates.reasonCode !== undefined) {
+      setClauses.push("#reasonCode = :reasonCode");
+      expressionAttributeNames["#reasonCode"] = "reasonCode";
+      expressionAttributeValues[":reasonCode"] = updates.reasonCode;
+    }
+    if (updates.blockedItem !== undefined) {
+      setClauses.push("#blockedItem = :blockedItem");
+      expressionAttributeNames["#blockedItem"] = "blockedItem";
+      expressionAttributeValues[":blockedItem"] = updates.blockedItem;
+    }
+    if (updates.blockedCategory !== undefined) {
+      setClauses.push("#blockedCategory = :blockedCategory");
+      expressionAttributeNames["#blockedCategory"] = "blockedCategory";
+      expressionAttributeValues[":blockedCategory"] = updates.blockedCategory;
+    }
+    if (updates.matchedPolicy !== undefined) {
+      setClauses.push("#matchedPolicy = :matchedPolicy");
+      expressionAttributeNames["#matchedPolicy"] = "matchedPolicy";
+      expressionAttributeValues[":matchedPolicy"] = updates.matchedPolicy;
+    }
+    if (updates.providerStatus !== undefined) {
+      setClauses.push("#providerStatus = :providerStatus");
+      expressionAttributeNames["#providerStatus"] = "providerStatus";
+      expressionAttributeValues[":providerStatus"] = updates.providerStatus;
+    }
+
+    if (expectedStatus) {
+      conditionExpression += " AND #status = :expectedStatus";
+      expressionAttributeValues[":expectedStatus"] = expectedStatus;
+    }
+
+    await dynamo.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: `INTENT#${intentId}`,
+          SK: "META",
+        },
+        UpdateExpression: `SET ${setClauses.join(", ")}`,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
+        ConditionExpression: conditionExpression,
+      })
+    );
+  }
+
+  /**
    * Check whether an idempotency key has already
    * been used.
    *

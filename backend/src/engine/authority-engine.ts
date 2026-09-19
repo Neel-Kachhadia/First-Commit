@@ -117,7 +117,8 @@ export class AuthorityEngine {
         capacity.effectiveCapacity,
         capacity.residualByGrant[
           targetGrant.grantId
-        ] ?? 0
+        ] ?? 0,
+        scopeResult.forensics
       );
     }
 
@@ -203,6 +204,8 @@ export class AuthorityEngine {
 
         reserved: false,
 
+        providerStatus: "NOT_INVOKED",
+
         createdAt: now,
       };
     }
@@ -243,6 +246,8 @@ export class AuthorityEngine {
 
       reserved: false,
 
+      providerStatus: "NOT_INVOKED",
+
       createdAt: now,
     };
     
@@ -255,12 +260,128 @@ export class AuthorityEngine {
     return decision;
   }
 
+  private evaluateItemRestrictions(
+    intent: Intent,
+    grant: {
+      blockedCategories?: string[];
+      blockedItems?: string[];
+    }
+  ): {
+    blocked: boolean;
+    blockedItem?: string;
+    blockedCategory?: string;
+    matchedPolicy?: string;
+    reason?: string;
+  } {
+    const blockedCategories = (grant.blockedCategories ?? []).map((c) => c.trim().toUpperCase()).filter(Boolean);
+    const blockedItems = (grant.blockedItems ?? []).map((i) => i.trim()).filter(Boolean);
+
+    if (blockedCategories.length === 0 && blockedItems.length === 0) {
+      return { blocked: false };
+    }
+
+    const categoryKeywords: Record<string, string[]> = {
+      ALCOHOL: ["alcohol", "wine", "beer", "whiskey", "vodka", "rum", "liquor", "gin", "champagne", "tequila", "brandy", "cocktail"],
+      TOBACCO: ["tobacco", "cigarette", "cigar", "nicotine", "vape", "beedi"],
+      GAMBLING: ["gambling", "lottery", "casino", "bet", "betting", "poker", "jackpot"],
+    };
+
+    // 1. Evaluate structured items if present
+    const items = intent.items ?? [];
+    for (const item of items) {
+      const itemName = (item.name || "").trim();
+      const itemCategory = (item.category || "").trim().toUpperCase();
+
+      // Check category against blockedCategories
+      for (const blockedCat of blockedCategories) {
+        if (itemCategory && (itemCategory === blockedCat || itemCategory.includes(blockedCat))) {
+          return {
+            blocked: true,
+            blockedItem: itemName || blockedCat,
+            blockedCategory: blockedCat,
+            matchedPolicy: `blockedCategories.${blockedCat}`,
+            reason: `Item "${itemName}" (${itemCategory}) violates policy (blockedCategories.${blockedCat}). PSP execution was not invoked.`,
+          };
+        }
+
+        // Check if item name contains blocked category keyword
+        const keywords = categoryKeywords[blockedCat] ?? [blockedCat.toLowerCase()];
+        const itemLower = itemName.toLowerCase();
+        for (const kw of keywords) {
+          const regex = new RegExp(`\\b${kw}\\b`, "i");
+          if (regex.test(itemLower)) {
+            return {
+              blocked: true,
+              blockedItem: itemName,
+              blockedCategory: blockedCat,
+              matchedPolicy: `blockedCategories.${blockedCat}`,
+              reason: `Item "${itemName}" is recognized under prohibited category ${blockedCat} (blockedCategories.${blockedCat}). PSP execution was not invoked.`,
+            };
+          }
+        }
+      }
+
+      // Check item name against blockedItems
+      for (const blockedItem of blockedItems) {
+        const itemLower = itemName.toLowerCase();
+        const blockedLower = blockedItem.toLowerCase();
+        if (itemLower === blockedLower || itemLower.includes(blockedLower)) {
+          return {
+            blocked: true,
+            blockedItem: itemName,
+            matchedPolicy: `blockedItems.${blockedItem}`,
+            reason: `Item "${itemName}" violates explicit item restriction (blockedItems.${blockedItem}). PSP execution was not invoked.`,
+          };
+        }
+      }
+    }
+
+    // 2. Also inspect intent description for defense-in-depth
+    if (intent.description) {
+      const descLower = intent.description.toLowerCase();
+
+      // Check blockedCategories keywords in description
+      for (const blockedCat of blockedCategories) {
+        const keywords = categoryKeywords[blockedCat] ?? [blockedCat.toLowerCase()];
+        for (const kw of keywords) {
+          const regex = new RegExp(`\\b${kw}\\b`, "i");
+          if (regex.test(descLower)) {
+            return {
+              blocked: true,
+              blockedItem: kw,
+              blockedCategory: blockedCat,
+              matchedPolicy: `blockedCategories.${blockedCat}`,
+              reason: `Transaction description mentions prohibited category item "${kw}" (${blockedCat}). PSP execution was not invoked.`,
+            };
+          }
+        }
+      }
+
+      // Check blockedItems in description
+      for (const blockedItem of blockedItems) {
+        const regex = new RegExp(`\\b${blockedItem.toLowerCase()}\\b`, "i");
+        if (regex.test(descLower)) {
+          return {
+            blocked: true,
+            blockedItem,
+            matchedPolicy: `blockedItems.${blockedItem}`,
+            reason: `Transaction description mentions explicitly blocked item "${blockedItem}". PSP execution was not invoked.`,
+          };
+        }
+      }
+    }
+
+    return { blocked: false };
+  }
+
   private checkScope(
     intent: Intent,
     grant: {
       category?: string;
       merchantAllow?: string[];
       merchantDeny?: string[];
+      blockedCategories?: string[];
+      blockedItems?: string[];
     }
   ):
     | {
@@ -271,9 +392,32 @@ export class AuthorityEngine {
         reasonCode:
           | "SCOPE_DENIED"
           | "MERCHANT_DENIED"
-          | "MERCHANT_NOT_ALLOWED";
+          | "MERCHANT_NOT_ALLOWED"
+          | "ITEM_BLOCKED";
         reason: string;
+        forensics?: {
+          blockedItem?: string;
+          blockedCategory?: string;
+          matchedPolicy?: string;
+        };
       } {
+    /*
+     * Explicit item & category restrictions check (Item-Level Enforcement Guarantee).
+     */
+    const itemCheck = this.evaluateItemRestrictions(intent, grant);
+    if (itemCheck.blocked) {
+      return {
+        allowed: false,
+        reasonCode: "ITEM_BLOCKED",
+        reason: itemCheck.reason || "Transaction violates mandate item-level restrictions.",
+        forensics: {
+          blockedItem: itemCheck.blockedItem,
+          blockedCategory: itemCheck.blockedCategory,
+          matchedPolicy: itemCheck.matchedPolicy,
+        },
+      };
+    }
+
     /*
      * Category restriction (resilient to case, spaces, underscores, slashes).
      */
@@ -357,7 +501,12 @@ export class AuthorityEngine {
     reason: string,
     createdAt: string,
     effectiveCapacity = 0,
-    grantResidual = 0
+    grantResidual = 0,
+    forensics?: {
+      blockedItem?: string;
+      blockedCategory?: string;
+      matchedPolicy?: string;
+    }
   ): Decision {
     return {
       decisionId,
@@ -383,6 +532,11 @@ export class AuthorityEngine {
       grantResidual,
 
       reserved: false,
+
+      blockedItem: forensics?.blockedItem,
+      blockedCategory: forensics?.blockedCategory,
+      matchedPolicy: forensics?.matchedPolicy,
+      providerStatus: "NOT_INVOKED",
 
       createdAt,
     };
