@@ -45,16 +45,17 @@ function Waveform({ level }: { level: number }) {
 
 // ─── Processing stage ─────────────────────────────────────────────────────────
 
-function ProcessingStage({ label, hint }: { label: string; hint: string }) {
+function ProcessingStage({ label, hint, phase }: { label: string; hint: string; phase: "transcribing" | "parsing" }) {
   return (
-    <div className={s.processingStage}>
-      <div className={s.spinRing} aria-hidden="true" />
-      <p className={s.processingLabel}>{label}</p>
+    <div className={s.processingStage} role="status" aria-live="polite">
+      <span className={s.processingGlyph} aria-hidden="true"><Mic size={22} /></span>
+      <p className={s.processingEyebrow}>Preparing your review</p>
+      <h2 className={s.processingLabel}>{label}</h2>
       <p className={s.processingHint}>{hint}</p>
-      <div className={s.shimmerLines}>
-        <div className={s.shimmerLine} />
-        <div className={s.shimmerLine} />
-        <div className={s.shimmerLine} />
+      <div className={s.processingProgress} aria-hidden="true"><span /></div>
+      <div className={s.processingSteps} aria-hidden="true">
+        <span data-active={phase === "transcribing"}>Transcribe audio</span>
+        <span data-active={phase === "parsing"}>Build review</span>
       </div>
     </div>
   );
@@ -156,10 +157,11 @@ export function VoiceCaptureSheet({ onClose }: VoiceCaptureSheetProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    const frame = window.requestAnimationFrame(() => setMounted(true));
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
+      window.cancelAnimationFrame(frame);
       document.body.style.overflow = prevOverflow;
     };
   }, []);
@@ -199,6 +201,25 @@ export function VoiceCaptureSheet({ onClose }: VoiceCaptureSheetProps) {
         {/* ── Idle / recording stage ── */}
         {(state === "idle" || state === "recording" || state === "requesting") && (
           <div className={s.recordStage}>
+            <div className={s.recordIntro}>
+              <p className={s.recordEyebrow}>Voice command</p>
+              <h1 className={s.recordTitle}>
+                {isRecording ? "I’m listening." : state === "requesting" ? "Connecting your microphone…" : "Speak your workflow."}
+              </h1>
+              <p className={s.recordSub}>
+                Describe the mandate and any payment you want to make. You will review every action before anything runs.
+              </p>
+              {!isRecording && <div className={s.exampleBox}>
+                <MessageSquare size={17} className={s.exampleIcon} aria-hidden="true" />
+                <div>
+                  <span className={s.exampleLabel}>For example</span>
+                  <p className={s.exampleText}>
+                    “Create a grocery mandate for ₹4,000 a month, allow Blinkit, then order milk and eggs.”
+                  </p>
+                </div>
+              </div>}
+            </div>
+            <div className={s.recordControl}>
             <div className={s.blobWrap}>
               <div className={s.blobHalo} data-active={isRecording ? "true" : "false"} aria-hidden="true" />
               <button
@@ -228,23 +249,12 @@ export function VoiceCaptureSheet({ onClose }: VoiceCaptureSheetProps) {
                 </Button>
               </>
             ) : (
-              <>
-                <p className={s.recordTitle}>
-                  {state === "requesting" ? "Requesting microphone…" : "Speak your workflow"}
-                </p>
-                <p className={s.recordSub}>
-                  Describe what you want to set up in one command. KavachPay will parse it, show you a review, and execute only after you authorize.
-                </p>
-                <div className={s.exampleBox}>
-                  <MessageSquare size={16} className={s.exampleIcon} />
-                  <p className={s.exampleText}>
-                    <em>
-                      &ldquo;Create a grocery mandate for ₹4,000 a month, per-transaction cap ₹1,500, Blinkit and Zepto. Delegate ₹2,500 to a Grocery Agent. Order milk and eggs from Blinkit and start the agent.&rdquo;
-                    </em>
-                  </p>
-                </div>
-              </>
+              <p className={s.recordHint}>{state === "requesting" ? "Waiting for browser permission" : "Tap the microphone to begin"}</p>
             )}
+            </div>
+            <div className={s.voiceSteps} aria-label="Voice workflow stages">
+              <span>Speak naturally</span><span aria-hidden="true">→</span><span>Review the plan</span><span aria-hidden="true">→</span><span>Authorize actions</span>
+            </div>
           </div>
         )}
 
@@ -253,6 +263,7 @@ export function VoiceCaptureSheet({ onClose }: VoiceCaptureSheetProps) {
           <ProcessingStage
             label="Transcribing your voice…"
             hint="Converting speech to text"
+            phase="transcribing"
           />
         )}
 
@@ -260,7 +271,8 @@ export function VoiceCaptureSheet({ onClose }: VoiceCaptureSheetProps) {
         {state === "parsing" && (
           <ProcessingStage
             label="Compiling workflow…"
-            hint="AI is structuring your command into executable actions"
+            hint="Organizing the actions for your approval"
+            phase="parsing"
           />
         )}
 

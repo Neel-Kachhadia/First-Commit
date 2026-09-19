@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowDownRight, ExternalLink } from "lucide-react";
 import {
   AgentGlyph,
@@ -20,21 +21,43 @@ import { Button } from "@/components/ui/button";
 import { ExposureChart } from "@/components/kavach/exposure-chart";
 import { useKavach } from "@/lib/kavach-store";
 import { useUserProfile } from "@/lib/user-profile";
+import { apiClient, type AuditEvent } from "@/lib/api-client";
 import { formatDateTime, formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
 
+function describeAuditEvent(event: AuditEvent, agents: ReturnType<typeof useKavach>["agents"], ledger: ReturnType<typeof useKavach>["ledger"]) {
+  const grantId = typeof event.metadata?.grantId === "string" ? event.metadata.grantId : "";
+  const intentId = typeof event.metadata?.intentId === "string" ? event.metadata.intentId : "";
+  const agent = agents.find((item) => item.id === grantId);
+  const decision = ledger.find((item) => item.id === intentId);
+  switch (event.eventType) {
+    case "GRANT_CREATED": return { tag: "MANDATE", title: "Mandate issued", detail: agent?.name ?? grantId };
+    case "GRANT_REVOKED": return { tag: "REVOCATION", title: "Mandate revoked", detail: agent?.name ?? grantId };
+    case "GRANT_EXPIRED": return { tag: "EXPIRY", title: "Mandate expired", detail: agent?.name ?? grantId };
+    case "DECISION_MADE": return { tag: "DECISION", title: "Policy decision recorded", detail: decision ? `${decision.merchant} · ${formatINR(decision.amount)}` : intentId };
+    case "RESERVATION_CREATED": return { tag: "SPEND", title: "Authority reserved", detail: decision ? `${decision.merchant} · ${formatINR(decision.amount)}` : intentId };
+    case "RESERVATION_RELEASED": return { tag: "RELEASE", title: "Authority released", detail: decision?.merchant ?? intentId };
+    case "DEMO_RESET": return { tag: "RESET", title: "Demo state reset", detail: "Starting authority restored" };
+    default: return { tag: "AUDIT", title: event.eventType.replaceAll("_", " ").toLowerCase(), detail: decision?.merchant ?? agent?.name ?? (intentId || grantId) };
+  }
+}
+
 export default function AuthorityPage() {
   const { profile } = useUserProfile();
+  const { data: auditData, isLoading: auditLoading, isError: auditError } = useQuery({
+    queryKey: ["audit"],
+    queryFn: apiClient.getAudit,
+    refetchInterval: 5000,
+  });
   const {
     history,
     maxPossibleSpend,
     totalAuthority,
     agents,
+    ledger,
     frozen,
     remainingFor,
   } = useKavach();
-  const points = history.map((event) => event.maxSpend);
-  const peak = Math.max(...points, maxPossibleSpend, 1);
   const totalConsumed = agents.reduce(
     (sum, agent) => sum + agent.consumed,
     0,
@@ -43,9 +66,10 @@ export default function AuthorityPage() {
     0,
     totalAuthority - totalConsumed - maxPossibleSpend,
   );
-  const [selectedAgentId, setSelectedAgentId] = useState(agents[0]?.id ?? "");
+  const [selectedAgentId, setSelectedAgentId] = useState("");
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+  const effectiveAgentId = selectedAgentId || agents[0]?.id || "";
+  const selectedAgent = agents.find((agent) => agent.id === effectiveAgentId);
   const selectedRemaining = selectedAgent ? remainingFor(selectedAgent) : 0;
   const selectedTone = selectedAgent ? agentTone(selectedAgent.status) : null;
 
@@ -55,8 +79,8 @@ export default function AuthorityPage() {
         title="Authority universe"
         description="A live map of who can spend, how much remains, and every event that changed your financial blast radius."
         actions={
-          <Button variant="outline" asChild disabled={!selectedAgentId}>
-            <Link href={selectedAgentId ? `/rules?parentGrantId=${selectedAgentId}` : "/rules"}>
+          <Button variant="outline" asChild>
+            <Link href={effectiveAgentId ? `/rules?parentGrantId=${effectiveAgentId}` : "/rules"}>
               Create child mandate
             </Link>
           </Button>
@@ -81,13 +105,13 @@ export default function AuthorityPage() {
         />
         <Metric
           label="Exposure withdrawn"
-          value={formatINR(Math.max(0, peak - maxPossibleSpend))}
-          hint="Consumed or revoked since this month's peak"
+          value={formatINR(withdrawnAuthority)}
+          hint="Consumed or revoked authority"
           tone="success"
         />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.8fr)] xl:items-start">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
         <div className="grid min-w-0 gap-4">
           <div className="authority-map surface-card overflow-hidden">
           <div className="flex items-start justify-between gap-4 border-b border-border p-5">
@@ -109,9 +133,9 @@ export default function AuthorityPage() {
             <div className="authority-grid absolute inset-0 opacity-35" />
             <div className="relative mx-auto flex max-w-3xl flex-col items-center">
               <div className="rounded-lg border border-primary/35 bg-primary/8 px-3.5 py-1.5 text-center shadow-xs">
-                <p className="text-xs font-semibold">{profile.name}</p>
+                <p className="text-xs font-semibold">{profile.username}</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Principal · 100% control
+                  Principal · authority owner
                 </p>
               </div>
               <div className="h-3.5 w-px bg-border" />
@@ -130,10 +154,10 @@ export default function AuthorityPage() {
                       aria-pressed={selectedAgentId === agent.id}
                       className={cn(
                         "authority-node group rounded-[6px] border border-border bg-card p-3 text-left transition-all hover:border-foreground/25",
-                        selectedAgentId === agent.id &&
+                        effectiveAgentId === agent.id &&
                           "border-foreground/40 bg-raised ring-1 ring-foreground/10",
-                        selectedAgentId !== agent.id &&
-                          selectedAgentId &&
+                        effectiveAgentId !== agent.id &&
+                          effectiveAgentId &&
                           "opacity-65 hover:opacity-100",
                         agent.status === "revoked" && "border-dashed",
                       )}
@@ -304,7 +328,7 @@ export default function AuthorityPage() {
               <div className="mt-5 rounded-md border border-border bg-muted/25 p-4">
                 <p className="label-caps">Source lineage</p>
                 <ol className="mt-3 space-y-2 text-xs">
-                  <li>{profile.name} · Principal</li>
+                  <li>{profile.username} · Principal</li>
                   <li className="pl-3 text-muted-foreground">
                     ↓ {selectedAgent.rule.category} authority
                   </li>
@@ -321,7 +345,7 @@ export default function AuthorityPage() {
                 </div>
                 <div className="bg-card p-3">
                   <dt className="label-caps">Delegation</dt>
-                  <dd className="mt-2 font-medium">Level 1 of 2</dd>
+                  <dd className="mt-2 font-medium">{selectedAgent.rule.allowDelegation ? "Allowed" : "Not allowed"}</dd>
                 </div>
                 <div className="bg-card p-3">
                   <dt className="label-caps">Consumed</dt>
@@ -371,60 +395,48 @@ export default function AuthorityPage() {
           ) : null}
           </div>
 
-          <div className="surface-card overflow-hidden">
-          <div className="flex items-center gap-2 border-b border-border p-5">
+          <div className="surface-card min-w-0 overflow-hidden">
+          <div className="flex items-center gap-2 border-b border-border p-4">
             <DecisionGlyph className="h-4 w-4 text-stepup" />
             <h2 className="text-base font-semibold">Authority timeline</h2>
           </div>
-          <ol>
-            {[...history]
-              .reverse()
-              .slice(0, 5)
-              .map((event) => (
+          {auditLoading ? <p className="px-5 py-7 text-sm text-muted-foreground">Loading authority events…</p> : auditError ? <p role="alert" className="px-5 py-7 text-sm text-destructive">Timeline unavailable. Please try again.</p> : auditData?.events.length ? (
+          <ol className="max-h-[28rem] overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring" tabIndex={0} aria-label="Recent authority events">
+            {auditData.events.map((event) => {
+                const display = describeAuditEvent(event, agents, ledger);
+                return (
                 <li
-                  key={event.id}
+                  key={event.eventId}
                   className={cn(
                     "relative border-b border-border last:border-b-0",
-                    selectedEventId === event.id && "bg-raised",
+                    selectedEventId === event.eventId && "bg-raised",
                   )}
                 >
                   <button
                     type="button"
-                    className="w-full p-4 pl-10 text-left"
+                    className="w-full p-3 pl-10 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
                     onClick={() => {
-                      setSelectedEventId(event.id);
-                      const affected = agents.find((agent) =>
-                        event.label
-                          .toLowerCase()
-                          .includes(agent.name.toLowerCase()),
-                      );
+                      setSelectedEventId(event.eventId);
+                      const grantId = typeof event.metadata?.grantId === "string" ? event.metadata.grantId : "";
+                      const intentId = typeof event.metadata?.intentId === "string" ? event.metadata.intentId : "";
+                      const affected = agents.find((agent) => agent.id === grantId || ledger.find((entry) => entry.id === intentId)?.agentId === agent.id);
                       if (affected) setSelectedAgentId(affected.id);
                     }}
                   >
-                    <span className="absolute left-4 top-[1.15rem] grid h-4 w-4 place-items-center rounded-full border border-primary/30 bg-primary/10 text-primary">
+                    <span className="absolute left-4 top-[.85rem] grid h-4 w-4 place-items-center rounded-full border border-primary/30 bg-primary/10 text-primary">
                       <ArrowDownRight className="h-2.5 w-2.5" />
                     </span>
-                    <span className="mb-2 inline-flex rounded border border-border px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground">
-                      {event.label.includes("revoked")
-                        ? "REVOCATION"
-                        : event.label.includes("spent")
-                          ? "SPEND"
-                          : "MANDATE"}
-                    </span>
-                    <p className="text-xs font-medium">{event.label}</p>
-                    <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
-                      {event.detail}
+                    <span className="mb-2 inline-flex rounded border border-border px-1.5 py-0.5 font-mono text-xs text-muted-foreground">{display.tag}</span>
+                    <p className="text-sm font-medium capitalize">{display.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      {display.detail}
                     </p>
-                    <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-muted-foreground">
-                      <span>{formatDateTime(event.at)}</span>
-                      <span className="amount text-foreground">
-                        {formatINR(event.maxSpend)}
-                      </span>
-                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground">{formatDateTime(event.timestamp)}</p>
                   </button>
                 </li>
-              ))}
+              );})}
           </ol>
+          ) : <div className="px-5 py-7"><p className="text-sm font-semibold">No data available</p><p className="mt-1 text-sm text-muted-foreground">Mandate and payment events will appear here once they are recorded for this account.</p></div>}
           </div>
         </div>
       </section>

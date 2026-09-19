@@ -85,7 +85,6 @@ function MicButton({
         <strong>{recording ? "Stop recording" : processing ? "Working on your voice…" : state === "idle" ? "Speak mandate" : "Speak again"}</strong>
         <small>{recording ? "Microphone is live" : processing ? "Keep this page open" : "Describe the rule aloud"}</small>
       </span>
-      {!recording && !processing ? <AudioLines size={18} className={voiceStyles.triggerWave} aria-hidden="true" /> : null}
     </button>
   );
 }
@@ -793,22 +792,16 @@ export default function RulesPage() {
               )}
             </Field>
 
-            {/* Prohibited Items & Categories Section */}
-            <div className="sm:col-span-2 rounded-lg border border-destructive/20 bg-destructive/5 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
-                    <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />
-                    Prohibited Categories & Items (Zero-Tolerance Policy)
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Any transaction matching these items or categories is deterministically <strong className="text-destructive">DENIED</strong> by KavachPay&apos;s authorization engine. Payment provider is never invoked.
-                  </p>
-                </div>
+            <div className="sm:col-span-2 space-y-4 border-t border-border pt-6">
+              <div>
+                <h3 className="text-lg font-semibold">Purchases to block</h3>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  Select categories or add specific items. Matching payments are denied before the payment provider is contacted.
+                </p>
               </div>
 
               <div className="space-y-2">
-                <span className="text-xs font-medium text-muted-foreground">Standard Restricted Categories:</span>
+                <p className="text-sm font-semibold">Restricted categories</p>
                 <div className="flex flex-wrap gap-2">
                   {[
                     { id: "ALCOHOL", label: "Alcohol & Liquor" },
@@ -820,6 +813,7 @@ export default function RulesPage() {
                       <button
                         key={cat.id}
                         type="button"
+                        aria-pressed={isSelected}
                         onClick={() => {
                           update(
                             "blockedCategories",
@@ -829,13 +823,13 @@ export default function RulesPage() {
                           );
                         }}
                         className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                          "inline-flex min-h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                           isSelected
-                            ? "border-destructive bg-destructive/15 text-destructive font-semibold"
-                            : "border-border bg-background text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border bg-card text-foreground hover:border-foreground/40 hover:bg-muted"
                         )}
                       >
-                        <span>{isSelected ? "✕" : "+"}</span>
+                        {isSelected ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
                         <span>{cat.label}</span>
                       </button>
                     );
@@ -843,22 +837,19 @@ export default function RulesPage() {
                 </div>
               </div>
 
-              <div className="grid gap-1.5 pt-1">
-                <Label htmlFor="blocked-items" className="text-xs font-medium text-muted-foreground">
-                  Explicitly Blocked Items / SKUs (Comma-separated)
+              <div className="grid gap-1.5">
+                <Label htmlFor="blocked-items" className="text-sm font-semibold">
+                  Specific items
                 </Label>
                 <Input
                   id="blocked-items"
-                  placeholder="e.g. Alcohol, Gift Cards, Lottery Tickets, Crypto Vouchers"
+                  placeholder="e.g. Gift cards, lottery tickets"
                   value={draft.blockedItems}
                   onChange={(e) => update("blockedItems", e.target.value)}
-                  className={cn(
-                    "border-destructive/30 focus-visible:ring-destructive/30",
-                    aiClass("blockedItems", aiFilled, voice.unresolvedFields)
-                  )}
+                  className={aiClass("blockedItems", aiFilled, voice.unresolvedFields)}
                 />
-                <p className="text-[11px] text-muted-foreground">
-                  Matches item names or line items in payment intents (case-insensitive substring match).
+                <p className="text-sm text-muted-foreground">
+                  Separate names with commas. The match ignores capitalization.
                 </p>
               </div>
             </div>

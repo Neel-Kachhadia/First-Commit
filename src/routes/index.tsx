@@ -83,7 +83,7 @@ export default function Overview() {
     <div className="space-y-6 lg:space-y-7">
       <header className="page-heading relative flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="mb-1.5 text-xs font-medium text-destructive">Live control plane · evaluated 12s ago</p>
+          <p className="mb-1.5 text-xs font-medium text-destructive">Live control plane</p>
           <h1 className="text-[1.75rem] font-semibold leading-tight tracking-[-0.035em] sm:text-[2rem]">
             Control center
           </h1>
@@ -102,17 +102,17 @@ export default function Overview() {
       <section className="exposure-console surface-card overflow-hidden" aria-label="Authority summary">
         <div className="grid lg:grid-cols-[minmax(0,.9fr)_minmax(440px,1.1fr)]">
           <div className="exposure-overview border-b border-border p-5 sm:p-6 lg:border-b-0 lg:border-r">
-            <div className="grid items-center gap-5 sm:grid-cols-[minmax(0,1fr)_208px]">
+            <div className="exposure-overview-inner">
               <div className="min-w-0">
                 <p className="text-sm font-medium">Reachable exposure</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Maximum that active agents can spend without another decision</p>
-                <p className="amount mt-8 text-4xl font-medium tracking-[-0.05em] sm:text-5xl">
+                <p className="amount mt-5 text-4xl font-medium tracking-[-0.05em] sm:text-5xl">
                   <CountUpValue value={maxPossibleSpend} format={currency} />
                 </p>
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   of <span className="amount text-foreground">{formatINR(totalAuthority)}</span> granted authority
                 </p>
-                <div className="mt-5 space-y-2.5 border-t border-border pt-4 text-xs">
+                <div className="mt-4 space-y-2 border-t border-border pt-3 text-xs">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-muted-foreground">Spendable agents</span>
                     <strong className="font-medium">{activeAgents.length} of {agents.length}</strong>
@@ -123,7 +123,7 @@ export default function Overview() {
                   </div>
                 </div>
               </div>
-              <div className="flex self-stretch items-center justify-center border-t border-border pt-5 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+              <div className="exposure-overview-ring flex min-w-0 items-center justify-center">
                 <AuthorityRing total={totalAuthority} remaining={maxPossibleSpend} frozen={frozen} />
               </div>
             </div>
@@ -167,7 +167,7 @@ export default function Overview() {
           <MetricCard
             label="Spent this month"
             value={totalConsumed}
-            helper={`${Math.round((totalConsumed / totalAuthority) * 100)}% of active authority used`}
+            helper={`${totalAuthority ? Math.round((totalConsumed / totalAuthority) * 100) : 0}% of active authority used`}
             tone="success"
           />
           <MetricCard

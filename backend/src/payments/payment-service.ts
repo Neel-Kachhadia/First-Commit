@@ -226,27 +226,38 @@ export class PaymentService implements IPaymentService {
     intentId: string,
     status: PaymentStatus,
     razorpayPaymentId?: string,
-    expectedStatus?: PaymentStatus
+    expectedStatus?: PaymentStatus,
+    providerWebhookEventId?: string
   ): Promise<void> {
     const now = new Date().toISOString();
 
-    const updateExpression = razorpayPaymentId
-      ? "SET #status = :status, razorpayPaymentId = :paymentId, updatedAt = :updatedAt"
-      : "SET #status = :status, updatedAt = :updatedAt";
+    const updates = [
+      "#status = :status",
+      "updatedAt = :updatedAt",
+    ];
 
     const expressionValues: Record<string, unknown> = {
       ":status": status,
       ":updatedAt": now,
     };
 
-    if (razorpayPaymentId) {
-      expressionValues[":paymentId"] = razorpayPaymentId;
-    }
-
-    let conditionExpression = "attribute_exists(PK)";
     const expressionAttributeNames: Record<string, string> = {
       "#status": "status",
     };
+
+    if (razorpayPaymentId) {
+      updates.push("razorpayPaymentId = :paymentId");
+      expressionValues[":paymentId"] = razorpayPaymentId;
+    }
+
+    if (providerWebhookEventId) {
+      updates.push("providerWebhookEventId = :webhookEventId");
+      expressionValues[":webhookEventId"] = providerWebhookEventId;
+    }
+
+    const updateExpression = `SET ${updates.join(", ")}`;
+
+    let conditionExpression = "attribute_exists(PK)";
 
     if (expectedStatus) {
       conditionExpression += " AND #status = :expectedStatus";
@@ -255,6 +266,11 @@ export class PaymentService implements IPaymentService {
 
     if (razorpayPaymentId) {
       conditionExpression += " AND (attribute_not_exists(razorpayPaymentId) OR razorpayPaymentId = :paymentId)";
+    }
+
+    if (providerWebhookEventId) {
+      conditionExpression +=
+        " AND (attribute_not_exists(providerWebhookEventId) OR providerWebhookEventId = :webhookEventId)";
     }
 
     await dynamo.send(

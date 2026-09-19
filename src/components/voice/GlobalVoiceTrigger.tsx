@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Mic } from "lucide-react";
 import { VoiceCaptureSheet } from "./VoiceCaptureSheet";
-import s from "./voice.module.css";
+import { Button } from "@/components/ui/button";
 
 export function GlobalVoiceTrigger() {
   const [open, setOpen] = useState(false);
@@ -40,19 +40,17 @@ export function GlobalVoiceTrigger() {
 
   return (
     <>
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon"
         id="global-voice-trigger"
-        className={s.triggerButton}
         onClick={() => setOpen(true)}
         aria-label="Open voice command (Ctrl+Space)"
         title="Ask KavachPay — Ctrl+Space"
+        className="relative shrink-0 text-muted-foreground hover:text-foreground"
       >
-        <span className={s.triggerDot} aria-hidden="true" />
-        <Mic size={13} aria-hidden="true" />
-        <span>Ask KavachPay…</span>
-        <kbd className={s.triggerKbd}>⌘ Space</kbd>
-      </button>
+        <Mic className="h-4 w-4" aria-hidden="true" />
+      </Button>
 
       {open && (
         <VoiceCaptureSheet onClose={() => setOpen(false)} />

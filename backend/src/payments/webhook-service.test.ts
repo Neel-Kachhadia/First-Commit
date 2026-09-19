@@ -378,7 +378,8 @@ describe("WebhookService", () => {
       intentId,
       "EXECUTED",
       "pay_test001",
-      "PAYMENT_CREATED"
+      "PAYMENT_CREATED",
+      "evt_005"
     );
   });
 
@@ -399,7 +400,8 @@ describe("WebhookService", () => {
       intentId,
       "FAILED",
       "pay_test001",
-      "PAYMENT_CREATED"
+      "PAYMENT_CREATED",
+      "evt_006"
     );
   });
 
@@ -497,7 +499,8 @@ describe("WebhookService", () => {
       intentId,
       "EXECUTED",
       "pay_test001",
-      "EXECUTED"
+      "EXECUTED",
+      "evt_concurrent_payment"
     );
   });
 

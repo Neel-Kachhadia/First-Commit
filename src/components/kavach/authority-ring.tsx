@@ -83,7 +83,7 @@ export function AuthorityRing({
           </span>
         </div>
       </div>
-      <div className="authority-ring-legend grid grid-cols-2 text-[9px]">
+      <div className="authority-ring-legend grid grid-cols-2 gap-2 text-[13px]">
         <button
           type="button"
           data-segment="remaining"
@@ -96,8 +96,8 @@ export function AuthorityRing({
             active === "remaining" && "is-active",
           )}
         >
-          <span className="block text-muted-foreground">Still reachable</span>
-          <span className="amount mt-0.5 block font-medium">{formatINR(live)}</span>
+          <span className="block whitespace-nowrap text-muted-foreground">Still reachable</span>
+          <span className="amount mt-0.5 block text-base font-semibold">{formatINR(live)}</span>
         </button>
         <button
           type="button"
@@ -111,8 +111,8 @@ export function AuthorityRing({
             active === "spent" && "is-active",
           )}
         >
-          <span className="block text-muted-foreground">Consumed</span>
-          <span className="amount mt-0.5 block font-medium">{formatINR(spent)}</span>
+          <span className="block whitespace-nowrap text-muted-foreground">Consumed</span>
+          <span className="amount mt-0.5 block text-base font-semibold">{formatINR(spent)}</span>
         </button>
       </div>
       <p className="sr-only">

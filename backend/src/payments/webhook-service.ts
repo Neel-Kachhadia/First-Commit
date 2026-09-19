@@ -293,7 +293,8 @@ export class WebhookService {
           intentId,
           "EXECUTED",
           razorpayPaymentId,
-          paymentRecord.status === "PAYMENT_CREATED" ? "PAYMENT_CREATED" : "EXECUTED"
+          paymentRecord.status === "PAYMENT_CREATED" ? "PAYMENT_CREATED" : "EXECUTED",
+          eventId
         );
       } catch (error: any) {
         if (error.name !== "ConditionalCheckFailedException") throw error;
@@ -334,6 +335,15 @@ export class WebhookService {
       throw new Error(`[WebhookService] Payment amount mismatch.`);
     }
 
+    const paymentEntity = payload.payload.payment?.entity;
+    const razorpayPaymentId = paymentEntity?.id;
+
+    if (paymentEntity && paymentEntity.order_id !== paymentRecord.razorpayOrderId) {
+      throw new Error(
+        `[WebhookService] Razorpay payment/order mismatch for intent ${intentId}.`
+      );
+    }
+
     // Pre-check intent state
     const intent = await intentRepository.getIntent(intentId);
     if (!intent) {
@@ -359,7 +369,13 @@ export class WebhookService {
     // Conditionally transition payment
     if (paymentRecord.status === "PAYMENT_CREATED") {
       try {
-        await paymentService.updatePaymentStatus(intentId, "EXECUTED", undefined, "PAYMENT_CREATED");
+        await paymentService.updatePaymentStatus(
+          intentId, 
+          "EXECUTED", 
+          razorpayPaymentId, 
+          "PAYMENT_CREATED",
+          eventId
+        );
       } catch (error: any) {
         if (error.name !== "ConditionalCheckFailedException") throw error;
         console.log(`[WebhookService] Payment ${intentId} status condition failed. Likely processed concurrently.`);
@@ -417,7 +433,13 @@ export class WebhookService {
     // Try transitioning payment to FAILED conditionally
     if (paymentRecord.status !== "FAILED") {
       try {
-        await paymentService.updatePaymentStatus(intentId, "FAILED", razorpayPaymentId, paymentRecord.status);
+        await paymentService.updatePaymentStatus(
+          intentId, 
+          "FAILED", 
+          razorpayPaymentId, 
+          paymentRecord.status,
+          eventId
+        );
       } catch (error: any) {
         if (error.name !== "ConditionalCheckFailedException") throw error;
         console.log(`[WebhookService] Payment ${intentId} already FAILED or status changed concurrently.`);

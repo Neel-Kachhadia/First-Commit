@@ -50,6 +50,7 @@ export interface CreateGrantPayload {
 }
 
 export interface Category {
+  id: string;
   slug: string;
   name: string;
   purpose: string;
@@ -139,7 +140,33 @@ export interface MandateFormState {
   blockedItems?: string[];
 }
 
+export interface AuditEvent {
+  eventId: string;
+  eventType: string;
+  timestamp: string;
+  target?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export const apiClient = {
+  getCategories: async (): Promise<Category[]> => {
+    const res = await fetch(`${API_BASE_URL}/v0/categories`, {
+      headers: await authHeaders(),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch categories: ${res.status}`);
+    }
+    const json = await res.json();
+    // The backend uses 'slug' as the primary identifier, but frontend expects 'id'
+    return json.categories.map((c: any) => ({ ...c, id: c.slug }));
+  },
+
+  getAudit: async (): Promise<{ events: AuditEvent[] }> => {
+    const res = await fetch(`${API_BASE_URL}/v0/audit?limit=50`, { headers: await authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch authority timeline");
+    return res.json();
+  },
   getExposure: async () => {
     const res = await fetch(`${API_BASE_URL}/v0/exposure`, {
       headers: await authHeaders(),
@@ -232,21 +259,13 @@ export const apiClient = {
     const res = await fetch(`${API_BASE_URL}/v0/demo/reset`, {
       method: "POST",
       headers: await authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({}),
+      body: JSON.stringify({ userId: DEMO_USER_ID }),
     });
     if (!res.ok) throw new Error("Failed to reset demo");
     return res.json();
   },
 
-  getCategories: async (): Promise<Category[]> => {
-    const res = await fetch(`${API_BASE_URL}/v0/categories`, {
-      headers: await authHeaders(),
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error("Failed to fetch categories");
-    const json = await res.json();
-    return json.categories ?? [];
-  },
+
 
   /**
    * Create a payment intent via POST /v0/intents.
@@ -378,5 +397,16 @@ export const apiClient = {
     }
     return json;
   },
-};
 
+  getCausalReplay: async (intentId: string) => {
+    const res = await fetch(`${API_BASE_URL}/v0/intents/${encodeURIComponent(intentId)}/causal-replay`, {
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Causal replay fetch failed:", res.status, errorText);
+      throw new Error(`Failed to fetch causal replay: ${res.status} ${errorText}`);
+    }
+    return res.json();
+  },
+};
