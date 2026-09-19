@@ -50,7 +50,6 @@ export interface CreateGrantPayload {
 }
 
 export interface Category {
-  id?: string;
   slug: string;
   name: string;
   purpose: string;
@@ -141,18 +140,6 @@ export interface MandateFormState {
 }
 
 export const apiClient = {
-  getCategories: async (): Promise<Category[]> => {
-    const res = await fetch(`${API_BASE_URL}/v0/categories`, {
-      headers: await authHeaders(),
-    });
-    if (!res.ok) {
-      throw new Error(`Failed to fetch categories: ${res.status}`);
-    }
-    const json = await res.json();
-    // The backend uses 'slug' as the primary identifier, but frontend expects 'id'
-    return json.categories.map((c: any) => ({ ...c, id: c.slug }));
-  },
-
   getExposure: async () => {
     const res = await fetch(`${API_BASE_URL}/v0/exposure`, {
       headers: await authHeaders(),
@@ -249,6 +236,16 @@ export const apiClient = {
     });
     if (!res.ok) throw new Error("Failed to reset demo");
     return res.json();
+  },
+
+  getCategories: async (): Promise<Category[]> => {
+    const res = await fetch(`${API_BASE_URL}/v0/categories`, {
+      headers: await authHeaders(),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error("Failed to fetch categories");
+    const json = await res.json();
+    return json.categories ?? [];
   },
 
   /**

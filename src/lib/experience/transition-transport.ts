@@ -27,8 +27,12 @@ export type TransportParams = {
   vMax: number;
   /** Maximum acceleration while speeding up in the current direction (progress/s^2). */
   accel: number;
-  /** Maximum deceleration while slowing down or reversing (progress/s^2). */
+  /** Maximum deceleration while slowing down during ordinary following (progress/s^2). */
   decel: number;
+  /** Terminal deceleration once scroll input has stopped (progress/s^2). */
+  stopDecel: number;
+  /** Reversal deceleration when commanded intent opposes current velocity (progress/s^2). */
+  reverseDecel: number;
   /** Linear follow gain of the tail (1/s): time constant = 1/follow. */
   follow: number;
   /** Maximum lead of the scroll target over the presented playhead ("scroll debt"), progress. */
@@ -46,13 +50,15 @@ export type TransportParams = {
   settleVel: number;
 };
 
-/** Tuned in visible Chrome; see SCROLL_TRANSPORT_CONTINUITY_REPORT.md. */
+/** Tuned in visible Chrome; see FINAL_SCROLL_LOCK_REPORT.md. */
 export const DEFAULT_TRANSPORT_PARAMS: TransportParams = {
   vMax: 1.0,
   accel: 6,
   decel: 12,
-  follow: 30,
-  gapMax: 0.06,
+  stopDecel: 15,
+  reverseDecel: 18,
+  follow: 32,
+  gapMax: 0.04,
   catchUpBoost: 3,
   gapJump: 0.4,
   maxDt: 1 / 20,
@@ -206,7 +212,9 @@ export class BoundaryTransport {
     const boost = this.handoffPending ? P.catchUpBoost : 1;
     const vMax = P.vMax * boost;
     const accel = P.accel * boost;
-    const decel = P.decel * boost;
+    const isTargetStatic = this.eff === this.lastEff;
+    const isReversing = this.v !== 0 && Math.sign(this.eff - this.p) !== Math.sign(this.v);
+    const effectiveDecel = (isReversing ? (P.reverseDecel ?? P.decel) : (isTargetStatic ? (P.stopDecel ?? P.decel) : P.decel)) * boost;
 
     const e = this.eff - this.p;
     // Braking profile evaluated at the MIDPOINT of this step's motion (semi-implicit integration lags half a step,
@@ -215,13 +223,13 @@ export class BoundaryTransport {
     const ae = Math.max(0, Math.abs(e) - approach);
     // "sqrt controller": constant-deceleration braking (85 % of the limit, as margin) that hands over to a linear
     // tail at e0 = D/k^2, where value AND slope match, so the tail never asks for more than D of deceleration.
-    const D = decel * 0.85;
+    const D = effectiveDecel * 0.85;
     const e0 = D / (P.follow * P.follow);
     const vBrake = ae > e0 ? Math.sqrt(2 * D * (ae - e0 / 2)) : P.follow * ae;
     const vStar = Math.sign(e) * Math.min(vMax, vBrake);
 
     const speedingUp = this.v === 0 || (Math.sign(vStar) === Math.sign(this.v) && Math.abs(vStar) > Math.abs(this.v));
-    const limit = (speedingUp ? accel : decel) * dt;
+    const limit = (speedingUp ? accel : effectiveDecel) * dt;
     const dv = Math.max(-limit, Math.min(limit, vStar - this.v));
     const vNew = this.v + dv;
     let pNew = this.p + 0.5 * (this.v + vNew) * dt;

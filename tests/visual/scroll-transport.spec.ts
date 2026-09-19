@@ -12,7 +12,7 @@ test.beforeEach(({}, testInfo) => {
 });
 
 const P = DEFAULT_TRANSPORT_PARAMS;
-const MAX_ACCEL = Math.max(P.accel, P.decel);
+const MAX_ACCEL = Math.max(P.accel, P.decel, P.stopDecel ?? P.decel, P.reverseDecel ?? P.decel);
 const HZ = [30, 60, 90, 120, 144, 165, 240] as const;
 const EDGES = { overlapFrac: 64 / 1748 };
 

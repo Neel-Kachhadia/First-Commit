@@ -7,7 +7,7 @@ import { DEFAULT_TRANSPORT_PARAMS } from "../../src/lib/experience/transition-tr
  */
 
 const P = DEFAULT_TRANSPORT_PARAMS;
-const MAX_ACCEL = Math.max(P.accel, P.decel);
+const MAX_ACCEL = Math.max(P.accel, P.decel, P.stopDecel ?? P.decel, P.reverseDecel ?? P.decel);
 const DESKTOP = new Set(["1920x1080", "1440x900", "1366x768"]);
 const MOBILE = new Set(["430x932", "390x844"]);
 
