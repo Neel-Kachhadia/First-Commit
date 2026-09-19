@@ -118,82 +118,107 @@ export function DecisionDossier({
           </p>
         </div>
 
-        <ol className="relative p-6 before:absolute before:bottom-8 before:left-[39px] before:top-8 before:w-px before:bg-border">
-          <TraceStep number="01" title="Original intent">
-            <p>“{entry.description}”</p>
-          </TraceStep>
-          <TraceStep number="02" title="Mandate">
-            <div className="flex flex-wrap items-center gap-2">
-              {agent ? <CopyId value={agent.mandateId} /> : null}
-              <span className="text-muted-foreground">
-                {agent?.rule.category ?? "Unknown scope"}
-              </span>
-            </div>
-            {agent ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {formatINR(agent.rule.monthlyLimit)}{" "}
-                {agent.rule.window.toLowerCase()} authority ·{" "}
-                {formatINR(agent.rule.perTransactionCap)} automatic threshold
-              </p>
-            ) : null}
-          </TraceStep>
-          <TraceStep number="03" title="Authority provenance">
-            <div className="flex flex-wrap items-center gap-2">
-              {agent?.authorityId ? <CopyId value={agent.authorityId} /> : null}
-              <span>{agent?.name ?? "Unknown agent"}</span>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Derived from {profile.name} · delegation depth 1 of 2
-            </p>
-          </TraceStep>
-          <TraceStep number="04" title="Budget at evaluation">
-            <dl className="grid grid-cols-3 gap-2 rounded-md border border-border bg-muted/25 p-3 text-xs">
+        <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border">
+          {/* AUTHORIZATION PANEL */}
+          <div className="p-6">
+            <h3 className="label-caps mb-4 flex items-center gap-2 text-primary">
+              <ShieldCheck className="h-4 w-4" /> Authorization
+            </h3>
+            <dl className="space-y-4 text-sm">
               <div>
-                <dt className="text-muted-foreground">Before</dt>
-                <dd className="amount mt-1 font-medium">{formatINR(before)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Claim</dt>
-                <dd className="amount mt-1 font-medium">
-                  {formatINR(entry.amount)}
+                <dt className="text-muted-foreground text-xs">Mandate</dt>
+                <dd className="mt-1 font-medium flex items-center gap-2">
+                  {agent?.status.toUpperCase() ?? "UNKNOWN"}
+                  {agent?.status === "active" && <Check className="h-3.5 w-3.5 text-success" />}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">After</dt>
-                <dd className="amount mt-1 font-medium">{formatINR(after)}</dd>
+                <dt className="text-muted-foreground text-xs">Category</dt>
+                <dd className="mt-1 font-medium">{agent?.rule.category ?? "N/A"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">Limit</dt>
+                <dd className="amount mt-1 font-medium">{agent ? formatINR(agent.rule.monthlyLimit) : "N/A"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">Remaining</dt>
+                <dd className="amount mt-1 font-medium text-success">{formatINR(before)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground text-xs">Policy rule</dt>
+                <dd className="mt-1 font-medium text-xs leading-snug">{entry.reason}</dd>
               </div>
             </dl>
-          </TraceStep>
-          <TraceStep number="05" title="Policy evaluation">
-            <p>{entry.reason}</p>
-          </TraceStep>
-          <TraceStep number="06" title="Execution">
-            <p className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              {entry.status === "APPROVED"
-                ? "Provider request issued"
-                : isStepUp
-                  ? "Provider request held for human approval"
-                  : "Provider request blocked before execution"}
-            </p>
-          </TraceStep>
-          <TraceStep number="07" title="Result">
-            <p className="flex items-center gap-2">
-              {entry.status === "APPROVED" ? (
-                <Check className="h-4 w-4 text-success" />
-              ) : isStepUp ? (
-                <Clock3 className="h-4 w-4 text-amber-500" />
-              ) : (
-                <ShieldCheck className="h-4 w-4 text-destructive" />
-              )}
-              {entry.status === "APPROVED"
-                ? "Payment completed successfully"
-                : isStepUp
-                  ? "Awaiting your human decision — approve or deny below"
-                  : "No money moved"}
-            </p>
-          </TraceStep>
-        </ol>
+          </div>
+
+          {/* PAYMENT EXECUTION PANEL */}
+          <div className="p-6 bg-muted/10">
+            <h3 className="label-caps mb-4 flex items-center gap-2 text-foreground">
+              <FileText className="h-4 w-4" /> Payment Execution
+            </h3>
+            
+            {entry.execution?.status === "NOT_INVOKED" ? (
+              <div className="text-sm">
+                <dl className="space-y-4 mb-4">
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Provider</dt>
+                    <dd className="mt-1 font-medium">{entry.execution.provider}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Environment</dt>
+                    <dd className="mt-1 font-medium">{entry.execution.environment.replace("_", " ")}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Status</dt>
+                    <dd className="mt-1 font-medium text-muted-foreground">NOT INVOKED</dd>
+                  </div>
+                </dl>
+                <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded border border-border">
+                  No provider order was created because KavachPay denied the intent.
+                </p>
+              </div>
+            ) : (
+              <dl className="space-y-4 text-sm">
+                <div>
+                  <dt className="text-muted-foreground text-xs">Provider</dt>
+                  <dd className="mt-1 font-medium">{entry.execution?.provider ?? "N/A"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground text-xs">Environment</dt>
+                  <dd className="mt-1 font-medium">{entry.execution?.environment?.replace("_", " ") ?? "N/A"}</dd>
+                </div>
+                {entry.execution?.orderId && (
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Order</dt>
+                    <dd className="mt-1 font-mono text-xs">{entry.execution.orderId}</dd>
+                  </div>
+                )}
+                {entry.execution?.paymentId && (
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Payment</dt>
+                    <dd className="mt-1 font-mono text-xs">{entry.execution.paymentId}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-muted-foreground text-xs">Status</dt>
+                  <dd className="mt-1 font-medium flex items-center gap-2">
+                    {entry.execution?.status?.replace("PROVIDER_", "") ?? "PENDING"}
+                    {entry.execution?.status === "PROVIDER_CAPTURED" && <Check className="h-3.5 w-3.5 text-success" />}
+                  </dd>
+                </div>
+                {entry.execution?.webhookVerified !== undefined && (
+                  <div>
+                    <dt className="text-muted-foreground text-xs">Webhook</dt>
+                    <dd className="mt-1 font-medium flex items-center gap-2">
+                      {entry.execution.webhookVerified ? "VERIFIED" : "PENDING"}
+                      {entry.execution.webhookVerified && <Check className="h-3.5 w-3.5 text-success" />}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            )}
+          </div>
+        </div>
 
         {isStepUp ? (
           <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-background p-4">

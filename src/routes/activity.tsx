@@ -646,6 +646,18 @@ export default function ActivityPage() {
                         <p className="mt-1 font-mono text-[10px] text-muted-foreground">
                           {entry.id.toUpperCase()}
                         </p>
+                        {entry.execution && (
+                          <div className="mt-3 text-[10px] leading-snug">
+                            {entry.execution.status === "NOT_INVOKED" ? (
+                              <p className="text-muted-foreground font-mono uppercase">PSP NOT INVOKED</p>
+                            ) : (
+                              <>
+                                <p className="text-muted-foreground font-medium uppercase tracking-wider">{entry.execution.provider} · {entry.execution.environment.replace("_", " ")}</p>
+                                <p className="font-mono mt-0.5 text-foreground">{entry.execution.status.replace("PROVIDER_", "")}</p>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-4 text-xs">
                         {agent?.name ?? "Agent"}

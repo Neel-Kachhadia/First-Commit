@@ -1,12 +1,20 @@
 import * as cdk from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as cognito from "aws-cdk-lib/aws-cognito";
+import * as lambdaNodejs from "aws-cdk-lib/aws-lambda-nodejs";
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as kms from "aws-cdk-lib/aws-kms";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as path from "path";
 import { Construct } from "constructs";
 
 export class KavachPayStack extends cdk.Stack {
   public readonly kavachPayTable: dynamodb.Table;
   public readonly userPool: cognito.UserPool;
   public readonly userPoolClient: cognito.UserPoolClient;
+
+  public readonly kavachPayLambda: lambdaNodejs.NodejsFunction;
+  public readonly api: apigateway.RestApi;
 
   constructor(
     scope: Construct,
@@ -15,7 +23,9 @@ export class KavachPayStack extends cdk.Stack {
   ) {
     super(scope, id, props);
 
-    // ── DynamoDB ──────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // DynamoDB
+    // ─────────────────────────────────────────────────────────────────────────
 
     this.kavachPayTable = new dynamodb.Table(this, "KavachPayTable", {
       tableName: "kavachpay-dev",
@@ -51,17 +61,21 @@ export class KavachPayStack extends cdk.Stack {
       description: "KavachPay DynamoDB table ARN",
     });
 
-    // ── Cognito User Pool ─────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────────────
+    // Cognito
+    // ─────────────────────────────────────────────────────────────────────────
 
     this.userPool = new cognito.UserPool(this, "KavachPayUserPool", {
       userPoolName: "kavachpay-dev-users",
 
-      // Email is the login identifier; no username alias.
-      signInAliases: { email: true },
-      autoVerify: { email: true },
+      signInAliases: {
+        email: true,
+      },
 
-      // Email verification is REQUIRED before a user can sign in.
-      // This is a finance app — unverified identities must not get access.
+      autoVerify: {
+        email: true,
+      },
+
       userVerification: {
         emailSubject: "KavachPay — Verify your email",
         emailBody:
@@ -70,51 +84,50 @@ export class KavachPayStack extends cdk.Stack {
         emailStyle: cognito.VerificationEmailStyle.CODE,
       },
 
-      // Strong password policy for a finance context.
       passwordPolicy: {
         minLength: 8,
         requireLowercase: true,
         requireUppercase: true,
         requireDigits: true,
-        requireSymbols: false, // keep UX reasonable; backend can enforce more
+        requireSymbols: false,
         tempPasswordValidity: cdk.Duration.days(3),
       },
 
       selfSignUpEnabled: true,
 
-      // Standard attributes captured at registration.
       standardAttributes: {
-        email: { required: true, mutable: false },
+        email: {
+          required: true,
+          mutable: false,
+        },
       },
 
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
 
-      // For dev: keep the pool if you accidentally run `cdk destroy`.
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    // ── Cognito App Client ────────────────────────────────────────────────────
+    this.userPoolClient = this.userPool.addClient(
+      "KavachPayWebClient",
+      {
+        userPoolClientName: "kavachpay-web",
 
-    this.userPoolClient = this.userPool.addClient("KavachPayWebClient", {
-      userPoolClientName: "kavachpay-web",
+        generateSecret: false,
 
-      // Public SPA client — no client secret (Amplify requirement).
-      generateSecret: false,
+        authFlows: {
+          userPassword: true,
+          userSrp: true,
+          custom: false,
+          adminUserPassword: false,
+        },
 
-      authFlows: {
-        userPassword: true,   // USER_PASSWORD_AUTH (Amplify default)
-        userSrp: true,        // USER_SRP_AUTH (recommended for security)
-        custom: false,
-        adminUserPassword: false,
-      },
+        idTokenValidity: cdk.Duration.hours(1),
+        accessTokenValidity: cdk.Duration.hours(1),
+        refreshTokenValidity: cdk.Duration.days(30),
 
-      // Token validity windows suitable for a finance app.
-      idTokenValidity: cdk.Duration.hours(1),
-      accessTokenValidity: cdk.Duration.hours(1),
-      refreshTokenValidity: cdk.Duration.days(30),
-
-      preventUserExistenceErrors: true,
-    });
+        preventUserExistenceErrors: true,
+      }
+    );
 
     new cdk.CfnOutput(this, "KavachPayUserPoolId", {
       value: this.userPool.userPoolId,
@@ -125,5 +138,232 @@ export class KavachPayStack extends cdk.Stack {
       value: this.userPoolClient.userPoolClientId,
       description: "Cognito App Client ID",
     });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Existing KMS receipt-signing key
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const receiptSigningKey = kms.Key.fromLookup(
+      this,
+      "ReceiptSigningKey",
+      {
+        aliasName: "alias/kavachpay-receipt-signer",
+      }
+    );
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Existing Razorpay secret
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const razorpaySecret =
+      secretsmanager.Secret.fromSecretNameV2(
+        this,
+        "RazorpaySecret",
+        "kavachpay/razorpay"
+      );
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Backend Lambda
+    //
+    // Entry:
+    // backend/src/lambda.ts
+    //
+    // Export:
+    // export const handler = ...
+    // ─────────────────────────────────────────────────────────────────────────
+
+    this.kavachPayLambda =
+      new lambdaNodejs.NodejsFunction(
+        this,
+        "KavachPayLambda",
+        {
+          functionName: "KavachPayLambda",
+
+          runtime: cdk.aws_lambda.Runtime.NODEJS_22_X,
+
+          entry: path.join(
+            __dirname,
+            "../../backend/src/lambda.ts"
+          ),
+
+          projectRoot: path.join(__dirname, "../../backend"),
+
+          depsLockFilePath: path.join(__dirname, "../../backend/package-lock.json"),
+
+          handler: "handler",
+
+          timeout: cdk.Duration.seconds(30),
+
+          memorySize: 1024,
+
+          bundling: {
+            minify: false,
+            sourceMap: false,
+
+            // Lambda already provides the AWS SDK.
+            externalModules: [
+              "@aws-sdk/*",
+            ],
+          },
+
+          environment: {
+            NODE_ENV: "production",
+
+            TABLE_NAME:
+              this.kavachPayTable.tableName,
+
+            KMS_KEY_ID:
+              receiptSigningKey.keyId,
+
+            RAZORPAY_SECRET_ARN:
+              razorpaySecret.secretName,
+
+            COGNITO_USER_POOL_ID:
+              this.userPool.userPoolId,
+
+            COGNITO_CLIENT_ID:
+              this.userPoolClient.userPoolClientId,
+          },
+        }
+      );
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Lambda → DynamoDB
+    // ─────────────────────────────────────────────────────────────────────────
+
+    this.kavachPayTable.grantReadWriteData(
+      this.kavachPayLambda
+    );
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Lambda → KMS
+    // ─────────────────────────────────────────────────────────────────────────
+
+    receiptSigningKey.grantSign(
+      this.kavachPayLambda
+    );
+
+    receiptSigningKey.grantVerify(
+      this.kavachPayLambda
+    );
+
+    receiptSigningKey.grant(
+      this.kavachPayLambda,
+      "kms:GetPublicKey",
+      "kms:DescribeKey"
+    );
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Lambda → Secrets Manager
+    // ─────────────────────────────────────────────────────────────────────────
+
+    razorpaySecret.grantRead(
+      this.kavachPayLambda
+    );
+    
+    // Add Bedrock permissions
+    this.kavachPayLambda.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      actions: [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      resources: ["*"],
+    }));
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // API Gateway
+    // ─────────────────────────────────────────────────────────────────────────
+
+    this.api = new apigateway.RestApi(
+      this,
+      "KavachPayApi",
+      {
+        restApiName: "KavachPay API",
+
+        description:
+          "KavachPay Agentic Money Control Plane API",
+
+        deployOptions: {
+          stageName: "dev",
+
+          tracingEnabled: true,
+
+          metricsEnabled: true,
+
+          loggingLevel:
+            apigateway.MethodLoggingLevel.INFO,
+        },
+
+        defaultCorsPreflightOptions: {
+          allowOrigins:
+            apigateway.Cors.ALL_ORIGINS,
+
+          allowMethods:
+            apigateway.Cors.ALL_METHODS,
+
+          allowHeaders: [
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+          ],
+        },
+      }
+    );
+
+    const lambdaIntegration =
+      new apigateway.LambdaIntegration(
+        this.kavachPayLambda,
+        {
+          proxy: true,
+        }
+      );
+
+    // Express owns the routes.
+    //
+    // API Gateway simply forwards:
+    //
+    // /ready
+    // /v0/grants
+    // /v0/intents
+    // /v0/exposure
+    // /v0/decisions/*
+    // /v0/webhooks/razorpay
+    // /api/execute-order
+    // etc.
+    //
+    this.api.root.addProxy({
+      defaultIntegration:
+        lambdaIntegration,
+
+      anyMethod: true,
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Outputs
+    // ─────────────────────────────────────────────────────────────────────────
+
+    new cdk.CfnOutput(
+      this,
+      "KavachPayLambdaName",
+      {
+        value:
+          this.kavachPayLambda.functionName,
+
+        description:
+          "KavachPay backend Lambda function",
+      }
+    );
+
+    new cdk.CfnOutput(
+      this,
+      "KavachPayApiUrl",
+      {
+        value:
+          this.api.url,
+
+        description:
+          "KavachPay API Gateway URL",
+      }
+    );
   }
 }
