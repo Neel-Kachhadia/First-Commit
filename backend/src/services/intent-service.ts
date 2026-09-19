@@ -64,6 +64,8 @@ export interface CreateIntentInput {
 
   description?: string;
 
+  items?: import("../models/intent.js").OrderItem[];
+
   idempotencyKey: string;
 
   evidence?: {
@@ -138,6 +140,8 @@ export class IntentService {
         merchant: input.merchant,
 
         description: input.description,
+
+        items: input.items,
 
         idempotencyKey:
           input.idempotencyKey,
@@ -263,10 +267,19 @@ export class IntentService {
           decision
         );
 
+        intent.reason = decision.reason;
+        intent.reasonCode = decision.reasonCode;
+        intent.providerStatus = decision.providerStatus;
+
         await applyTransition(
           intent.intentId,
           intent.status,
-          "RESERVED"
+          "RESERVED",
+          {
+            reason: decision.reason,
+            reasonCode: decision.reasonCode,
+            providerStatus: decision.providerStatus,
+          }
         );
 
         intent.status = "RESERVED";
@@ -296,15 +309,25 @@ export class IntentService {
         decision.reasonCode = "RESERVATION_FAILED";
         decision.reason = "Authorization passed, but atomic reservation failed because the required authority could not be reserved.";
         decision.reserved = false;
+        decision.providerStatus = "NOT_INVOKED";
 
         await receiptService.finalizeDecision(
           decision
         );
 
+        intent.reason = decision.reason;
+        intent.reasonCode = decision.reasonCode;
+        intent.providerStatus = decision.providerStatus;
+
         await applyTransition(
           intent.intentId,
           intent.status,
-          "DENIED"
+          "DENIED",
+          {
+            reason: decision.reason,
+            reasonCode: decision.reasonCode,
+            providerStatus: decision.providerStatus,
+          }
         );
 
         intent.status = "DENIED";
@@ -314,10 +337,19 @@ export class IntentService {
         decision
       );
 
+      intent.reason = decision.reason;
+      intent.reasonCode = decision.reasonCode;
+      intent.providerStatus = decision.providerStatus;
+
       await applyTransition(
         intent.intentId,
         intent.status,
-        "STEP_UP_REQUIRED"
+        "STEP_UP_REQUIRED",
+        {
+          reason: decision.reason,
+          reasonCode: decision.reasonCode,
+          providerStatus: decision.providerStatus,
+        }
       );
 
       intent.status = "STEP_UP_REQUIRED";
@@ -333,10 +365,25 @@ export class IntentService {
         decision
       );
 
+      intent.reason = decision.reason;
+      intent.reasonCode = decision.reasonCode;
+      intent.blockedItem = decision.blockedItem;
+      intent.blockedCategory = decision.blockedCategory;
+      intent.matchedPolicy = decision.matchedPolicy;
+      intent.providerStatus = decision.providerStatus;
+
       await applyTransition(
         intent.intentId,
         intent.status,
-        "DENIED"
+        "DENIED",
+        {
+          reason: decision.reason,
+          reasonCode: decision.reasonCode,
+          blockedItem: decision.blockedItem,
+          blockedCategory: decision.blockedCategory,
+          matchedPolicy: decision.matchedPolicy,
+          providerStatus: decision.providerStatus,
+        }
       );
 
       intent.status = "DENIED";

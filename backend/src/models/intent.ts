@@ -18,6 +18,23 @@ export const DecisionTypeSchema = z.enum([
   "DENY",
 ]);
 
+export const OrderItemSchema = z.union([
+  z.string().transform((name) => ({ name, category: undefined as string | undefined })),
+  z.object({
+    name: z.string().min(1),
+    category: z.string().optional(),
+    amount: z.number().optional(),
+    quantity: z.number().int().positive().optional(),
+  }),
+]);
+
+export type OrderItem = {
+  name: string;
+  category?: string;
+  amount?: number;
+  quantity?: number;
+};
+
 export const IntentSchema = z.object({
   intentId: z.string().min(1),
 
@@ -37,6 +54,8 @@ export const IntentSchema = z.object({
 
   description: z.string().optional(),
 
+  items: z.array(OrderItemSchema).optional(),
+
   idempotencyKey: z.string().min(1),
 
   evidence: z
@@ -48,6 +67,18 @@ export const IntentSchema = z.object({
     .optional(),
 
   status: IntentStatusSchema.default("PENDING"),
+
+  reason: z.string().optional(),
+
+  reasonCode: z.string().optional(),
+
+  blockedItem: z.string().optional(),
+
+  blockedCategory: z.string().optional(),
+
+  matchedPolicy: z.string().optional(),
+
+  providerStatus: z.enum(["NOT_INVOKED", "INVOKED", "SKIPPED"]).optional(),
 
   createdAt: z.string().datetime(),
 

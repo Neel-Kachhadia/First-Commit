@@ -149,6 +149,37 @@ export function DecisionDossier({
                 <dd className="mt-1 font-medium text-xs leading-snug">{entry.reason}</dd>
               </div>
             </dl>
+            {(entry.reasonCode === "ITEM_BLOCKED" || entry.blockedItem || entry.blockedCategory) && (
+              <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs space-y-2">
+                <div className="flex items-center gap-1.5 font-semibold text-destructive">
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>Item-Level Enforcement Violation</span>
+                </div>
+                <dl className="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
+                  {entry.blockedItem && (
+                    <div>
+                      <dt className="text-muted-foreground">Prohibited Item</dt>
+                      <dd className="text-destructive font-semibold">{entry.blockedItem}</dd>
+                    </div>
+                  )}
+                  {entry.blockedCategory && (
+                    <div>
+                      <dt className="text-muted-foreground">Blocked Category</dt>
+                      <dd className="text-destructive font-semibold">{entry.blockedCategory}</dd>
+                    </div>
+                  )}
+                  {entry.matchedPolicy && (
+                    <div>
+                      <dt className="text-muted-foreground">Matched Policy</dt>
+                      <dd className="text-foreground">{entry.matchedPolicy}</dd>
+                    </div>
+                  )}
+                </dl>
+                <p className="text-[10px] text-muted-foreground pt-1 border-t border-destructive/20 mt-2">
+                  Evidence: KMS-backed, tamper-evident signed decision evidence recorded in audit log.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* PAYMENT EXECUTION PANEL */}

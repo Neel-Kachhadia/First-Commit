@@ -45,6 +45,17 @@ export interface CreateGrantPayload {
   windowStart: string;
   delegationEnabled: boolean;
   parentGrantId?: string;
+  blockedCategories?: string[];
+  blockedItems?: string[];
+}
+
+export interface Category {
+  slug: string;
+  name: string;
+  purpose: string;
+  merchants: string[];
+  source: "system" | "user";
+  createdAt: string;
 }
 
 export type Category = {
@@ -87,6 +98,7 @@ export interface CreateIntentPayload {
   };
   description: string;
   idempotencyKey: string;
+  items?: Array<{ name: string; category?: string; amount?: number; quantity?: number } | string>;
 }
 
 export interface CreateIntentResult {
@@ -103,6 +115,11 @@ export interface CreateIntentResult {
   decision: {
     decision: "ALLOW" | "DENY" | "STEP_UP";
     reason?: string;
+    reasonCode?: string;
+    blockedItem?: string;
+    blockedCategory?: string;
+    matchedPolicy?: string;
+    providerStatus?: string;
   };
 }
 
@@ -115,6 +132,8 @@ export interface MandateExtraction {
   monthlyLimit: number | null;
   perTransactionCap: number | null;
   approvedMerchants: string[] | null;
+  blockedCategories?: string[] | null;
+  blockedItems?: string[] | null;
   unresolvedFields: string[];
   ambiguities: string | null;
 }
@@ -126,6 +145,8 @@ export interface MandateFormState {
   monthlyLimit?: number;
   perTransactionCap?: number;
   approvedMerchants?: string[];
+  blockedCategories?: string[];
+  blockedItems?: string[];
 }
 
 export const apiClient = {
@@ -239,6 +260,16 @@ export const apiClient = {
     return res.json();
   },
 
+  getCategories: async (): Promise<Category[]> => {
+    const res = await fetch(`${API_BASE_URL}/v0/categories`, {
+      headers: await authHeaders(),
+      cache: "no-store",
+    });
+    if (!res.ok) throw new Error("Failed to fetch categories");
+    const json = await res.json();
+    return json.categories ?? [];
+  },
+
   /**
    * Create a payment intent via POST /v0/intents.
    *
@@ -326,4 +357,48 @@ export const apiClient = {
     }
     return res.json();
   },
+
+  // ── Global Voice Command ───────────────────────────────────────────────────
+
+  /**
+   * Interpretation-only: parse a spoken transcript into a structured
+   * VoiceWorkflow bundle. No mutations; does not require auth.
+   */
+  parseVoiceWorkflow: async (
+    transcript: string
+  ): Promise<{ success: boolean; workflow: import("./voice-workflow-types").VoiceWorkflow }> => {
+    const res = await fetch(`${API_BASE_URL}/api/assistant/voice/parse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transcript }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Voice parsing failed" }));
+      throw new Error(err.error ?? "Voice parsing failed");
+    }
+    return res.json();
+  },
+
+  /**
+   * Authenticated execution: send a confirmed VoiceWorkflow to the backend
+   * for deterministic execution under the Cognito user's identity.
+   * Returns per-action results and an overall status.
+   */
+  executeVoiceWorkflow: async (
+    workflow: import("./voice-workflow-types").VoiceWorkflow,
+    confirmedActions: string[]
+  ): Promise<import("./voice-workflow-types").WorkflowExecutionResult> => {
+    const headers = await authHeaders({ "Content-Type": "application/json" });
+    const res = await fetch(`${API_BASE_URL}/api/assistant/voice/execute`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ workflow, confirmedActions }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok && !json?.results) {
+      throw new Error(json?.error ?? "Workflow execution failed");
+    }
+    return json;
+  },
 };
+

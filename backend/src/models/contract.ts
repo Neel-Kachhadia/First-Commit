@@ -65,6 +65,14 @@ export const ContractSchema = z.object({
     merchantDeny: z
       .array(z.string())
       .default([]),
+
+    blockedCategories: z
+      .array(z.string())
+      .default([]),
+
+    blockedItems: z
+      .array(z.string())
+      .default([]),
   }),
 
   delegation: z.object({

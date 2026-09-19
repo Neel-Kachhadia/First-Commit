@@ -54,6 +54,8 @@ export interface SpendingRule {
   category: string;
   merchants: string[];
   window: string;
+  blockedCategories?: string[];
+  blockedItems?: string[];
   expiresOn?: string;
   allowDelegation?: boolean;
   delegationDepth?: number;
@@ -79,8 +81,12 @@ export interface LedgerEntry {
   amount: number;
   status: LedgerStatus;
   reason: string;
+  reasonCode?: string;
   at: string;
   execution?: ProviderExecution;
+  blockedItem?: string;
+  blockedCategory?: string;
+  matchedPolicy?: string;
 }
 
 export interface ApprovalRequest {

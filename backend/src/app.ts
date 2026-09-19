@@ -61,6 +61,13 @@ import {
 import {
   resetDemoHandler,
 } from "./handlers/demo-handler.js";
+import {
+  executeVoiceWorkflowHandler,
+} from "./handlers/voice-workflow-handler.js";
+
+import {
+  parseVoiceWorkflowHandler,
+} from "./handlers/assistant-handler.js";
 
 import {
   runScenarioHandler,
@@ -221,6 +228,21 @@ export function createApp() {
   app.post(
     "/api/assistant/extract-mandate",
     extractMandateVoiceHandler
+  );
+
+  // POST /api/assistant/voice/parse
+  // Interpretation-only: transcript → structured VoiceWorkflow bundle (no mutations)
+  app.post(
+    "/api/assistant/voice/parse",
+    parseVoiceWorkflowHandler
+  );
+
+  // POST /api/assistant/voice/execute
+  // Authenticated: executes a confirmed VoiceWorkflow under the Cognito user's identity
+  app.post(
+    "/api/assistant/voice/execute",
+    cognitoAuthMiddleware,
+    executeVoiceWorkflowHandler
   );
 
   app.post(

@@ -44,6 +44,10 @@ export interface CreateGrantInput {
 
   merchantDeny?: string[];
 
+  blockedCategories?: string[];
+
+  blockedItems?: string[];
+
   delegationEnabled?: boolean;
 
   maxDepth?: number;
@@ -203,6 +207,16 @@ export class GrantService {
       merchantDeny:
         input.merchantDeny ?? [],
 
+      blockedCategories: Array.from(new Set([
+        ...(parentGrant?.blockedCategories ?? []),
+        ...(input.blockedCategories ?? []),
+      ])),
+
+      blockedItems: Array.from(new Set([
+        ...(parentGrant?.blockedItems ?? []),
+        ...(input.blockedItems ?? []),
+      ])),
+
       delegationEnabled:
         input.delegationEnabled ?? false,
 
@@ -341,6 +355,12 @@ export class GrantService {
 
           merchantDeny:
             grant.merchantDeny ?? [],
+
+          blockedCategories:
+            grant.blockedCategories ?? [],
+
+          blockedItems:
+            grant.blockedItems ?? [],
         },
 
         delegation: {
