@@ -13,11 +13,8 @@ import { AnimatedList, CountUpValue } from "@/components/ui/motion-primitives";
 import { useKavach } from "@/lib/kavach-store";
 import { formatINR } from "@/lib/kavach-data";
 import {
-  AgentGlyph,
-  AuthorityGlyph,
   MandateGlyph,
   MandatePlusGlyph,
-  MerchantGlyph,
 } from "@/components/kavach/icons";
 
 export default function AgentsPage() {
@@ -45,7 +42,6 @@ export default function AgentsPage() {
         <div className="bg-card p-5">
           <div className="flex items-center justify-between">
             <p className="label-caps">Active agents</p>
-            <AgentGlyph className="h-4 w-4 text-success" />
           </div>
           <p className="amount mt-3 text-2xl font-medium">
             <CountUpValue value={live} />
@@ -57,7 +53,6 @@ export default function AgentsPage() {
         <div className="bg-card p-5">
           <div className="flex items-center justify-between">
             <p className="label-caps">Reachable authority</p>
-            <AuthorityGlyph className="h-4 w-4 text-primary" />
           </div>
           <p className="amount mt-3 text-2xl font-medium">
             <CountUpValue value={reachable} format={formatINR} />
@@ -69,7 +64,6 @@ export default function AgentsPage() {
         <div className="bg-card p-5">
           <div className="flex items-center justify-between">
             <p className="label-caps">Approved merchants</p>
-            <MerchantGlyph className="h-4 w-4 text-stepup" />
           </div>
           <p className="amount mt-3 text-2xl font-medium">
             <CountUpValue value={merchants} />

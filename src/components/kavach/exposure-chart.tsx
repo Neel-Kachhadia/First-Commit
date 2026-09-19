@@ -155,6 +155,21 @@ export function ExposureChart({
   const withdrawn = Math.max(0, peak - currentExposure);
   const remainingPercent = Math.round((currentExposure / peak) * 100);
 
+  if (history.length === 0) {
+    return (
+      <div className="flex flex-wrap items-end justify-between gap-4 py-3">
+        <div>
+          <p className="text-sm text-muted-foreground">Current reachable exposure</p>
+          <p className="amount mt-1 text-3xl font-semibold">{formatINR(currentExposure)}</p>
+        </div>
+        <div className="max-w-sm">
+          <p className="text-sm font-semibold">No historical data available</p>
+          <p className="mt-1 text-sm text-muted-foreground">The backend provides the current exposure, but not dated exposure snapshots yet.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3.5">
       <div className="exposure-commandbar grid gap-4 border-b border-border/70 pb-4 lg:grid-cols-[auto_minmax(220px,1fr)_auto] lg:items-end">

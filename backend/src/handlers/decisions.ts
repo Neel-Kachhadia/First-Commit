@@ -69,7 +69,7 @@ export async function verifyReceiptHandler(
 }
 
 /**
- * GET /v0/audit?userId=
+ * GET /v0/audit
  *
  * List recent audit events for a user.
  */
@@ -78,13 +78,9 @@ export async function listAuditHandler(
   res: Response
 ): Promise<void> {
   try {
-    const userId = req.query.userId as string;
-    const limit = Math.min(Number(req.query.limit ?? 50), 200);
-
-    if (!userId) {
-      res.status(400).json({ error: "userId query parameter is required" });
-      return;
-    }
+    const userId = req.user!.sub;
+    const requestedLimit = Number(req.query.limit ?? 50);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 200)) : 50;
 
     const events = await auditRepository.listEvents(userId, limit);
     res.status(200).json({ events });

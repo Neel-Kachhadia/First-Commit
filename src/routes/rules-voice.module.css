@@ -1,19 +1,18 @@
 .header { display: flex; align-items: center; justify-content: space-between; gap: 22px; }
 .voiceInvitation { margin-top: 9px; color: var(--muted-foreground); font-size: 15px; line-height: 1.4; }
-.trigger { position: relative; display: flex; align-items: center; gap: 10px; flex: none; min-width: 175px; min-height: 46px; padding: 6px 12px 6px 8px; border: 1px solid var(--authority-deck); border-radius: 6px; background: var(--authority-deck); color: var(--authority-deck-foreground); text-align: left; cursor: pointer; box-shadow: 0 3px 0 color-mix(in srgb, var(--authority-deck) 20%, transparent); transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease; }
-.trigger:hover:not(:disabled) { transform: translateY(-1.5px); box-shadow: 0 4.5px 0 color-mix(in srgb, var(--authority-deck) 20%, transparent); }
-.trigger:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 0 color-mix(in srgb, var(--authority-deck) 20%, transparent); }
+.trigger { position: relative; display: flex; align-items: center; gap: 11px; flex: none; min-width: 190px; min-height: 52px; padding: 7px 16px 7px 8px; border: 1px solid var(--authority-deck); border-radius: 14px; background: var(--authority-deck); color: var(--authority-deck-foreground); text-align: left; cursor: pointer; transition: background-color .18s ease, box-shadow .18s ease, opacity .18s ease; }
+.trigger:hover:not(:disabled) { background: color-mix(in srgb, var(--authority-deck) 88%, var(--foreground)); box-shadow: 0 7px 20px -15px var(--authority-deck); }
+.trigger:active:not(:disabled) { box-shadow: none; }
 .trigger:focus-visible, .stopButton:focus-visible, .applyButton:focus-visible, .secondaryButton:focus-visible, .errorPanel button:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
-.trigger:disabled { cursor: wait; opacity: .72; box-shadow: none; }
+.trigger:disabled { cursor: wait; opacity: .72; }
 .trigger[data-state="recording"] { background: var(--instrument); border-color: var(--destructive); color: var(--instrument-foreground); }
-.triggerIcon { position: relative; display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 1px solid currentColor; border-radius: 4px; }
-.triggerIcon::after { content: ""; position: absolute; inset: -3px; border: 1px solid currentColor; border-radius: 6px; opacity: .42; }
-.trigger[data-state="recording"] .triggerIcon::after { animation: iconPulse 1.8s ease-in-out infinite; }
+.triggerIcon { position: relative; display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 50%; background: rgba(255, 247, 234, .15); }
+.trigger[data-state="recording"] .triggerIcon { animation: iconPulse 1.8s ease-in-out infinite; }
 .triggerCopy { display: flex; flex: 1; flex-direction: column; gap: 0; line-height: 1.13; }
 .triggerCopy strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
-.triggerCopy small { margin-top: 2px; font-size: 11px; opacity: .84; white-space: nowrap; }
+.triggerCopy small { margin-top: 3px; font-size: 12px; opacity: .84; white-space: nowrap; }
 .triggerWave { flex: none; opacity: .82; }
-.session { overflow: hidden; margin-top: 23px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); animation: reveal .26s ease-out both; }
+.session { overflow: hidden; margin-top: 23px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); animation: reveal .26s ease-out both; }
 .sessionHeading { display: flex; justify-content: space-between; gap: 15px; padding: 13px 18px; border-bottom: 1px solid var(--border); }
 .session[data-state="done"] .sessionStatus { color: var(--success); }
 .session[data-state="error"] .sessionStatus { color: var(--destructive); }

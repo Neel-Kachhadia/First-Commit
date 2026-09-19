@@ -1,9 +1,43 @@
 import type { Agent, LedgerEntry, ApprovalRequest, AgentStatus, LedgerStatus } from "./kavach-data";
 
-export function grantToAgent(grant: any): Agent {
+interface GrantRecord {
+  grantId: string;
+  label?: string;
+  parentGrantId?: string;
+  status?: string;
+  consumed?: number;
+  limit: number;
+  createdAt?: string;
+  stepUpAbove?: number;
+  hardMax?: number;
+  category?: string;
+  merchantAllow?: string[];
+  window?: string;
+  blockedCategories?: string[];
+  blockedItems?: string[];
+  delegationEnabled?: boolean;
+}
+
+interface IntentRecord {
+  intentId: string;
+  grantId: string;
+  merchant?: { name?: string };
+  description?: string;
+  amount?: number;
+  status?: string;
+  reason?: string;
+  createdAt: string;
+  reasonCode?: string;
+  blockedItem?: string;
+  blockedCategory?: string;
+  matchedPolicy?: string;
+  providerStatus?: LedgerEntry["providerStatus"];
+}
+
+export function grantToAgent(grant: GrantRecord): Agent {
   let status: AgentStatus = "active";
   if (grant.status === "REVOKED") status = "revoked";
-  else if (grant.consumed >= grant.limit) status = "exhausted";
+  else if ((grant.consumed ?? 0) >= grant.limit) status = "exhausted";
 
   return {
     id: grant.grantId,
@@ -12,7 +46,7 @@ export function grantToAgent(grant: any): Agent {
     purpose: "Backend-managed authority",
     status,
     consumed: grant.consumed || 0,
-    issuedOn: grant.createdAt,
+    issuedOn: grant.createdAt ?? "",
     rule: {
       monthlyLimit: grant.limit,
       perTransactionCap: (grant.stepUpAbove != null && grant.stepUpAbove > 0) ? grant.stepUpAbove : (grant.hardMax || 0),
@@ -21,11 +55,12 @@ export function grantToAgent(grant: any): Agent {
       window: grant.window || "MONTHLY",
       blockedCategories: grant.blockedCategories || [],
       blockedItems: grant.blockedItems || [],
+      allowDelegation: Boolean(grant.delegationEnabled),
     },
   };
 }
 
-export function intentToLedgerEntry(intent: any): LedgerEntry {
+export function intentToLedgerEntry(intent: IntentRecord): LedgerEntry {
   let status: LedgerStatus = "PENDING";
   const rawStatus = String(intent.status || "").toUpperCase();
 
@@ -101,7 +136,7 @@ export function intentToLedgerEntry(intent: any): LedgerEntry {
   };
 }
 
-export function intentToApproval(intent: any): ApprovalRequest | null {
+export function intentToApproval(intent: IntentRecord): ApprovalRequest | null {
   const rawStatus = String(intent.status || "").toUpperCase();
   if (rawStatus !== "STEP_UP_REQUIRED" && rawStatus !== "STEP_UP") return null;
 

@@ -140,6 +140,14 @@ export interface MandateFormState {
   blockedItems?: string[];
 }
 
+export interface AuditEvent {
+  eventId: string;
+  eventType: string;
+  timestamp: string;
+  target?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export const apiClient = {
   getCategories: async (): Promise<Category[]> => {
     const res = await fetch(`${API_BASE_URL}/v0/categories`, {
@@ -154,6 +162,11 @@ export const apiClient = {
     return json.categories.map((c: any) => ({ ...c, id: c.slug }));
   },
 
+  getAudit: async (): Promise<{ events: AuditEvent[] }> => {
+    const res = await fetch(`${API_BASE_URL}/v0/audit?limit=50`, { headers: await authHeaders() });
+    if (!res.ok) throw new Error("Failed to fetch authority timeline");
+    return res.json();
+  },
   getExposure: async () => {
     const res = await fetch(`${API_BASE_URL}/v0/exposure`, {
       headers: await authHeaders(),
@@ -246,7 +259,7 @@ export const apiClient = {
     const res = await fetch(`${API_BASE_URL}/v0/demo/reset`, {
       method: "POST",
       headers: await authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({}),
+      body: JSON.stringify({ userId: DEMO_USER_ID }),
     });
     if (!res.ok) throw new Error("Failed to reset demo");
     return res.json();
@@ -385,4 +398,3 @@ export const apiClient = {
     return json;
   },
 };
-

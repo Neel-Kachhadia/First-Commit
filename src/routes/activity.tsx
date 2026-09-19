@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CheckCircle2, Clock3, Filter, Loader2, Plus, Search, ShieldX } from "lucide-react";
 import { DecisionGlyph } from "@/components/kavach/icons";
 import { Button } from "@/components/ui/button";
@@ -55,9 +56,14 @@ const FILTERS: { key: LedgerStatus | "all"; label: string }[] = [
 ];
 
 export default function ActivityPage() {
+  const searchParams = useSearchParams();
+  return <ActivityPageContent key={searchParams.toString()} initialQuery={searchParams.get("search") ?? ""} />;
+}
+
+function ActivityPageContent({ initialQuery }: { initialQuery: string }) {
   const { ledger, agents, getAgent, createIntent } = useKavach();
   const [filter, setFilter] = useState<LedgerStatus | "all">("all");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [agentFilter, setAgentFilter] = useState("all");
   const [merchantFilter, setMerchantFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
@@ -121,7 +127,7 @@ export default function ActivityPage() {
         idempotencyKey: crypto.randomUUID(),
       });
 
-      const decisionObj = res?.decision as any;
+      const decisionObj = typeof res?.decision === "object" ? res.decision : undefined;
       const decisionStr: string =
         typeof res?.decision === "string"
           ? res.decision

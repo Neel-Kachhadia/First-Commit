@@ -9,9 +9,7 @@
   z-index: 99999;
   display: flex;
   flex-direction: column;
-  background: color-mix(in srgb, var(--background) 97%, transparent);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: var(--background);
   animation: fadeIn 0.22s ease-out both;
 }
 
@@ -75,8 +73,8 @@
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 32px 28px;
-  max-width: 780px;
+  padding: 36px 28px;
+  max-width: 980px;
   width: 100%;
   margin: 0 auto;
 }
@@ -84,14 +82,22 @@
 /* ─── Idle / record stage ─────────────────────────────────────────────────── */
 
 .recordStage {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(250px, .85fr);
+  align-content: center;
   align-items: center;
-  justify-content: center;
-  gap: 28px;
-  min-height: 400px;
-  text-align: center;
+  column-gap: 48px;
+  row-gap: 42px;
+  min-height: min(700px, calc(100dvh - 170px));
+  text-align: left;
 }
+
+.recordIntro { min-width: 0; }
+.recordEyebrow { margin: 0 0 18px; color: var(--primary); font: 600 12px var(--font-mono), monospace; letter-spacing: .1em; text-transform: uppercase; }
+.recordControl { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; min-height: 320px; border-left: 1px solid var(--border); padding-left: 36px; text-align: center; }
+.recordHint { color: var(--muted-foreground); font-size: 15px; margin: 0; }
+.voiceSteps { grid-column: 1 / -1; display: flex; align-items: center; gap: 15px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 14px; }
+.voiceSteps span:nth-child(even) { color: var(--primary); }
 
 .blobWrap {
   position: relative;
@@ -131,7 +137,7 @@
   border-radius: 48% 52% 60% 40% / 45% 50% 50% 55%;
   scale: var(--voice-scale, 1);
   transition: scale 0.1s ease-out;
-  animation: blobMorph 2.7s ease-in-out infinite alternate;
+  animation: none;
   cursor: pointer;
   border: none;
   outline: none;
@@ -166,18 +172,19 @@
 }
 
 .recordTitle {
-  font-size: 28px;
+  margin: 0;
+  font-size: clamp(34px, 4vw, 52px);
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.025em;
 }
 
 .recordSub {
-  max-width: 380px;
+  max-width: 460px;
   color: var(--muted-foreground);
   font-size: 16px;
   line-height: 1.5;
-  margin: -10px 0 0;
+  margin: 16px 0 0;
 }
 
 .liveMeta {
@@ -220,14 +227,14 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  max-width: 460px;
-  padding: 16px 18px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--card);
+  max-width: 440px;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--border);
   text-align: left;
-  margin-top: 4px;
+  margin-top: 32px;
 }
+
+.exampleLabel { display: block; margin-bottom: 7px; color: var(--muted-foreground); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
 
 .exampleIcon {
   flex-shrink: 0;
@@ -236,8 +243,9 @@
 }
 
 .exampleText {
-  color: var(--muted-foreground);
-  font-size: 14px;
+  margin: 0;
+  color: var(--foreground);
+  font-size: 16px;
   line-height: 1.5;
 }
 
@@ -251,11 +259,12 @@
 .processingStage {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  min-height: 300px;
+  align-items: flex-start;
+  max-width: 480px;
+  min-height: min(440px, calc(100dvh - 160px));
+  margin: 0 auto;
   justify-content: center;
-  text-align: center;
+  text-align: left;
   animation: revealUp 0.22s ease-out both;
 }
 
@@ -276,37 +285,72 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .processingLabel {
-  font-size: 20px;
+  margin: 8px 0 0;
+  font-size: clamp(28px, 5vw, 36px);
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.15;
 }
 
 .processingHint {
+  margin: 12px 0 0;
   color: var(--muted-foreground);
-  font-size: 14px;
+  font-size: 16px;
 }
 
-.shimmerLines {
+.processingGlyph {
   display: grid;
-  gap: 8px;
-  width: 240px;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--primary);
 }
 
-.shimmerLine {
-  height: 8px;
-  border-radius: 4px;
+.processingEyebrow {
+  margin: 32px 0 0;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.processingProgress {
+  position: relative;
+  width: 100%;
+  height: 5px;
+  margin-top: 36px;
+  overflow: hidden;
   background: var(--muted);
-  background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--primary) 15%, transparent), transparent);
-  background-size: 200% 100%;
-  animation: sweep 1.8s ease-in-out infinite;
+  border-radius: 999px;
 }
 
-.shimmerLine:nth-child(2) { width: 70%; animation-delay: 0.2s; }
-.shimmerLine:nth-child(3) { width: 85%; animation-delay: 0.4s; }
+.processingProgress span {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 34%;
+  border-radius: inherit;
+  background: var(--primary);
+  animation: processingSweep 1.7s ease-in-out infinite alternate;
+}
 
-@keyframes sweep {
-  from { background-position: -200% center; }
-  to   { background-position: 200% center; }
+.processingSteps {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 12px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.processingSteps [data-active="true"] { color: var(--foreground); font-weight: 600; }
+
+@keyframes processingSweep {
+  from { transform: translateX(0); }
+  to { transform: translateX(195%); }
 }
 
 /* ─── Review stage ────────────────────────────────────────────────────────── */
@@ -706,6 +750,7 @@
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .triggerButton:hover {
@@ -751,4 +796,23 @@
 
 @media (min-width: 1024px) {
   .triggerKbd { display: inline; }
+}
+
+@media (max-width: 1279px) {
+  .triggerButton { width: 38px; padding: 0; justify-content: center; }
+  .triggerButton svg { width: 16px; height: 16px; }
+  .triggerLabel, .triggerKbd, .triggerDot { display: none; }
+}
+
+@media (max-width: 700px) {
+  .topbar { padding: 16px 20px; }
+  .content { padding: 28px 20px; }
+  .recordStage { grid-template-columns: minmax(0, 1fr); min-height: 0; row-gap: 26px; }
+  .recordControl { min-height: 210px; padding: 12px 0 0; border-left: 0; border-top: 1px solid var(--border); }
+  .recordTitle { font-size: clamp(32px, 9vw, 42px); }
+  .voiceSteps { flex-wrap: wrap; gap: 8px 12px; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay, .blob, .blobHalo, .liveDot, .processingProgress span, .spinRing, .triggerDot { animation: none !important; transition: none !important; }
 }

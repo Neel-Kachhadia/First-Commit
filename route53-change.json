@@ -1,0 +1,42 @@
+{
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "_55a8d5b1bc4e94fdfb107dcc84a9343a.kavachpay.co.in.",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "_a5e3f85f2a4cf0e2d24ffb80d6a72b71.wzccmgtwzk.acm-validations.aws."
+          }
+        ]
+      }
+    },
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "www.kavachpay.co.in.",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "d2avud2s6uxqnt.cloudfront.net."
+          }
+        ]
+      }
+    },
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "kavachpay.co.in.",
+        "Type": "A",
+        "AliasTarget": {
+          "HostedZoneId": "Z2FDTNDATAQYW2",
+          "DNSName": "d2avud2s6uxqnt.cloudfront.net.",
+          "EvaluateTargetHealth": false
+        }
+      }
+    }
+  ]
+}

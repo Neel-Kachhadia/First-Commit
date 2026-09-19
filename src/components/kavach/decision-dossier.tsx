@@ -1,5 +1,6 @@
 import { Check, Clock3, Copy, ExternalLink, FileText, ShieldCheck, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,14 +24,14 @@ function CopyId({ value }: { value: string }) {
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-1.5 rounded px-1.5 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="inline-flex max-w-full min-w-0 items-center gap-1.5 break-all rounded px-1.5 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       onClick={async () => {
         await navigator.clipboard.writeText(value);
         toast.success("ID copied", { description: value.toUpperCase() });
       }}
       aria-label={`Copy ${value}`}
     >
-      {value.toUpperCase()} <Copy className="h-3 w-3" />
+      <span className="min-w-0 break-all">{value.toUpperCase()}</span> <Copy className="h-3 w-3 shrink-0" />
     </button>
   );
 }
@@ -45,7 +46,7 @@ function TraceStep({
   children: ReactNode;
 }) {
   return (
-    <li className="relative grid grid-cols-[32px_1fr] gap-3 pb-5 last:pb-0">
+    <li className="relative grid min-w-0 grid-cols-[32px_minmax(0,1fr)] gap-3 pb-5 last:pb-0">
       <div className="relative z-10 grid h-8 w-8 place-items-center rounded-full border border-border bg-raised font-mono text-[10px] text-muted-foreground">
         {number}
       </div>
@@ -98,19 +99,21 @@ export function DecisionDossier({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full overflow-y-auto p-0 sm:max-w-xl"
+        className="flex h-dvh w-full flex-col overflow-hidden p-0 sm:max-w-xl"
       >
         <SheetHeader className="border-b border-border p-6 pr-14 text-left">
           <div className="flex flex-wrap items-center gap-2">
             <CopyId value={entry.id} />
             <StatusPill tone={tone.tone} label={tone.label} />
           </div>
-          <SheetTitle className="mt-3 flex items-baseline justify-between gap-4 text-xl">
-            <span>{entry.merchant}</span>
-            <span className="amount text-2xl">{formatINR(entry.amount)}</span>
+          <SheetTitle className="mt-3 flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xl">
+            <span className="min-w-0 break-words">{entry.merchant}</span>
+            <span className="amount shrink-0 text-2xl">{formatINR(entry.amount)}</span>
           </SheetTitle>
-          <SheetDescription>{entry.description}</SheetDescription>
+          <SheetDescription className="break-words">{entry.description}</SheetDescription>
         </SheetHeader>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
 
         <div className="border-b border-border bg-muted/30 px-6 py-3">
           <p className="font-mono text-[10px] text-muted-foreground">
@@ -252,8 +255,8 @@ export function DecisionDossier({
         </div>
 
         {isStepUp ? (
-          <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-background p-4">
-            <div className="flex gap-2">
+          <div className="shrink-0 border-t border-border bg-background p-4">
+            <div className="grid gap-2 sm:grid-cols-2">
               <Button
                 variant="outline"
                 className="flex-1 text-destructive hover:bg-destructive/10 hover:border-destructive/30"
@@ -306,7 +309,7 @@ export function DecisionDossier({
             </Button>
           </div>
         ) : (
-          <div className="sticky bottom-0 flex gap-2 border-t border-border bg-background p-4">
+          <div className="grid shrink-0 gap-2 border-t border-border bg-background p-4 sm:grid-cols-2">
             <Button
               variant="outline"
               className="flex-1"
@@ -314,9 +317,7 @@ export function DecisionDossier({
             >
               <Copy className="h-4 w-4" /> Copy audit ID
             </Button>
-            <Button className="flex-1" disabled>
-              Full audit record <ExternalLink className="h-4 w-4" />
-            </Button>
+            {agent ? <Button asChild className="min-w-0"><Link href={`/agents/${agent.id}`}>Inspect mandate <ExternalLink className="h-4 w-4" /></Link></Button> : null}
           </div>
         )}
       </SheetContent>
