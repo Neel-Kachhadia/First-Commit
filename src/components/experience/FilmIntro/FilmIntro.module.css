@@ -2,7 +2,7 @@
   background: var(--kp-black);
   inset: 0;
   position: fixed;
-  z-index: var(--kp-z-intro);
+  z-index: var(--kp-z-intro, 200); /* fallback: the token lives in globals.css, which a team merge dropped it from; without it the intro fell to z-index:auto and painted UNDER the stage (z-index:3) */
 }
 
 .blackFrame {
