@@ -157,12 +157,6 @@ export function insetToClipPath(inset: SeamInset | null): string {
   return `inset(${f(inset.top)} ${f(inset.right)} ${f(inset.bottom)} ${f(inset.left)})`;
 }
 
-const IDENTITY_SAMPLES: readonly SeamSample[] = [
-  { width: 1366, height: 768, start: IDENTITY_POSE, end: IDENTITY_POSE },
-  { width: 1440, height: 900, start: IDENTITY_POSE, end: IDENTITY_POSE },
-  { width: 1920, height: 1080, start: IDENTITY_POSE, end: IDENTITY_POSE },
-];
-
 /** Default windows: the film relaxes over the first 20% and converges over 80-95%. */
 const seamDefaults = (): Pick<BoundarySeam, "relax" | "converge" | "backdrop"> => ({
   relax: [0, 0.2],
@@ -176,17 +170,59 @@ const seamDefaults = (): Pick<BoundarySeam, "relax" | "converge" | "backdrop"> =
  * output/seam). Poses are video -> live: live = centre + scale*(video-centre) + translate.
  */
 export const TRANSITION_SEAMS: Record<string, BoundarySeam> = {
-  "00-01": { samples: IDENTITY_SAMPLES, ...seamDefaults() },
-  "01-02": { samples: IDENTITY_SAMPLES, ...seamDefaults() },
-  "02-03": { samples: IDENTITY_SAMPLES, ...seamDefaults() },
-  "03-04": { samples: IDENTITY_SAMPLES, ...seamDefaults() },
-  "04-05": { samples: IDENTITY_SAMPLES, ...seamDefaults() },
-  "05-06": { samples: IDENTITY_SAMPLES, ...seamDefaults() },
+  "00-01": {
+    samples: [
+      { width: 1366, height: 768, start: { scale: 0.9938, x: 0, y: 17 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1440, height: 900, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1920, height: 1080, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+    ],
+    ...seamDefaults(),
+  },
+  "01-02": {
+    samples: [
+      { width: 1366, height: 768, start: { scale: 0.9488, x: -7, y: 8 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1440, height: 900, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1920, height: 1080, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+    ],
+    ...seamDefaults(),
+  },
+  "02-03": {
+    samples: [
+      { width: 1366, height: 768, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1440, height: 900, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1920, height: 1080, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+    ],
+    ...seamDefaults(),
+  },
+  "03-04": {
+    samples: [
+      { width: 1366, height: 768, start: { scale: 1.0112, x: 8, y: -31 }, end: { scale: 1.0075, x: 7, y: -39 } },
+      { width: 1440, height: 900, start: { scale: 1.0675, x: 7, y: -34 }, end: { scale: 1.0712, x: 9, y: -36 } },
+      { width: 1920, height: 1080, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1.0875, x: 41, y: -39 } },
+    ],
+    ...seamDefaults(),
+  },
+  "04-05": {
+    samples: [
+      { width: 1366, height: 768, start: { scale: 1.0125, x: 8, y: -28 }, end: { scale: 1.1825, x: 12, y: -1 } },
+      { width: 1440, height: 900, start: { scale: 1.0975, x: -1, y: -28 }, end: { scale: 1.0688, x: 13, y: 0 } },
+      { width: 1920, height: 1080, start: { scale: 1.0275, x: -4, y: -23 }, end: { scale: 0.835, x: 11, y: 0 } },
+    ],
+    ...seamDefaults(),
+  },
+  "05-06": {
+    samples: [
+      { width: 1366, height: 768, start: { scale: 1.1775, x: 10, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1440, height: 900, start: { scale: 1.06, x: 10, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1920, height: 1080, start: { scale: 0.835, x: 8, y: 0 }, end: { scale: 0.79, x: 4, y: -8 } },
+    ],
+    ...seamDefaults(),
+  },
   "06-07": {
     samples: [
-      { width: 1366, height: 768, start: { scale: 1.076, x: 0, y: 0 }, end: { scale: 1.14, x: 8, y: 48 } },
-      { width: 1440, height: 900, start: { scale: 0.9929, x: 6.4, y: 0 }, end: { scale: 0.976, x: 8, y: -8 } },
-      { width: 1920, height: 1080, start: { scale: 0.7807, x: 4.2, y: 4 }, end: { scale: 0.759, x: 0, y: 0 } },
+      { width: 1366, height: 768, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1.16, x: 2, y: 49 } },
+      { width: 1440, height: 900, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1920, height: 1080, start: { scale: 0.7863, x: 6, y: 6 }, end: { scale: 0.76, x: 3, y: -3 } },
     ],
     ...seamDefaults(),
     endInset: { top: 11, right: 0, bottom: 7, left: 0 },
