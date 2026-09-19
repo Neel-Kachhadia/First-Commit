@@ -50,7 +50,7 @@ export function GlobalVoiceTrigger() {
       >
         <span className={s.triggerDot} aria-hidden="true" />
         <Mic size={13} aria-hidden="true" />
-        <span>Ask KavachPay…</span>
+        <span className={s.triggerLabel}>Ask KavachPay…</span>
         <kbd className={s.triggerKbd}>⌘ Space</kbd>
       </button>
 

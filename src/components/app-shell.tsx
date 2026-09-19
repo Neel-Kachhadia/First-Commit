@@ -25,10 +25,9 @@ import {
   Moon,
   Sun,
   OctagonPause,
-  Play,
   ChevronDown,
   Bell,
-  Search,
+  RotateCcw,
   ChevronLeft,
   ChevronRight,
   UserRound,
@@ -43,9 +42,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EditProfileDialog } from "@/components/profile/edit-profile-dialog";
 import { useAuth } from "@/lib/auth/auth-context";
-import { profileInitials } from "@/lib/user-profile";
+import { profileInitials, useUserProfile } from "@/lib/user-profile";
 import { KavachMark } from "@/components/kavach/logo";
 import {
   AgentGlyph,
@@ -61,6 +59,7 @@ import { formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
 import { GlobalVoiceTrigger } from "@/components/voice/GlobalVoiceTrigger";
+import { GlobalSearch } from "@/components/global-search";
 
 const NAV = [
   {
@@ -135,55 +134,31 @@ function NavList({
 }
 
 function EmergencyStop() {
-  const { frozen, setFrozen, maxPossibleSpend } = useKavach();
   const [open, setOpen] = useState(false);
 
   return (
     <>
       <Button
-        variant={frozen ? "outline" : "destructive"}
+        variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
+        aria-label="Emergency stop unavailable; view details"
       >
-        {frozen ? (
-          <Play className="h-4 w-4" aria-hidden="true" />
-        ) : (
-          <OctagonPause className="h-4 w-4" aria-hidden="true" />
-        )}
-        <span className="hidden sm:inline">
-          {frozen ? "Resume spending" : "Emergency stop"}
-        </span>
-        <span className="sm:hidden">{frozen ? "Resume" : "Stop"}</span>
+        <OctagonPause className="h-4 w-4" aria-hidden="true" />
+        <span className="hidden sm:inline">Stop unavailable</span>
+        <span className="sm:hidden">Stop</span>
       </Button>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {frozen
-                ? "Resume all agent spending?"
-                : "Stop all agent spending?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Emergency stop is not connected</AlertDialogTitle>
             <AlertDialogDescription>
-              {frozen
-                ? "Every mandate returns to its remaining authority. Agents can transact again immediately, subject to their spending rules."
-                : `Every active mandate is suspended at once. Maximum possible spend drops from ${formatINR(maxPossibleSpend)} to ₹0 and all in-flight agent payments are declined until you resume.`}
+              The dashboard does not yet have a server-enforced emergency stop. This control cannot halt payments. To stop an agent now, open its mandate and revoke it individually.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={
-                frozen
-                  ? undefined
-                  : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              }
-              onClick={() => {
-                setFrozen(!frozen);
-                setOpen(false);
-              }}
-            >
-              {frozen ? "Resume spending" : "Stop all spending"}
-            </AlertDialogAction>
+            <AlertDialogAction asChild><Link href="/agents">Review agents</Link></AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -238,51 +213,88 @@ function Brand({
 
 function ResetDemo() {
   const [resetting, setResetting] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
 
   const handleReset = async () => {
     if (resetting) return;
-
-    const confirmed = window.confirm(
-      "Reset the KavachPay demo? This will clear the current demo state."
-    );
-
-    if (!confirmed) return;
-
     try {
       setResetting(true);
+      setError("");
       await apiClient.resetDemo();
       window.location.reload();
     } catch (error) {
       console.error("Failed to reset demo:", error);
-      window.alert("Failed to reset the demo. Please try again.");
+      setError("The demo could not be reset. Your current data has not been cleared. Please try again.");
     } finally {
       setResetting(false);
     }
   };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleReset}
-      disabled={resetting}
-      className="hidden sm:inline-flex"
-    >
-      {resetting ? "Resetting…" : "Reset Demo"}
-    </Button>
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} aria-label="Reset demo" className="shrink-0">
+        <RotateCcw className="h-4 w-4 lg:hidden" aria-hidden="true" />
+        <span className="hidden lg:inline">Reset demo</span>
+      </Button>
+      <AlertDialog open={open} onOpenChange={(next) => { if (!resetting) { setOpen(next); setError(""); } }}>
+        <AlertDialogContent className="w-[calc(100vw-2rem)] rounded-xl border-border p-6 sm:p-7">
+          <AlertDialogHeader className="text-left">
+            <span className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary"><RotateCcw className="h-5 w-5" aria-hidden="true" /></span>
+            <AlertDialogTitle className="text-2xl">Start the demo over?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[15px] leading-relaxed">
+              This removes the current demo mandates and decisions, then restores the starting demo state. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+          <AlertDialogFooter className="mt-3 gap-2 sm:space-x-0">
+            <AlertDialogCancel disabled={resetting}>Keep current data</AlertDialogCancel>
+            <Button onClick={handleReset} disabled={resetting} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              {resetting ? "Resetting…" : "Reset demo"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+function Notifications() {
+  const { approvals, agents } = useKavach();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative shrink-0" aria-label={`Notifications, ${approvals.length} pending approvals`}>
+          <Bell className="h-4 w-4" aria-hidden="true" />
+          {approvals.length > 0 ? <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-stepup px-1 text-[10px] font-semibold text-white">{approvals.length}</span> : null}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={8} className="w-[min(22rem,calc(100vw-2rem))] p-2">
+        <DropdownMenuLabel className="px-3 py-2 text-base">Notifications</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {approvals.length ? approvals.slice(0, 3).map((approval) => (
+          <DropdownMenuItem key={approval.id} asChild className="cursor-pointer px-3 py-2.5">
+            <Link href="/approvals" className="flex flex-col items-start gap-0.5">
+              <span className="text-sm font-semibold">{approval.merchant} · {formatINR(approval.amount)}</span>
+              <span className="text-xs text-muted-foreground">{agents.find((agent) => agent.id === approval.agentId)?.name ?? "Agent"} needs your decision</span>
+            </Link>
+          </DropdownMenuItem>
+        )) : <p className="px-3 py-5 text-sm text-muted-foreground">You’re all caught up. No approvals waiting.</p>}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild className="cursor-pointer px-3 py-2 text-sm font-medium"><Link href="/approvals">View approvals <ChevronRight className="ml-auto h-4 w-4" /></Link></DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { frozen, approvals } = useKavach();
+  const { frozen } = useKavach();
   const { user, logout } = useAuth();
-  
-  // Use the email prefix as a fallback name, or default to "KavachPay User"
-  const name = user?.email ? user.email.split("@")[0] : "KavachPay User";
+  const { profile } = useUserProfile();
+  const name = profile.username || user?.email || "";
   const email = user?.email || "";
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -413,7 +425,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="shell-content-wrapper">
         <header className="shell-topbar sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto flex min-h-16 max-w-[1440px] flex-wrap items-center gap-x-2 gap-y-2 px-4 py-2 sm:px-6 lg:flex-nowrap lg:px-8 lg:py-0">
+            <div className="flex min-w-0 flex-1 items-center gap-1 lg:hidden">
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild>
                 <Button
@@ -436,7 +449,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </div>
                 </div>
                 <div className="border-t border-border p-4">
-                  <div className="flex w-full items-center gap-3 rounded-md p-1.5 text-left">
+                  <div className="mb-3 flex items-center justify-between gap-2 border-b border-border pb-3">
+                    <span className="text-sm text-muted-foreground">Appearance & demo</span>
+                    <div className="flex items-center gap-2"><ThemeToggle /><ResetDemo /></div>
+                  </div>
+                  <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex w-full items-center gap-3 rounded-md p-1.5 text-left hover:bg-muted">
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-primary/12 text-xs font-semibold text-primary">
                       {profileInitials(name)}
                     </span>
@@ -448,47 +465,23 @@ export function AppShell({ children }: { children: ReactNode }) {
                         {email}
                       </span>
                     </span>
-                  </div>
+                  </Link>
                 </div>
               </SheetContent>
             </Sheet>
-
-            <div className="min-w-0 flex-1">
-              <Brand className="lg:hidden" />
-              <Link
-                href="/activity"
-                className="hidden h-9 max-w-md items-center gap-2 rounded-md border border-input bg-card px-3 text-xs text-muted-foreground transition-colors hover:border-foreground/25 hover:text-foreground md:flex"
-                aria-label="Search transactions, mandates, authorities or agents"
-              >
-                <Search className="h-3.5 w-3.5" />
-                <span className="min-w-0 flex-1 truncate">
-                  Search ID, agent, merchant…
-                </span>
-                <kbd className="rounded border border-border px-1.5 py-0.5 font-mono text-[9px]">
-                  ⌘K
-                </kbd>
-              </Link>
+              <Brand className="max-[420px]:[&>span]:hidden" />
             </div>
-
-            <GlobalVoiceTrigger />
-
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="hidden items-center gap-1.5 rounded-md border border-success/20 bg-success/8 px-2 py-1 text-[10px] font-medium text-success sm:inline-flex">
+            <div className="order-3 w-full min-w-0 lg:order-none lg:flex-1">
+              <GlobalSearch />
+            </div>
+            <div className="shrink-0"><GlobalVoiceTrigger /></div>
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+              <span className="hidden items-center gap-1.5 rounded-md border border-success/20 bg-success/8 px-2 py-1 text-xs font-medium text-success xl:inline-flex" title="Sandbox environment">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" /> Sandbox
               </span>
-              <Button variant="ghost" size="icon" className="relative" asChild>
-                <Link
-                  href="/approvals"
-                  aria-label={`${approvals.length} approval notifications`}
-                >
-                  <Bell className="h-4 w-4" />
-                  {approvals.length > 0 ? (
-                    <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-stepup" />
-                  ) : null}
-                </Link>
-              </Button>
-              <ThemeToggle />
-              <ResetDemo />
+              <Notifications />
+              <div className="hidden md:block"><ThemeToggle /></div>
+              <div className="hidden md:block"><ResetDemo /></div>
               <EmergencyStop />
             </div>
           </div>
@@ -510,10 +503,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <EditProfileDialog
-        open={editProfileOpen}
-        onOpenChange={setEditProfileOpen}
-      />
     </div>
   );
 }
