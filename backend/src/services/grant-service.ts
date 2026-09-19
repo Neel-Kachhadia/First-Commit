@@ -104,8 +104,8 @@ export class GrantService {
        * the current depth of the parent node.  The new child will sit at
        * depth + 1.  The root grant's maxDepth is the system-wide ceiling.
        *
-       * Depth is 1-indexed: a root grant is at depth 1, its direct children
-       * are at depth 2, and so on.
+       * Depth is 0-indexed: a root grant is at depth 0, its direct children
+       * are at depth 1, and so on.
        */
       const rootGrant = await this.findRootGrant(input.userId, parentGrant);
       const maxDepth = rootGrant.maxDepth ?? 0;
@@ -498,13 +498,13 @@ export class GrantService {
 
   /**
    * Compute how many delegation hops from a grant to the root.
-   * Root = depth 1, first child = depth 2, etc.
+   * Root = depth 0, first child = depth 1, etc.
    */
   private async computeDepth(
     userId: string,
     grant: Grant
   ): Promise<number> {
-    let depth = 1;
+    let depth = 0;
     let current = grant;
     const MAX_DEPTH = 20;
 

@@ -196,14 +196,27 @@ describe("Delegation Invariants", () => {
       maxChildren: 0,
     });
 
-    // Attempting depth 3 (root=1, child1=2, child2=3) should fail
+    const child2 = await grantService.createGrant({
+      userId,
+      label: "Child 2 (allowed, depth 2)",
+      parentGrantId: child1.grantId,
+      limit: 1000,
+      hardMax: 1000,
+      window: "MONTHLY",
+      windowStart: new Date().toISOString(),
+      delegationEnabled: true,
+      maxDepth: 0,
+      maxChildren: 0,
+    });
+
+    // Attempting depth 3 (root=0, child1=1, child2=2, child3=3) should fail
     await expect(
       grantService.createGrant({
         userId,
-        label: "Child 2 (too deep)",
-        parentGrantId: child1.grantId,
-        limit: 1000,
-        hardMax: 1000,
+        label: "Child 3 (too deep)",
+        parentGrantId: child2.grantId,
+        limit: 500,
+        hardMax: 500,
         window: "MONTHLY",
         windowStart: new Date().toISOString(),
         delegationEnabled: false,
