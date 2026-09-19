@@ -58,18 +58,19 @@ export type MandateExtraction = z.infer<typeof MandateExtractionSchema>;
 
 // ─── API constants ────────────────────────────────────────────────────────────
 
-// Multi-model pools for resilience against single-model traffic spikes (503 UNAVAILABLE)
+// High-quota model pools: Flash Lite has 500 RPD & 15 RPM (vs only 20 RPD on standard Flash)
 const TRANSCRIPTION_MODELS = [
-  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
   "gemini-3.8-flash",
-  "gemini-flash-latest",
+  "gemini-3.6-flash",
 ];
 
 const NLU_MODELS = [
-  "gemini-3.5-flash",
   "gemini-3.1-flash-lite",
+  "gemini-3.5-flash-lite",
   "gemini-3.8-flash",
-  "gemini-flash-latest",
+  "gemini-3.6-flash",
 ];
 
 // ─── Runtime prompt builders ──────────────────────────────────────────────────
