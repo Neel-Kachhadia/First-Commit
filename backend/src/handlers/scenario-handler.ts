@@ -45,7 +45,7 @@ async function makeChildGrant(
     label: "Scenario Child",
     parentGrantId,
     limit: opts?.limit ?? 3000,
-    hardMax: opts?.hardMax ?? 3000,
+    hardMax: opts?.hardMax ?? opts?.limit ?? 3000,
     window: "MONTHLY",
     windowStart: new Date().toISOString(),
     currency: "INR",
