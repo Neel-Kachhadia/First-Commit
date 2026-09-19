@@ -21,7 +21,7 @@ import {
 } from "@/lib/experience/transition-quality";
 import { probeTransitionCapabilities } from "@/lib/experience/transition-capabilities";
 import { computeTransitionOpacity, progressToVideoTime } from "@/lib/experience/transition-math";
-import { TRANSITION_SEAMS, insetToClipPath, seamOpacity, seamPoseAt, type BoundarySeam, type SeamPose } from "@/lib/experience/transition-seam";
+import { TRANSITION_SEAMS, insetToClipPath, seamOpacity, seamPoseAt, seamVideoProgress, type BoundarySeam, type SeamPose } from "@/lib/experience/transition-seam";
 import styles from "./CinematicTransitionLayer.module.css";
 
 type BoundaryMeta = {
@@ -35,6 +35,8 @@ type BoundaryMeta = {
   pendingSeek: { at: number; sample: boolean } | null;
   /** When the first request after the last completed seek was issued (stall detection). */
   unresolvedSince: number | null;
+  /** Progress|viewport the seam presentation was last applied for (skips redundant style writes). */
+  seamKey: string | null;
   /** Last time this element presented a new frame (requestVideoFrameCallback), 0 if unsupported. */
   lastFrameAt: number;
   trigger: ScrollTrigger | null;
@@ -78,6 +80,7 @@ export function CinematicTransitionLayer() {
       tried: new Set<TransitionTier>(),
       pendingSeek: null,
       unresolvedSince: null,
+      seamKey: null,
       lastFrameAt: 0,
       trigger: null,
     }));
@@ -146,12 +149,15 @@ export function CinematicTransitionLayer() {
 
       const applyProgress = (progress: number) => {
         if (isBypassMode() || meta[index].failed) {
+          meta[index].seamKey = null; // a later re-entry must re-apply the pose
           gsap.set(videoEl, { opacity: 0 });
           return;
         }
 
         let seam: BoundarySeam | undefined = seamsOff ? undefined : TRANSITION_SEAMS[boundary.id];
         const override = IS_DEV ? seamOverrides[boundary.id] : undefined;
+        // Total scroll range of this boundary (trigger start..end); no layout read on the hot path.
+        const rangePx = meta[index].trigger ? meta[index].trigger.end - meta[index].trigger.start : spacerEl.offsetHeight + 128;
         if (seam && override) {
           const at = seam.samples[0];
           seam = { ...seam, samples: [{ width: window.innerWidth, height: window.innerHeight, start: override.start ?? at.start, end: override.end ?? at.end }] };
@@ -160,26 +166,32 @@ export function CinematicTransitionLayer() {
         if (seam) {
           // Calibrated boundary: the film conforms to the live scenes at both ends.
           const viewport = { width: window.innerWidth, height: window.innerHeight };
-          const overlapFrac = TRANSITION_OVERLAP_PX / (spacerEl.offsetHeight + 128);
-          const pose = seamPoseAt(seam, progress, viewport, overlapFrac);
+          const overlapFrac = TRANSITION_OVERLAP_PX / rangePx;
           opacity = seamOpacity(progress, overlapFrac);
-          gsap.set(videoEl, {
-            opacity,
-            scale: pose.scale,
-            x: pose.x,
-            y: pose.y,
-            clipPath: insetToClipPath(pose.inset),
-            mixBlendMode: seam.backdrop && pose.blend > 0.001 ? "lighten" : "normal",
-          });
-          const backdropEl = backdropRefs.current[index];
-          if (backdropEl && seam.backdrop) gsap.set(backdropEl, { opacity: pose.blend * opacity, backgroundColor: seam.backdrop });
+          const seamKey = `${progress}|${viewport.width}|${viewport.height}|${override ? 1 : 0}`;
+          if (meta[index].seamKey !== seamKey) {
+            meta[index].seamKey = seamKey;
+            const pose = seamPoseAt(seam, progress, viewport, overlapFrac);
+            gsap.set(videoEl, {
+              opacity,
+              scale: pose.scale,
+              x: pose.x,
+              y: pose.y,
+              clipPath: insetToClipPath(pose.inset),
+              mixBlendMode: seam.backdrop && pose.blend > 0.001 ? "lighten" : "normal",
+            });
+            const backdropEl = backdropRefs.current[index];
+            if (backdropEl && seam.backdrop) gsap.set(backdropEl, { opacity: pose.blend * opacity, backgroundColor: seam.backdrop });
+          }
         } else {
           opacity = computeTransitionOpacity(progress, TRANSITION_EDGE_FRACTION);
           gsap.set(videoEl, { opacity });
         }
 
         if (meta[index].duration > 0) {
-          const target = progressToVideoTime(progress, meta[index].duration);
+          const seamCfg = seamsOff ? undefined : TRANSITION_SEAMS[boundary.id];
+          const framePosition = seamCfg ? seamVideoProgress(seamCfg, progress, TRANSITION_OVERLAP_PX / rangePx) : progress;
+          const target = progressToVideoTime(framePosition, meta[index].duration);
           if (Math.abs(videoEl.currentTime - target) > 0.008) {
             noteSeekRequest(opacity >= 0.5 && progress > 0.05 && progress < 0.95);
             videoEl.currentTime = target;
@@ -433,13 +445,19 @@ export function CinematicTransitionLayer() {
           const el = document.querySelector<HTMLVideoElement>(`[data-transition-video='${id}']`);
           if (!el) return null;
           const r = el.getBoundingClientRect();
-          return { native: { x: 0, y: 0, width: el.offsetWidth, height: el.offsetHeight }, presented: { x: r.x, y: r.y, width: r.width, height: r.height } };
+          const l = layerRef.current?.getBoundingClientRect();
+          return {
+            layer: l ? { x: l.x, y: l.y, width: l.width, height: l.height } : null,
+            native: { width: el.offsetWidth, height: el.offsetHeight },
+            presented: { x: r.x, y: r.y, width: r.width, height: r.height },
+          };
         },
         /** Closed-loop calibration: replace a boundary's start/end pose at the current viewport, then re-apply. */
         setSeamOverride: (id: string, pose: { start?: SeamPose; end?: SeamPose } | null) => {
           if (pose) seamOverrides[id] = pose;
           else delete seamOverrides[id];
           const i = TRANSITION_REGISTRY.findIndex((b) => b.id === id);
+          if (i >= 0) meta[i].seamKey = null;
           if (i >= 0) applyFns[i]?.(progressOf(i));
         },
         /** Feed synthetic seek latencies (ms) into the CURRENT tier's rolling window. */

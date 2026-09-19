@@ -3,7 +3,7 @@
  *
  * The LIVE scenes are authoritative. Each film is presented through a small,
  * scroll-driven similarity transform (uniform scale + translate about the
- * viewport centre, optionally a clip inset) so that:
+ * film element's own centre, i.e. the stage rect, optionally a clip inset) so that:
  *   - at progress 0 the film's first frame coincides with the outgoing live
  *     scene's terminal composition, then relaxes to the film's native geometry;
  *   - the film converges onto the incoming live scene's initial composition and
@@ -27,7 +27,7 @@
  */
 
 export type SeamPose = {
-  /** Uniform scale about the viewport centre. */
+  /** Uniform scale about the film element's centre. */
   scale: number;
   /** Translation in CSS px at the sample's own viewport. */
   x: number;
@@ -59,6 +59,18 @@ export type BoundarySeam = {
    * lifts film blacks to the live black so a shrunken film leaves no visible rectangle.
    */
   backdrop?: string;
+  /**
+   * Sides whose calibrated scale follows the measured layout law (scale * width ~ const): beyond the
+   * widest measured viewport they extrapolate hyperbolically. Every other side HOLDS its last pose.
+   */
+  layoutLaw?: { start?: boolean; end?: boolean };
+  /**
+   * For clips that are still moving on their last frame: the video's own time is remapped over
+   * [from, to] progress with an eased (cubic Hermite, slope 1 -> 0) curve that reaches the last
+   * frame AT REST, then holds it until release. `to` is capped at the start of the release.
+   * A pure function of progress, so forward and reverse remain identical.
+   */
+  settle?: readonly [number, number];
 };
 
 export type Viewport = { width: number; height: number };
@@ -74,7 +86,7 @@ export function smootherstep(t: number): number {
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** Pose at an arbitrary viewport, interpolated in 1/width between measured samples. */
-export function poseAtViewport(samples: readonly SeamSample[], key: "start" | "end", viewport: Viewport): SeamPose {
+export function poseAtViewport(samples: readonly SeamSample[], key: "start" | "end", viewport: Viewport, layoutLaw = false): SeamPose {
   const sorted = samples;
   const w = viewport.width;
   const frac = (s: SeamSample) => ({ scale: s[key].scale, fx: s[key].x / s.width, fy: s[key].y / s.height });
@@ -83,8 +95,8 @@ export function poseAtViewport(samples: readonly SeamSample[], key: "start" | "e
   const last = sorted[sorted.length - 1];
   const edge = (s: SeamSample) => {
     const f = frac(s);
-    // Beyond the measured range keep the layout law: scale * width stays constant.
-    return { scale: clampScale(f.scale * (s.width / w)), x: f.fx * viewport.width, y: f.fy * viewport.height };
+    // Beyond the measured range: layout-law sides keep scale * width constant; all others hold their last pose.
+    return { scale: layoutLaw ? clampScale(f.scale * (s.width / w)) : f.scale, x: f.fx * viewport.width, y: f.fy * viewport.height };
   };
   if (w <= first.width) return edge(first);
   if (w >= last.width) return edge(last);
@@ -119,8 +131,8 @@ const clampScale = (s: number) => Math.min(1.6, Math.max(0.5, s));
  * hands over to (or takes over from) the live DOM.
  */
 export function seamPoseAt(seam: BoundarySeam, progress: number, viewport: Viewport, overlapFrac: number): ResolvedPose {
-  const start = poseAtViewport(seam.samples, "start", viewport);
-  const end = poseAtViewport(seam.samples, "end", viewport);
+  const start = poseAtViewport(seam.samples, "start", viewport, !!seam.layoutLaw?.start);
+  const end = poseAtViewport(seam.samples, "end", viewport, !!seam.layoutLaw?.end);
   // The start pose is held until the film is fully opaque; convergence ends before the release.
   const relaxFrom = Math.max(seam.relax[0], overlapFrac);
   const convergeTo = Math.min(seam.converge[1], 1 - overlapFrac);
@@ -150,6 +162,27 @@ export function seamOpacity(progress: number, overlapFrac: number): number {
   return Math.min(fadeIn, fadeOut);
 }
 
+/**
+ * Progress used to pick the video frame. Identity unless the boundary declares a `settle`
+ * window: inside it the mapping is the cubic Hermite with f(from)=from, f'(from)=1,
+ * f(to)=1, f'(to)=0 (monotone while (1-from)/(to-from) >= 1/3), so the film's motion
+ * decelerates to rest exactly on its last frame and stays there.
+ */
+export function seamVideoProgress(seam: BoundarySeam, progress: number, overlapFrac: number): number {
+  const p = Math.min(1, Math.max(0, progress));
+  if (!seam.settle) return p;
+  const a = seam.settle[0];
+  const b = Math.min(seam.settle[1], 1 - overlapFrac);
+  if (p <= a) return p;
+  if (p >= b) return 1;
+  const L = b - a;
+  const t = (p - a) / L;
+  const h00 = 2 * t ** 3 - 3 * t ** 2 + 1;
+  const h10 = t ** 3 - 2 * t ** 2 + t;
+  const h01 = -2 * t ** 3 + 3 * t ** 2;
+  return h00 * a + h10 * L + h01;
+}
+
 /** CSS clip-path for an inset, or "none". */
 export function insetToClipPath(inset: SeamInset | null): string {
   if (!inset) return "none";
@@ -171,6 +204,7 @@ const seamDefaults = (): Pick<BoundarySeam, "relax" | "converge" | "backdrop"> =
  */
 export const TRANSITION_SEAMS: Record<string, BoundarySeam> = {
   "00-01": {
+    settle: [0.9, 0.955],
     samples: [
       { width: 1366, height: 768, start: { scale: 0.9938, x: 0, y: 17 }, end: { scale: 1, x: 0, y: 0 } },
       { width: 1440, height: 900, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
@@ -209,22 +243,25 @@ export const TRANSITION_SEAMS: Record<string, BoundarySeam> = {
       { width: 1920, height: 1080, start: { scale: 1.0275, x: -4, y: -23 }, end: { scale: 0.835, x: 11, y: 0 } },
     ],
     ...seamDefaults(),
+    layoutLaw: { end: true },
   },
   "05-06": {
     samples: [
-      { width: 1366, height: 768, start: { scale: 1.1775, x: 10, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
-      { width: 1440, height: 900, start: { scale: 1.06, x: 10, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1366, height: 768, start: { scale: 1.1775, x: 10, y: 0 }, end: { scale: 1.045, x: 4, y: -8 } },
+      { width: 1440, height: 900, start: { scale: 1.06, x: 10, y: 0 }, end: { scale: 0.9638, x: 6, y: -14 } },
       { width: 1920, height: 1080, start: { scale: 0.835, x: 8, y: 0 }, end: { scale: 0.79, x: 4, y: -8 } },
     ],
     ...seamDefaults(),
+    layoutLaw: { start: true, end: true },
   },
   "06-07": {
     samples: [
-      { width: 1366, height: 768, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1.16, x: 2, y: 49 } },
-      { width: 1440, height: 900, start: { scale: 1, x: 0, y: 0 }, end: { scale: 1, x: 0, y: 0 } },
+      { width: 1366, height: 768, start: { scale: 1.0075, x: 5, y: -4 }, end: { scale: 1.16, x: 2, y: 49 } },
+      { width: 1440, height: 900, start: { scale: 0.9975, x: 8, y: -1 }, end: { scale: 0.9975, x: 8, y: -8 } },
       { width: 1920, height: 1080, start: { scale: 0.7863, x: 6, y: 6 }, end: { scale: 0.76, x: 3, y: -3 } },
     ],
     ...seamDefaults(),
+    layoutLaw: { start: true, end: true },
     endInset: { top: 11, right: 0, bottom: 7, left: 0 },
   },
 };
