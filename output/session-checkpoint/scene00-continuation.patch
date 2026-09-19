@@ -1,0 +1,888 @@
+diff --git a/src/components/experience/Opening/OpeningScene.module.css b/src/components/experience/Opening/OpeningScene.module.css
+index dc01e56..b540f37 100644
+--- a/src/components/experience/Opening/OpeningScene.module.css
++++ b/src/components/experience/Opening/OpeningScene.module.css
+@@ -15,6 +15,15 @@
+   overflow: hidden;
+   position: relative;
+   width: 100%;
++  animation: gateWeave 14s ease-in-out infinite;
++  will-change: transform;
++}
++
++@keyframes gateWeave {
++  0%, 100% { transform: translate3d(0, 0, 0); }
++  25% { transform: translate3d(0.35px, -0.45px, 0); }
++  50% { transform: translate3d(-0.4px, 0.35px, 0); }
++  75% { transform: translate3d(0.45px, 0.4px, 0); }
+ }
+ 
+ .stock,
+@@ -26,7 +35,7 @@
+ 
+ .stock {
+   background:
+-    radial-gradient(ellipse at 68% 74%, rgba(232, 219, 186, 0.035), transparent 26%),
++    radial-gradient(ellipse at 65% 70%, rgba(232, 219, 186, 0.025), transparent 35%),
+     var(--kp-black);
+ }
+ 
+@@ -34,68 +43,323 @@
+   background-image: var(--kp-stock-noise);
+   content: "";
+   mix-blend-mode: screen;
+-  opacity: 0.26;
++  opacity: 0.22;
+ }
+ 
+-.aperture {
+-  align-items: center;
+-  border: var(--rule-ivory);
++/* Volumetric Optical Light Projection Exposure */
++.opticalLight {
++  background:
++    radial-gradient(ellipse 75% 65% at 24% 28%, rgba(235, 225, 201, 0.082) 0%, rgba(215, 195, 150, 0.038) 42%, transparent 72%),
++    linear-gradient(135deg, rgba(235, 225, 201, 0.045) 0%, rgba(235, 225, 201, 0.015) 38%, transparent 64%);
++  inset: 0;
++  pointer-events: none;
++  position: absolute;
++  z-index: 1;
++  animation: exposureDrift 20s ease-in-out infinite;
++}
++
++@keyframes exposureDrift {
++  0%, 100% { opacity: 0.96; }
++  50% { opacity: 1.0; }
++}
++
++/* Left-Side Physical Film-Strip Edge */
++.filmStrip {
++  background: #0f0e0c;
++  border-right: 1px solid rgba(235, 225, 201, 0.2);
++  bottom: 0;
+   display: flex;
+-  font-family: var(--font-admin), sans-serif;
+-  font-size: clamp(0.75rem, 1vw, 1rem);
+-  font-weight: 600;
++  flex-direction: column;
++  align-items: center;
+   justify-content: space-between;
+-  left: 11vw;
+-  letter-spacing: 0.14em;
+-  opacity: 0;
+-  padding: 1.1rem 1.3rem 0.9rem;
++  left: 0;
++  padding: calc(var(--kp-global-nav-safe-area) + 0.8rem) 0 1rem;
++  pointer-events: none;
+   position: absolute;
+-  right: 11vw;
++  top: 0;
++  width: clamp(52px, 4.2vw, 80px);
++  z-index: 4;
++}
++
++.sprocketTrack {
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: clamp(14px, 2.2vh, 26px);
++  width: 100%;
++}
++
++.sprocketHole {
++  background: #060605;
++  border: 1px solid rgba(235, 225, 201, 0.12);
++  border-radius: 3.5px;
++  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.85);
++  height: clamp(18px, 1.6vw, 28px);
++  width: clamp(14px, 1.2vw, 22px);
++}
++
++.filmEdgeMeta {
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 1.4rem;
++  font-family: var(--font-mono), monospace;
++  font-size: clamp(0.48rem, 0.55vw, 0.65rem);
++  letter-spacing: 0.22em;
++  color: rgba(235, 225, 201, 0.55);
++  text-align: center;
++  line-height: 1.25;
++}
++
++.filmCode {
++  color: rgba(235, 225, 201, 0.72);
++}
++
++.filmCue {
++  font-size: 0.88em;
++  opacity: 0.7;
++}
++
++/* Perimeter Registration Frame & Crop Marks */
++.registrationFrame {
++  bottom: clamp(1.2rem, 2.4vh, 2.4rem);
++  left: calc(clamp(52px, 4.2vw, 80px) + clamp(1.2rem, 2vw, 2.4rem));
++  pointer-events: none;
++  position: absolute;
++  right: var(--page-gutter);
++  top: calc(var(--kp-global-nav-safe-area) + clamp(0.75rem, 1.8vh, 1.8rem));
++  z-index: 3;
++}
++
++.cropMark {
++  border-color: rgba(235, 225, 201, 0.38);
++  border-style: solid;
++  height: 20px;
++  position: absolute;
++  width: 20px;
++}
++
++.cropTL { top: 0; left: 0; border-width: 1px 0 0 1px; }
++.cropTR { top: 0; right: 0; border-width: 1px 1px 0 0; }
++.cropBL { bottom: 0; left: 0; border-width: 0 0 1px 1px; }
++.cropBR { bottom: 0; right: 0; border-width: 0 1px 1px 0; }
++
++.datumCross {
++  height: 15px;
++  left: 50%;
++  pointer-events: none;
++  position: absolute;
++  transform: translateX(-50%);
++  width: 15px;
++}
++
++.datumCross::before,
++.datumCross::after {
++  background: rgba(235, 225, 201, 0.4);
++  content: "";
++  position: absolute;
++}
++
++.datumCross::before {
++  height: 100%;
++  left: 7px;
++  top: 0;
++  width: 1px;
++}
++
++.datumCross::after {
++  height: 1px;
++  left: 0;
++  top: 7px;
++  width: 100%;
++}
++
++.datumTop { top: -7px; }
++.datumBottom { bottom: -7px; }
++
++/* Top-Left & Top-Right Production Notation */
++.metaTopLeft {
++  left: calc(clamp(52px, 4.2vw, 80px) + clamp(1.6rem, 2.4vw, 3rem));
++  pointer-events: none;
++  position: absolute;
++  top: calc(var(--kp-global-nav-safe-area) + clamp(1rem, 2.2vh, 2.2rem));
++  z-index: 3;
++}
++
++.metaTopRight {
++  pointer-events: none;
++  position: absolute;
++  right: calc(var(--page-gutter) + 0.5rem);
++  text-align: right;
++  top: calc(var(--kp-global-nav-safe-area) + clamp(1rem, 2.2vh, 2.2rem));
++  z-index: 3;
++}
++
++.metaHeader {
++  color: rgba(235, 225, 201, 0.75);
++  font-family: var(--font-mono), monospace;
++  font-size: clamp(0.55rem, 0.65vw, 0.74rem);
++  font-weight: 500;
++  letter-spacing: 0.24em;
+   text-transform: uppercase;
+-  top: 27vh;
++}
++
++.metaSub {
++  color: rgba(235, 225, 201, 0.45);
++  font-family: var(--font-admin), sans-serif;
++  font-size: clamp(0.65rem, 0.75vw, 0.84rem);
++  letter-spacing: 0.16em;
++  line-height: 1.35;
++  margin-top: 0.25rem;
++}
++
++/* Monumental Hero Core (Wordmark + Red ACTION Residue) */
++.heroCore {
++  align-items: flex-start;
++  bottom: clamp(9vh, 13vh, 16vh);
++  display: flex;
++  flex-direction: column;
++  left: calc(clamp(52px, 4.2vw, 80px) + clamp(1.6rem, 2.4vw, 3rem));
++  position: absolute;
++  z-index: 4;
+ }
+ 
+ .wordmark {
+-  bottom: 11.5vh;
+-  clip-path: inset(0 0 0 0);
++  color: var(--kp-ivory);
+   font-family: var(--font-display), serif;
+-  font-size: clamp(6.2rem, 15.4vw, 18rem);
++  font-size: clamp(6.2rem, 15vw, 18.5rem);
+   font-weight: 400;
+-  left: calc(var(--page-gutter) - 0.025em);
+   letter-spacing: -0.035em;
+-  line-height: 0.92;
+-  padding-bottom: 0.12em;
+-  position: absolute;
++  line-height: 0.88;
++  margin: 0;
++  padding: 0;
+   white-space: nowrap;
+-  will-change: transform, clip-path;
++  will-change: transform, clip-path, opacity;
++}
++
++.actionStrokeWrap {
++  margin-left: -1%;
++  margin-top: clamp(-1.4rem, -1.8vw, -2.4rem);
++  pointer-events: none;
++  width: 104%;
++}
++
++.actionSvg {
++  display: block;
++  height: auto;
++  overflow: visible;
++  width: 100%;
++}
++
++.actionStrokeMain {
++  fill: none;
++  stroke: var(--kp-red);
++  stroke-linecap: round;
++  stroke-linejoin: round;
++  stroke-width: 12px;
++}
++
++.actionStrokeUnder {
++  fill: none;
++  opacity: 0.55;
++  stroke: var(--kp-red-dark);
++  stroke-linecap: round;
++  stroke-linejoin: round;
++  stroke-width: 7px;
++}
++
++/* Right-Side Editorial Theses Stack */
++.thesisStack {
++  align-items: flex-end;
++  bottom: clamp(8vh, 12vh, 15vh);
++  display: flex;
++  flex-direction: column;
++  gap: clamp(1.2rem, 2.2vh, 2.4rem);
++  position: absolute;
++  right: calc(var(--page-gutter) + clamp(0.5rem, 1vw, 1.5rem));
++  text-align: right;
++  z-index: 4;
++}
++
++.thesisControl {
++  color: var(--kp-ivory);
++  display: flex;
++  flex-direction: column;
++  font-family: var(--font-display), serif;
++  font-size: clamp(1.15rem, 1.7vw, 2.1rem);
++  letter-spacing: 0.22em;
++  line-height: 1.35;
++  text-transform: uppercase;
+ }
+ 
+-.statement {
+-  bottom: 3.6vh;
++.badgeBox {
++  align-items: center;
++  border: 1px solid rgba(235, 225, 201, 0.42);
++  color: var(--kp-ivory);
++  display: flex;
++  flex-direction: column;
++  font-family: var(--font-admin), sans-serif;
++  font-size: clamp(0.68rem, 0.8vw, 0.88rem);
++  letter-spacing: 0.12em;
++  line-height: 1;
++  padding: 0.35rem 0.55rem;
++}
++
++.thesisMoney {
++  color: rgba(235, 225, 201, 0.85);
++  display: flex;
++  flex-direction: column;
++  font-family: var(--font-admin), sans-serif;
++  font-size: clamp(0.72rem, 0.85vw, 0.95rem);
++  letter-spacing: 0.18em;
++  line-height: 1.4;
++  text-transform: uppercase;
++}
++
++.thesisRule {
++  align-self: flex-end;
++  background: var(--kp-ivory);
++  height: 1px;
++  margin-top: 0.45rem;
++  opacity: 0.6;
++  width: 2.2rem;
++}
++
++/* Bottom Baseline Datum Bar */
++.baselineBar {
++  align-items: center;
++  bottom: clamp(0.6rem, 1.4vh, 1.4rem);
++  color: rgba(235, 225, 201, 0.48);
+   display: flex;
+   font-family: var(--font-mono), monospace;
+-  font-size: clamp(0.55rem, 0.72vw, 0.75rem);
++  font-size: clamp(0.5rem, 0.58vw, 0.68rem);
+   justify-content: space-between;
+-  left: var(--page-gutter);
+-  letter-spacing: 0.24em;
+-  line-height: 1.4;
++  left: calc(clamp(52px, 4.2vw, 80px) + clamp(1.6rem, 2.4vw, 3rem));
++  letter-spacing: 0.22em;
+   position: absolute;
+   right: var(--page-gutter);
+-  z-index: 4;
++  z-index: 3;
+ }
+ 
+-.statement p:last-child { text-align: right; }
+ 
+-.cornerMark {
++
++/* Thesis statement bar, registration mark and rule: resolve into the frame the 00->01 film begins on */
++.aperture {
++  align-items: center;
+   border: var(--rule-ivory);
+-  bottom: 22vh;
++  display: flex;
+   font-family: var(--font-admin), sans-serif;
+-  font-size: 0.8rem;
+-  line-height: 0.9;
+-  padding: 0.48rem;
++  font-size: clamp(0.75rem, 1vw, 1rem);
++  font-weight: 600;
++  justify-content: space-between;
++  left: 11vw;
++  letter-spacing: 0.14em;
++  opacity: 0;
++  padding: 1.1rem 1.3rem 0.9rem;
+   position: absolute;
+-  right: var(--page-gutter);
+-  text-align: center;
++  right: 11vw;
++  text-transform: uppercase;
++  top: 27vh;
+ }
+ 
+ .registrationMark {
+@@ -133,89 +397,113 @@
+   z-index: 5;
+ }
+ 
+-.paperReveal {
+-  background-color: var(--kp-paper-light);
+-  background-image: image-set(
+-    url("/assets/kavachpay/materials/paper-master-ivory-900.webp") 1x,
+-    url("/assets/kavachpay/materials/paper-master-ivory-1600.webp") 2x
+-  );
+-  background-size: cover;
+-  clip-path: inset(48% 0 52% 0);
+-  inset: 0;
+-  position: absolute;
+-  z-index: 2;
+-}
+ 
+-.paperReveal::before {
+-  background:
+-    linear-gradient(to bottom, rgba(0, 0, 0, 0.3), transparent 68%),
+-    var(--kp-stock-noise);
+-  clip-path: polygon(0 42%, 3% 22%, 7% 55%, 12% 28%, 18% 64%, 23% 36%, 29% 58%, 35% 19%, 41% 51%, 47% 31%, 54% 68%, 60% 34%, 67% 57%, 73% 25%, 80% 62%, 87% 32%, 93% 54%, 100% 24%, 100% 100%, 0 100%);
+-  content: "";
+-  height: 12px;
+-  left: 0;
+-  opacity: 0.48;
+-  position: absolute;
+-  right: 0;
+-  top: -7px;
+-}
+-
+-.paperBridge {
+-  left: var(--page-gutter);
+-  opacity: 0;
+-  position: absolute;
+-  top: 18vh;
+-  width: min(35vw, 520px);
+-  z-index: 3;
+-}
++/* 1366x768 Laptop Viewport & Height-Constrained Screens */
++@media (max-height: 820px) {
++  .heroCore {
++    bottom: clamp(7vh, 10vh, 12vh);
++  }
+ 
+-.bridgeLabel {
+-  color: var(--kp-red-soft);
+-  display: block;
+-  font-family: var(--font-mono), monospace;
+-  font-size: clamp(0.58rem, 0.7vw, 0.74rem);
+-  font-style: normal;
+-  letter-spacing: 0.17em;
+-  margin-bottom: clamp(1.4rem, 3vh, 2.7rem);
+-}
++  .wordmark {
++    font-size: clamp(5.2rem, 12.5vw, 11rem);
++  }
+ 
+-.bridgeTitle {
+-  color: var(--kp-ink);
+-  display: block;
+-  font-family: var(--font-display), serif;
+-  font-size: clamp(4rem, 7vw, 8.2rem);
+-  font-weight: 400;
+-  letter-spacing: -0.038em;
+-  line-height: 0.82;
+-  margin-left: -0.035em;
+-}
++  .thesisStack {
++    bottom: clamp(7vh, 10vh, 12vh);
++    gap: 0.85rem;
++  }
+ 
+-.bridgeMeta {
+-  border-top: 1px solid rgba(20, 19, 15, 0.25);
+-  color: rgba(20, 19, 15, 0.65);
+-  display: block;
+-  font-family: var(--font-mono), monospace;
+-  font-size: clamp(0.55rem, 0.68vw, 0.72rem);
+-  font-style: normal;
+-  letter-spacing: 0.16em;
+-  margin-top: clamp(2rem, 5vh, 4rem);
+-  padding-top: 0.85rem;
+-  width: 63%;
++  .thesisControl {
++    font-size: clamp(0.95rem, 1.3vw, 1.4rem);
++    line-height: 1.3;
++  }
+ }
+ 
+-@media (max-width: 760px) {
++/* Mobile Viewports (430x932, 390x844) */
++@media (max-width: 768px) {
+   .section { height: 100%; }
+-  .aperture { align-items: flex-start; flex-direction: column; gap: 0.45rem; left: var(--page-gutter); right: var(--page-gutter); top: 22vh; }
+-  .wordmark { bottom: 19vh; font-size: clamp(5.2rem, 25vw, 8rem); white-space: normal; width: 92vw; }
+-  .statement { bottom: 4.5vh; }
+-  .cornerMark { bottom: 30vh; }
+-  .paperBridge strong { font-size: clamp(3.5rem, 14vw, 5.4rem); }
++
++  .filmStrip {
++    padding-top: calc(var(--kp-global-nav-safe-area) + 0.5rem);
++    width: clamp(22px, 6vw, 30px);
++  }
++
++  .sprocketTrack {
++    gap: 12px;
++  }
++
++  .sprocketHole {
++    border-radius: 2px;
++    height: 14px;
++    width: 10px;
++  }
++
++  .filmEdgeMeta {
++    display: none;
++  }
++
++  .registrationFrame {
++    bottom: 1.5rem;
++    left: calc(clamp(22px, 6vw, 30px) + 0.8rem);
++    right: 0.8rem;
++  }
++
++  .metaTopLeft {
++    left: calc(clamp(22px, 6vw, 30px) + 1rem);
++  }
++
++  .metaTopRight {
++    display: none;
++  }
++
++  .heroCore {
++    bottom: 19vh;
++    left: calc(clamp(22px, 6vw, 30px) + 1rem);
++  }
++
++  .wordmark {
++    font-size: clamp(3.2rem, 13.5vw, 4.8rem);
++    line-height: 0.92;
++  }
++
++  .actionStrokeWrap {
++    margin-top: -0.8rem;
++    width: 106%;
++  }
++
++  .thesisStack {
++    align-items: flex-start;
++    bottom: 5vh;
++    gap: 0.6rem;
++    left: calc(clamp(22px, 6vw, 30px) + 1rem);
++    right: var(--page-gutter);
++    text-align: left;
++  }
++
++  .thesisControl {
++    font-size: 0.88rem;
++    line-height: 1.25;
++  }
++
++  .badgeBox {
++    display: none;
++  }
++
++  .thesisMoney {
++    font-size: 0.72rem;
++  }
++
++  .thesisRule {
++    align-self: flex-start;
++  }
++
++  .baselineBar {
++    display: none;
++  }
+ }
+ 
+ @media (prefers-reduced-motion: reduce) {
+   .section { height: 100%; }
+-  .aperture { clip-path: none; opacity: 1; }
+-  .rule,
+-  .transitionCue,
+-  .paperReveal { display: none; }
++  .frame { animation: none !important; }
++  .opticalLight { animation: none !important; }
+ }
+diff --git a/src/components/experience/Opening/OpeningScene.tsx b/src/components/experience/Opening/OpeningScene.tsx
+index 2cde55b..d7585eb 100644
+--- a/src/components/experience/Opening/OpeningScene.tsx
++++ b/src/components/experience/Opening/OpeningScene.tsx
+@@ -10,122 +10,214 @@ type OpeningSceneProps = {
+   trackRef?: React.RefObject<HTMLDivElement | null>;
+ };
+ 
++// Scene 00 is the first fully exposed frame of the film. FilmIntro releases onto
++// it already exposed (its own flash + fade is the exposure), so the hero is at
++// rest from the first frame. The only scroll-derived motion is the thesis
++// statement resolving into the frame the 00->01 film begins on: the aperture
++// bar, the registration rule and its mark. The wordmark, red residue stroke,
++// film strip, crop marks and notations never move, fade or scale.
++const APERTURE_REST = 0.72; // opacity of the aperture bar in the 00->01 film's first frame
++
+ export function OpeningScene({ trackRef }: OpeningSceneProps) {
+   const root = useRef<HTMLElement>(null);
+ 
+-  useGSAP(() => {
+-    if (!root.current) return;
+-    const isPersistent = Boolean(trackRef);
+-    const triggerEl = trackRef?.current ?? (isPersistent ? "[data-track='prologue']" : root.current);
+-    const motion = gsap.matchMedia();
+-
+-    motion.add("(prefers-reduced-motion: no-preference)", () => {
+-      const applyVisibility = (visible: boolean) => {
+-        if (!root.current) return;
+-        root.current.style.visibility = visible ? "visible" : "hidden";
+-        root.current.style.pointerEvents = visible ? "auto" : "none";
+-        root.current.setAttribute("aria-hidden", visible ? "false" : "true");
+-      };
+-
+-      const timeline = gsap.timeline({
+-        defaults: { ease: "none" },
+-        scrollTrigger: {
+-          trigger: triggerEl,
+-          start: "top top",
+-          end: isPersistent ? "bottom top" : "+=120%",
+-          pin: !isPersistent,
+-          scrub: true,
+-          invalidateOnRefresh: true,
+-          onEnter: () => {
+-            applyVisibility(true);
+-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "prologue" } }));
+-          },
+-          onEnterBack: () => {
+-            applyVisibility(true);
+-            window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "prologue" } }));
+-          },
+-          onLeave: () => {
+-            if (isPersistent) applyVisibility(false);
+-          },
+-          onUpdate: (self) => {
+-            progressBus.set("prologue", self.progress);
+-            updateVisibility();
++  useGSAP(
++    () => {
++      if (!root.current) return;
++      const isPersistent = Boolean(trackRef);
++      const triggerEl = trackRef?.current ?? (isPersistent ? "[data-track='prologue']" : root.current);
++      const motion = gsap.matchMedia();
++
++      // Reduced motion: the complete static hero, terminal state, no ambient weave (CSS).
++      motion.add("(prefers-reduced-motion: reduce)", () => {
++        if (root.current) {
++          root.current.style.visibility = "visible";
++          root.current.style.pointerEvents = "auto";
++          root.current.setAttribute("aria-hidden", "false");
++        }
++        gsap.set("[data-opening-window]", { opacity: APERTURE_REST });
++        gsap.set("[data-opening-rule]", { scaleX: 1 });
++        gsap.set("[data-opening-reg]", { opacity: 1 });
++      });
++
++      motion.add("(prefers-reduced-motion: no-preference)", () => {
++        const applyVisibility = (visible: boolean) => {
++          if (!root.current) return;
++          root.current.style.visibility = visible ? "visible" : "hidden";
++          root.current.style.pointerEvents = visible ? "auto" : "none";
++          root.current.setAttribute("aria-hidden", visible ? "false" : "true");
++        };
++
++        const timeline = gsap.timeline({
++          defaults: { ease: "none" },
++          scrollTrigger: {
++            trigger: triggerEl,
++            start: "top top",
++            end: isPersistent ? "bottom top" : "+=120%",
++            pin: !isPersistent,
++            scrub: true,
++            invalidateOnRefresh: true,
++            onEnter: () => {
++              applyVisibility(true);
++              window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "prologue" } }));
++            },
++            onEnterBack: () => {
++              applyVisibility(true);
++              window.dispatchEvent(new CustomEvent("kp:scene", { detail: { id: "prologue" } }));
++            },
++            onLeave: () => {
++              if (isPersistent) applyVisibility(false);
++            },
++            onUpdate: (self) => {
++              progressBus.set("prologue", self.progress);
++              updateVisibility();
++            },
+           },
+-        },
++        });
++
++        // Body stays up to 50px past its track end (it sits under the 00->01 film).
++        const updateVisibility = () => {
++          if (!root.current || !isPersistent) return;
++          const st = timeline.scrollTrigger;
++          if (!st) return;
++          applyVisibility(st.end > 0 ? window.scrollY <= st.end + 50 : true);
++        };
++        updateVisibility();
++        ScrollTrigger.addEventListener("refresh", updateVisibility);
++
++        // Initial state: the hero is exposed and complete; only the thesis
++        // statement (bar, rule, mark) is still to resolve.
++        gsap.set("[data-opening-window]", { opacity: 0 });
++        gsap.set("[data-opening-rule]", { scaleX: 0 });
++        gsap.set("[data-opening-reg]", { opacity: 0 });
++
++        // A hold 0.00-0.15 | B the thesis bar exposes 0.15-0.35 | C the registration
++        // rule draws and its mark locks 0.40-0.58 | D terminal hold 0.58-1.00.
++        timeline
++          .to("[data-opening-window]", { opacity: APERTURE_REST, duration: 0.2, ease: "power1.inOut" }, 0.15)
++          .to("[data-opening-rule]", { scaleX: 1, duration: 0.18, ease: "power2.out" }, 0.4)
++          .to("[data-opening-reg]", { opacity: 1, duration: 0.1 }, 0.48);
++
++        // Mobile has no 00->01 film (the transition layer and its scroll spacer are
++        // bypassed at <=48rem), so Opening hands straight to Mandate. Policy: a short,
++        // scroll-derived dip of the frame to black at the very end of the track; Mandate
++        // then arrives from black. No paper wipe, no preview, fully reversible.
++        if (window.matchMedia("(max-width: 48rem)").matches) {
++          timeline.to("[data-opening-frame]", { opacity: 0, duration: 0.06, ease: "power1.in" }, 0.94);
++        }
++        timeline.set({}, {}, 1);
++
++        return () => {
++          ScrollTrigger.removeEventListener("refresh", updateVisibility);
++          timeline.scrollTrigger?.kill();
++          timeline.kill();
++        };
+       });
+ 
+-      const updateVisibility = () => {
+-        if (!root.current || !isPersistent) return;
+-        const st = timeline.scrollTrigger;
+-        if (!st) return;
+-        const y = window.scrollY;
+-        const isVisible = st.end > 0 ? y <= (st.end + 50) : true;
+-        applyVisibility(isVisible);
+-      };
+-
+-
+-      updateVisibility();
+-      ScrollTrigger.addEventListener("refresh", updateVisibility);
+-
+-      // [data-opening-paper]/[data-opening-bridge] previously wiped to a
+-      // full-bleed paper card previewing Mandate's own headline — the
+-      // 00 -> 01 boundary's old DOM transition. That boundary is now owned by
+-      // the video transition layer, so both stay in their hidden resting
+-      // state and Opening's own timeline ends at 0.46 instead.
+-      gsap.set("[data-opening-paper]", { clipPath: "inset(48% 0 52% 0)" });
+-      gsap.set("[data-opening-bridge]", { opacity: 0, y: 8 });
+-      gsap.set("[data-opening-reg]", { opacity: 0 });
+-
+-      timeline
+-        .to("[data-opening-word]", { yPercent: -8, scale: 0.965, duration: 0.26 }, 0.04)
+-        .to("[data-opening-window]", { opacity: 1, duration: 0.14 }, 0.16)
+-        .to("[data-opening-rule]", { scaleX: 1, duration: 0.2, ease: "power2.out" }, 0.36)
+-        .to("[data-opening-reg]", { opacity: 1, duration: 0.1 }, 0.40)
+-        .to("[data-opening-word]", { yPercent: -16, opacity: 0, clipPath: "inset(0 0 45% 0)", duration: 0.2 }, 0.44)
+-        .to("[data-opening-window]", { yPercent: -20, duration: 0.2 }, 0.46)
+-        .to("[data-opening-meta]", { color: "#15130e", duration: 0.1 }, 0.74);
+-
+-      return () => {
+-        ScrollTrigger.removeEventListener("refresh", updateVisibility);
+-        timeline.scrollTrigger?.kill();
+-        timeline.kill();
+-      };
+-    });
+-
+-    return () => motion.revert();
+-  }, { scope: root, dependencies: [trackRef] });
++      return () => motion.revert();
++    },
++    { scope: root, dependencies: [trackRef] },
++  );
+ 
+   return (
+     <section ref={root} className={styles.section} data-scene="prologue" aria-labelledby="opening-title">
+-      <div className={styles.frame}>
++      <div className={styles.frame} data-opening-frame>
+         <div className={styles.stock} aria-hidden="true" />
+ 
++        {/* Volumetric optical light projection exposure */}
++        <div className={styles.opticalLight} data-opening-decor data-opening-light aria-hidden="true" />
++
++        {/* Left-side physical film strip edge */}
++        <aside className={styles.filmStrip} data-opening-decor data-film-strip aria-hidden="true">
++          <div className={styles.sprocketTrack}>
++            {Array.from({ length: 14 }).map((_, i) => (
++              <div key={i} className={styles.sprocketHole} style={{ opacity: 0.9 + (i % 3) * 0.04 }} />
++            ))}
++          </div>
++          <div className={styles.filmEdgeMeta}>
++            <span className={styles.filmCode}>KP<br />001</span>
++            <span className={styles.filmCue}>PICTURE<br />STARTS<br />HERE<br />↓</span>
++          </div>
++        </aside>
++
++        {/* Perimeter registration frame & crop marks */}
++        <div className={styles.registrationFrame} data-opening-decor aria-hidden="true">
++          <div className={`${styles.cropMark} ${styles.cropTL}`} />
++          <div className={`${styles.cropMark} ${styles.cropTR}`} />
++          <div className={`${styles.cropMark} ${styles.cropBL}`} />
++          <div className={`${styles.cropMark} ${styles.cropBR}`} />
++          <div className={`${styles.datumCross} ${styles.datumTop}`} />
++          <div className={`${styles.datumCross} ${styles.datumBottom}`} />
++        </div>
++
++        {/* Top-left production notation */}
++        <div className={styles.metaTopLeft} data-opening-decor aria-hidden="true">
++          <p className={styles.metaHeader}>PICTURE 01 &nbsp;/&nbsp; AUTHORITY</p>
++          <p className={styles.metaSub}>BOUND CONTRACT<br />{"// SEC-00"}</p>
++        </div>
++
++        {/* Top-right production notation */}
++        <div className={styles.metaTopRight} data-opening-decor aria-hidden="true">
++          <p className={styles.metaHeader}>TAKE 01</p>
++          <p className={styles.metaSub}>ROLL KP-01</p>
++        </div>
++
++        {/* Thesis bar: exposes into the frame the 00->01 film begins on */}
+         <div className={styles.aperture} data-opening-window>
+           <span>AUTHORITY IS NOT ACCESS.</span>
+           <span>IT IS A BOUND CONTRACT.</span>
+         </div>
+ 
+-        <h1 id="opening-title" className={styles.wordmark} data-opening-word>
+-          KavachPay
+-        </h1>
++        {/* Monumental hero core: wordmark & red ACTION residue */}
++        <div className={styles.heroCore}>
++          <h1 id="opening-title" className={styles.wordmark} data-opening-word data-hero-title>
++            KavachPay
++          </h1>
++          <div className={styles.actionStrokeWrap} data-opening-stroke data-action-residue aria-hidden="true">
++            <svg className={styles.actionSvg} viewBox="0 0 1000 120" preserveAspectRatio="none">
++              {/* Offset pressure/undertone path */}
++              <path
++                className={styles.actionStrokeUnder}
++                d="M 18 58 C 118 61, 238 64, 358 64 C 418 65, 446 74, 466 80 C 476 83, 462 67, 455 64 C 478 62, 532 60, 598 58 C 702 54, 802 48, 903 42 C 942 39, 970 36, 988 34"
++              />
++              {/* Primary grease-pencil stroke */}
++              <path
++                className={styles.actionStrokeMain}
++                d="M 20 54 C 120 57, 240 60, 360 61 C 415 62, 442 70, 468 78 C 478 81, 464 64, 452 61 C 475 59, 530 57, 595 55 C 700 51, 800 45, 905 39 C 945 36, 975 33, 990 31"
++              />
++            </svg>
++          </div>
++        </div>
+ 
+-        <div className={styles.statement} data-opening-meta>
+-          <p>CONTROL<br />TRAVELS<br />FURTHER</p>
+-          <p>SAME MONEY.<br />A SAFER TOMORROW.</p>
++        {/* Right-side editorial thesis stack */}
++        <div className={styles.thesisStack} data-opening-decor>
++          <div className={styles.thesisControl}>
++            <span>CONTROL</span>
++            <span>TRAVELS</span>
++            <span>FURTHER</span>
++          </div>
++          <div className={styles.badgeBox} aria-hidden="true">
++            <span>KP</span>
++            <span>01</span>
++          </div>
++          <div className={styles.thesisMoney} data-opening-meta>
++            <span>SAME MONEY.</span>
++            <span>A SAFER TOMORROW.</span>
++            <div className={styles.thesisRule} aria-hidden="true" />
++          </div>
+         </div>
+ 
+-        <div className={styles.cornerMark} aria-hidden="true">KP<br />01</div>
++        {/* Registration rule and mark */}
+         <div className={styles.registrationMark} data-opening-reg aria-hidden="true">
+           <span className={styles.regCross}>+</span>
+           <span>SEC-00 // REG. 48.0</span>
+         </div>
+         <div className={styles.rule} data-opening-rule aria-hidden="true" />
+-        <div className={styles.paperReveal} data-opening-paper aria-hidden="true">
+-          <div className={styles.paperBridge} data-opening-bridge>
+-            <span className={styles.bridgeLabel}>01 / MANDATE</span>
+-            <strong className={styles.bridgeTitle}>Permission,<br />made exact.</strong>
+-            <i className={styles.bridgeMeta}>INTENT → BOUND AUTHORITY</i>
+-          </div>
++
++        {/* Bottom baseline datum rule & timecode */}
++        <div className={styles.baselineBar} data-opening-decor aria-hidden="true">
++          <span className={styles.timecode}>00 : 00 : 01 : 00</span>
++          <span className={styles.baselineBranding}>KAVACHPAY // 2026</span>
+         </div>
+       </div>
+     </section>

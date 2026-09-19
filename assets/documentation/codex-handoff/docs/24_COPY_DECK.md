@@ -1,0 +1,220 @@
+# 24 — Copy Deck
+
+The copy should be terse, editorial, and product-native.
+
+Do not add generic marketing paragraphs inside cinematic scenes.
+
+## Global brand
+
+`KavachPay`
+
+`CONTROL TRAVELS FURTHER`
+
+`SAME MONEY.`
+`A SAFER TOMORROW.`
+
+## 01 / MANDATE
+
+Section title:
+
+`01 / MANDATE`
+
+Support:
+
+`SET BOUNDARIES`
+`FOR A BRIGHTER`
+`EVERYDAY.`
+
+Artifact:
+
+`SPENDING MANDATE`
+
+`GROCERY`
+
+`LIMIT    ₹4,000 / WEEK`
+
+`STEP-UP  > ₹1,500`
+
+`NO ALCOHOL`
+
+`EXPIRES  SUN 23:59`
+
+`DELEGATION > 2`
+
+## 02 / ALLOW / STEP-UP / DENY
+
+Support:
+
+`SAME RULES.`
+`DIFFERENT OUTCOMES.`
+
+ALLOW:
+
+`₹1,249`
+`GROCERY`
+`APPROVED`
+`ALLOWS LIFE TO MOVE`
+
+STEP-UP:
+
+`₹4,900`
+`TRAVEL`
+`STEP-UP REQUIRED`
+`PAUSES FOR PERMISSION`
+
+DENY:
+
+`₹799`
+`BLOCKED MERCHANT`
+`DENIED`
+`STOPS WHAT SHOULDN'T GO THROUGH`
+
+## 03 / DELEGATION
+
+Support:
+
+`SHARE AUTHORITY.`
+`NOT MORE MONEY.`
+
+Parent:
+
+`AUTHORITY PASS`
+`SHOPPING`
+`₹4,000 / WEEK`
+
+Children:
+
+`DERIVED AUTHORITY`
+`GROCERY`
+`₹1,500 / WEEK`
+
+`DERIVED AUTHORITY`
+`DELIVERY`
+`₹1,000 / WEEK`
+
+Footer phrase:
+
+`DELEGATE. DON'T DILUTE.`
+
+## 04 / STEP-UP
+
+Support:
+
+`HIGHER INTENT.`
+`HUMAN CLEARANCE.`
+
+`TRAVEL AUTHORIZATION REQUEST`
+
+`TRAVEL AGENT`
+
+`₹4,900`
+
+`AUTOMATIC LIMIT ₹3,000`
+
+`HOLD FOR CLEARANCE`
+
+`REFER FOR APPROVAL`
+
+`CLEAR ONCE`
+
+`DECLINE`
+
+## 05 / REVOCATION
+
+Support:
+
+`PULL THE PLUG.`
+`DEPENDENCIES STOP.`
+`OTHERS CONTINUE.`
+
+`SHOPPING`
+`REVOKED`
+
+`GROCERY`
+
+`DELIVERY`
+
+`TRAVEL`
+
+Footer:
+
+`REVOKE TODAY. A SAFER TOMORROW.`
+
+## 06 / SPLIT-PAYMENT DEFENSE
+
+Support:
+
+`DIFFERENT TIMES.`
+`SAME INTENT.`
+
+Receipts:
+
+`MARKET MART`
+`MUMBAI`
+`₹1,000`
+`10:03 / 10:06 / 10:09`
+`VIA AGENT`
+`PURPOSE GROCERY`
+
+Pattern:
+
+`SAME MERCHANT.`
+`SAME AGENT.`
+`SAME PURPOSE.`
+
+`ONE ECONOMIC ACTION`
+
+`BLOCKED`
+
+## 07 / BUDGET / CONCURRENCY
+
+Support:
+
+`ONE BUDGET.`
+`ONE AT A TIME.`
+
+`₹500`
+`REMAINING`
+
+`₹500 CAFE`
+
+`₹500 BOOKS`
+
+`RESERVED`
+
+`₹0`
+
+## 08 / CAUSAL REPLAY
+
+Support:
+
+`EVERY PAYMENT`
+`HAS A STORY.`
+
+Frames:
+
+`PROVIDER RESULT`
+`EXECUTION`
+`DECISION`
+`BUDGET STATE`
+`AGENT PATH`
+`DELEGATION`
+`MANDATE`
+
+Footer idea:
+
+`FROM INTENT TO OUTCOME.`
+`FULL CLARITY.`
+
+## Finale
+
+`KavachPay`
+
+`CONTROL TRAVELS FURTHER`
+
+`SAME MONEY.`
+`A SAFER TOMORROW.`
+
+Optional explanatory sentence:
+
+`Agentic money control for mandates, delegation, budgets, approvals, revocation and replay.`

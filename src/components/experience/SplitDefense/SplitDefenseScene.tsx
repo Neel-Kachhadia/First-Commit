@@ -135,60 +135,27 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
         },
       });
 
-      // Physical carriers only: Revocation's source datum resolves into the
-      // temporal aperture; the sealed dossier hands into Scene 07's ledger.
-      const incomingCarrier = "[data-temporal-aperture]";
-      const outgoingCarrier = "[data-dossier-backing]";
-      gsap.set(incomingCarrier, {
-        opacity: 0,
-        visibility: "visible",
-        pointerEvents: "none",
-      });
+      // Incoming 05->06 transition already lands with all three receipts
+      // spread and legible (its own terminal content). The live scene begins
+      // there — no entry animation to replay — and performs only the
+      // remaining product story: correlation, aggregation, one economic
+      // action, block.
+      const rec1Rest = isMobile
+        ? { x: 0, y: 0, rotate: -1 }
+        : { x: -280, y: 15, rotate: -2 };
+      const rec2Rest = isMobile
+        ? { x: 0, y: 0, rotate: 1 }
+        : { x: 0, y: -10, rotate: 1.2 };
+      const rec3Rest = isMobile
+        ? { x: 0, y: 0, rotate: -0.5 }
+        : { x: 280, y: 10, rotate: -1.5 };
 
-      // 05 -> 06 Carrier Bridge (incoming half):
-      // Symmetrically crossfades in over the same 120px pre-roll window Revocation uses to crossfade out.
-      const carrierBridgeIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=120px",
-        end: "top top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(incomingCarrier, { opacity: self.progress });
-        },
-        onLeave: () => {
-          // Carrier completes at ownership; Scene 06's authored timeline then
-          // re-engages the full aperture at the established correlation beat.
-          gsap.set(incomingCarrier, { opacity: 0 });
-        },
-      });
-
-      // 06 -> 07 Carrier Bridge (outgoing half):
-      // Symmetrically crossfades out over the 120px pre-roll window Concurrency uses to crossfade in.
-      const carrierBridgeOut = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "bottom top+=120px",
-        end: "bottom top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(outgoingCarrier, { opacity: 1 - self.progress });
-        },
-      });
-
-      // Initial Receipt Spatial Coordinates
-      const rec1Start = isMobile
-        ? { x: -20, y: -40, rotate: -2, opacity: 0 }
-        : { x: -320, y: 30, rotate: -3.5, opacity: 0 };
-      const rec2Start = isMobile
-        ? { x: 15, y: -20, rotate: 1.5, opacity: 0 }
-        : { x: 0, y: -40, rotate: 1.8, opacity: 0 };
-      const rec3Start = isMobile
-        ? { x: -10, y: 0, rotate: -1, opacity: 0 }
-        : { x: 320, y: 20, rotate: -2.2, opacity: 0 };
-
-      // Set initial element states
-      gsap.set("[data-split-receipt='TX-1091']", rec1Start);
-      gsap.set("[data-split-receipt='TX-1092']", rec2Start);
-      gsap.set("[data-split-receipt='TX-1093']", rec3Start);
+      // Set initial element states: receipts already at rest (matching the
+      // transition's terminal frame), everything downstream still hidden.
+      gsap.set("[data-split-receipt='TX-1091']", { ...rec1Rest, opacity: 1 });
+      gsap.set("[data-split-receipt='TX-1092']", { ...rec2Rest, opacity: 1 });
+      gsap.set("[data-split-receipt='TX-1093']", { ...rec3Rest, opacity: 1 });
+      gsap.set("[data-split-footer]", { opacity: 1 });
       gsap.set("[data-temporal-aperture]", { opacity: 0, scaleY: 0.8 });
       gsap.set("[data-registration-datum]", { opacity: 0, scaleX: 0 });
       gsap.set("[data-ledger-tally]", { opacity: 0, y: 15 });
@@ -197,280 +164,136 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
       gsap.set("[data-stamp-blocked]", { opacity: 0, scale: 1.6, rotate: 4 });
 
       // =========================================================================
-      // BEAT 1: FIRST TEMPORAL REQUEST ENTERS (0.00 - 0.10)
-      // TX-1091 (10:03, ₹1,000, Market Mart) enters independently.
-      // Sits well below threshold (> ₹1,500).
+      // STAGE A — OPENING HOLD (0.00 - 0.06)
+      // Composition stays exactly at the transition's terminal frame so the
+      // video -> DOM handoff is invisible.
       // =========================================================================
-      timeline
-        .fromTo(
-          "[data-split-footer]",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.06 },
-          0.06,
-        )
-        .to(
-          "[data-split-receipt='TX-1091']",
-          {
-            opacity: 1,
-            x: isMobile ? 0 : -280,
-            y: isMobile ? 0 : 15,
-            rotate: isMobile ? -1 : -2,
-            duration: 0.08,
-            ease: "power2.out",
-          },
-          0.02,
-        );
+      timeline.set({}, {}, 0.06);
 
       // =========================================================================
-      // BEAT 2: SECOND TEMPORAL REQUEST ENTERS (0.10 - 0.19)
-      // TX-1092 (10:06, ₹1,000, Market Mart) enters 3 minutes later.
-      // Still looks like an innocent second purchase.
-      // =========================================================================
-      timeline.to(
-        "[data-split-receipt='TX-1092']",
-        {
-          opacity: 1,
-          x: isMobile ? 0 : 0,
-          y: isMobile ? 0 : -10,
-          rotate: isMobile ? 1 : 1.2,
-          duration: 0.08,
-          ease: "power2.out",
-        },
-        0.10,
-      );
-
-      // =========================================================================
-      // BEAT 3: THIRD TEMPORAL REQUEST ENTERS (0.19 - 0.28)
-      // TX-1093 (10:09, ₹1,000, Market Mart) enters 3 minutes later.
-      // =========================================================================
-      timeline.to(
-        "[data-split-receipt='TX-1093']",
-        {
-          opacity: 1,
-          x: isMobile ? 0 : 280,
-          y: isMobile ? 0 : 10,
-          rotate: isMobile ? -0.5 : -1.5,
-          duration: 0.08,
-          ease: "power2.out",
-        },
-        0.19,
-      );
-
-      // =========================================================================
-      // BEAT 4: INDEPENDENT HOLD (0.28 - 0.34)
-      // All 3 receipts sit visibly below STEP-UP > ₹1,500.
-      // The viewer perceives them as three separate transactions.
-      // =========================================================================
-      timeline.set({}, {}, 0.34);
-
-      // =========================================================================
-      // BEAT 5: TEMPORAL WINDOW ENGAGES & SPATIAL CONVERGENCE (0.34 - 0.52)
+      // STAGE B — TEMPORAL WINDOW ENGAGES & SPATIAL CONVERGENCE (0.06 - 0.30)
       // The physical Temporal Review Aperture brackets close around 10:00-10:15.
-      // Receipts translate into tight horizontal proximity and snap to 0deg rotation.
+      // Receipts translate into tight horizontal proximity and snap to 0deg —
+      // three independent purchases visually becoming one cluster.
       // =========================================================================
       timeline
         .to(
           "[data-temporal-aperture]",
-          {
-            opacity: 1,
-            scaleY: 1,
-            duration: 0.10,
-            ease: "power2.out",
-          },
-          0.34,
+          { opacity: 1, scaleY: 1, duration: 0.12, ease: "power2.out" },
+          0.06,
         )
         .to(
           "[data-split-receipt='TX-1091']",
-          {
-            x: isMobile ? 0 : -250,
-            y: 0,
-            rotate: 0,
-            duration: 0.14,
-            ease: "power2.inOut",
-          },
-          0.36,
+          { x: isMobile ? 0 : -250, y: 0, rotate: 0, duration: 0.18, ease: "power2.inOut" },
+          0.10,
         )
         .to(
           "[data-split-receipt='TX-1092']",
-          {
-            x: 0,
-            y: 0,
-            rotate: 0,
-            duration: 0.14,
-            ease: "power2.inOut",
-          },
-          0.36,
+          { x: 0, y: 0, rotate: 0, duration: 0.18, ease: "power2.inOut" },
+          0.10,
         )
         .to(
           "[data-split-receipt='TX-1093']",
-          {
-            x: isMobile ? 0 : 250,
-            y: 0,
-            rotate: 0,
-            duration: 0.14,
-            ease: "power2.inOut",
-          },
-          0.36,
+          { x: isMobile ? 0 : 250, y: 0, rotate: 0, duration: 0.18, ease: "power2.inOut" },
+          0.10,
         );
 
       // =========================================================================
-      // BEAT 6: IDENTITY EVIDENCE REGISTRATION (0.52 - 0.68)
+      // STAGE C — IDENTITY EVIDENCE REGISTRATION (0.30 - 0.58)
       // Horizontal forensic datum lines snap across the 3 repeated fields:
-      // 1. MARKET MART MUMBAI
-      // 2. VIA AGENT ZEPTO
-      // 3. PURPOSE GROCERY
-      // Redundancy becomes visually undeniable.
+      // 1. MARKET MART MUMBAI  2. VIA AGENT ZEPTO  3. PURPOSE GROCERY
+      // Redundancy becomes visually undeniable, one field at a time.
       // =========================================================================
       timeline
         .to(
           "[data-registration-datum='merchant']",
-          {
-            opacity: 1,
-            scaleX: 1,
-            duration: 0.05,
-            ease: "power1.out",
-          },
-          0.52,
+          { opacity: 1, scaleX: 1, duration: 0.08, ease: "power1.out" },
+          0.30,
         )
         .to(
           "[data-registration-datum='agent']",
-          {
-            opacity: 1,
-            scaleX: 1,
-            duration: 0.05,
-            ease: "power1.out",
-          },
-          0.58,
+          { opacity: 1, scaleX: 1, duration: 0.08, ease: "power1.out" },
+          0.40,
         )
         .to(
           "[data-registration-datum='purpose']",
-          {
-            opacity: 1,
-            scaleX: 1,
-            duration: 0.05,
-            ease: "power1.out",
-          },
-          0.64,
+          { opacity: 1, scaleX: 1, duration: 0.08, ease: "power1.out" },
+          0.50,
         );
 
       // =========================================================================
-      // BEAT 7: ACCOUNTING AGGREGATION (0.68 - 0.78)
+      // STAGE D — ACCOUNTING AGGREGATION (0.58 - 0.74)
       // Ledger tally bracket activates: ₹1,000 + ₹1,000 + ₹1,000 = ₹3,000.
       // Proves why evasion fails: ₹3,000 > ₹1,500 threshold!
       // =========================================================================
       timeline
         .to(
           "[data-ledger-tally]",
-          {
-            opacity: 1,
-            y: 0,
-            duration: 0.08,
-            ease: "power2.out",
-          },
-          0.68,
+          { opacity: 1, y: 0, duration: 0.10, ease: "power2.out" },
+          0.58,
         )
         .to(
           "[data-tally-breach]",
-          {
-            color: "var(--kp-red)",
-            scale: 1.04,
-            duration: 0.04,
-            ease: "power1.out",
-          },
-          0.74,
+          { color: "var(--kp-red)", scale: 1.04, duration: 0.05, ease: "power1.out" },
+          0.66,
         );
 
       // =========================================================================
-      // BEAT 8: DOSSIER LOCK & SINGLE ECONOMIC ACTION (0.78 - 0.86)
+      // STAGE E — DOSSIER LOCK (0.74 - 0.84)
       // Underlying correlation dossier locks the 3 slips into one composite case.
       // =========================================================================
       timeline.to(
         "[data-dossier-backing]",
-        {
-          opacity: 1,
-          scale: 1,
-          y: 0,
-          duration: 0.08,
-          ease: "power2.out",
-        },
-        0.78,
+        { opacity: 1, scale: 1, y: 0, duration: 0.10, ease: "power2.out" },
+        0.74,
       );
 
       // =========================================================================
-      // BEAT 9: PRIMARY STAMP — ONE ECONOMIC ACTION (0.86 - 0.93)
-      // Anticipation -> Impact -> Settle
+      // STAGE F — PRIMARY STAMP: ONE ECONOMIC ACTION (0.84 - 0.90)
+      // Anticipation -> Impact -> Settle. Deliberately sudden — a stamp lands.
       // =========================================================================
       timeline
         .to(
           "[data-stamp-economic-action]",
-          {
-            opacity: 0.4,
-            scale: 1.25,
-            rotate: -4,
-            duration: 0.02,
-          },
+          { opacity: 0.4, scale: 1.25, rotate: -4, duration: 0.02 },
+          0.84,
+        )
+        .to(
+          "[data-stamp-economic-action]",
+          { opacity: 1, scale: 0.98, rotate: -2.5, duration: 0.025, ease: "power4.in" },
           0.86,
         )
         .to(
           "[data-stamp-economic-action]",
-          {
-            opacity: 1,
-            scale: 0.98,
-            rotate: -2.5,
-            duration: 0.03,
-            ease: "power4.in",
-          },
-          0.88,
-        )
-        .to(
-          "[data-stamp-economic-action]",
-          {
-            scale: 1,
-            duration: 0.02,
-            ease: "power1.out",
-          },
-          0.91,
+          { scale: 1, duration: 0.02, ease: "power1.out" },
+          0.885,
         );
 
       // =========================================================================
-      // BEAT 10: SECONDARY ENFORCEMENT STAMP — BLOCKED (0.93 - 0.97)
-      // Authoritative administrative box stamp records BLOCKED
+      // STAGE G — SECONDARY ENFORCEMENT STAMP: BLOCKED (0.90 - 0.95)
+      // Authoritative administrative box stamp records BLOCKED. Also sudden.
       // =========================================================================
       timeline
         .to(
           "[data-stamp-blocked]",
-          {
-            opacity: 0.5,
-            scale: 1.3,
-            rotate: 2.5,
-            duration: 0.015,
-          },
-          0.93,
+          { opacity: 0.5, scale: 1.3, rotate: 2.5, duration: 0.015 },
+          0.90,
         )
         .to(
           "[data-stamp-blocked]",
-          {
-            opacity: 1,
-            scale: 0.98,
-            rotate: 1.2,
-            duration: 0.02,
-            ease: "power4.in",
-          },
-          0.945,
+          { opacity: 1, scale: 0.98, rotate: 1.2, duration: 0.02, ease: "power4.in" },
+          0.915,
         )
         .to(
           "[data-stamp-blocked]",
-          {
-            scale: 1,
-            duration: 0.015,
-            ease: "power1.out",
-          },
-          0.965,
+          { scale: 1, duration: 0.015, ease: "power1.out" },
+          0.935,
         );
 
       // =========================================================================
-      // BEAT 11: COMPLETE TERMINAL HISTORICAL HOLD (0.97 - 1.00)
-      // Holds final state with all 3 receipts, audit evidence, and stamps intact.
+      // STAGE H — TERMINAL HOLD (0.95 - 1.00)
+      // Resolved case stays stable — this is the frame the 06->07 transition
+      // begins from.
       // =========================================================================
       timeline.set({}, {}, 1.00);
 
@@ -480,9 +303,11 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
         const aperEl = apertureStatusRef.current;
 
         if (aperEl) {
-          if (p < 0.34) {
+          if (p < 0.06) {
             aperEl.textContent = "MONITORING WINDOW: 10:00–10:15";
-          } else if (p < 0.68) {
+          } else if (p < 0.30) {
+            aperEl.textContent = "TEMPORAL WINDOW ENGAGED // CONVERGING";
+          } else if (p < 0.58) {
             aperEl.textContent = "TEMPORAL CLUSTER IDENTIFIED // 3 SLIPS IN 6 MIN";
           } else {
             aperEl.textContent = "CORRELATION SEALED // CASE CLOSED";
@@ -492,8 +317,6 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
 
       return () => {
         visibilityTrigger.kill();
-        carrierBridgeIn.kill();
-        carrierBridgeOut.kill();
         timeline.scrollTrigger?.kill();
         timeline.kill();
       };

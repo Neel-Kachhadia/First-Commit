@@ -1,11 +1,21 @@
 import type { Metadata } from "next";
-import { Barlow_Condensed, IBM_Plex_Mono, Instrument_Serif } from "next/font/google";
+import type { ReactNode } from "react";
+import { Barlow_Condensed, Crimson_Text, IBM_Plex_Mono } from "next/font/google";
+import Script from "next/script";
+import { themeBootstrapScript } from "@/lib/theme";
 import "./globals.css";
+import "../styles.css";
+import { configureAmplify } from "@/lib/auth/amplify-config";
+import { AuthProvider } from "@/lib/auth/auth-context";
 
-const display = Instrument_Serif({
-  variable: "--font-instrument-serif",
+// Configure Amplify once at module load time (runs on server + client).
+configureAmplify();
+
+const body = Crimson_Text({
+  variable: "--font-crimson-text",
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "600", "700"],
+  style: ["normal", "italic"],
 });
 
 const admin = Barlow_Condensed({
@@ -28,11 +38,18 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${display.variable} ${admin.variable} ${mono.variable}`}>
-      <body>{children}</body>
+    <html lang="en" className={`${body.variable} ${admin.variable} ${mono.variable}`} suppressHydrationWarning>
+      <body>
+        <Script
+          id="kavachpay-theme-bootstrap"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
+        />
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

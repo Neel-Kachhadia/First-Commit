@@ -137,170 +137,72 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
         },
       });
 
-      // Physical carrier only: Scene 06's sealed dossier resolves into the
-      // authoritative budget ledger. Chapter header waits for scene ownership.
+      // incomingCarrier's boundary is now owned by the 06 -> 07 video transition
+      // layer; outgoingCarrier's 07 -> 08 boundary intentionally has no video
+      // transition, so both carriers now rely only on the ownership trigger above.
       gsap.set(incomingCarrier, {
         opacity: 0,
         visibility: "visible",
         pointerEvents: "none",
       });
 
-      // 06 -> 07 Carrier Bridge (incoming half):
-      // Symmetrically crossfades in over the 120px pre-roll window Split-Defense uses to fade out.
-      const carrierBridgeIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=120px",
-        end: "top top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(incomingCarrier, { opacity: self.progress });
-        },
-      });
+      // Incoming 06->07 transition already lands with both ₹500 claims
+      // established and flanking the shared ledger (its own terminal
+      // content). The live scene begins there — no arrival animation to
+      // replay — and performs only the remaining product story: convergence,
+      // atomic serialization, one reservation, one rejection.
+      const leftRest = isMobile
+        ? { x: 0, y: -75, scale: 0.96, rotate: -0.8 }
+        : { x: -230, y: 5, scale: 1, rotate: -2 };
+      const rightRest = isMobile
+        ? { x: 0, y: 75, scale: 0.96, rotate: 0.8 }
+        : { x: 230, y: -5, scale: 1, rotate: 1.5 };
 
-      // 07 -> 08 Carrier Bridge (outgoing half):
-      // Symmetrically crossfades out over the 120px pre-roll window Causal Replay uses to fade in.
-      const carrierBridgeOut = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "bottom top+=120px",
-        end: "bottom top",
-        scrub: true,
-        onUpdate: (self) => {
-          gsap.set(outgoingCarrier, { opacity: 1 - self.progress });
-        },
-      });
-
-      // Initial element positioning
-      const leftStart = isMobile
-        ? { x: 0, y: -75, opacity: 0, scale: 0.95, rotate: -1 }
-        : { x: -380, y: 15, opacity: 0, scale: 1, rotate: -3.5 };
-      const rightStart = isMobile
-        ? { x: 0, y: 75, opacity: 0, scale: 0.95, rotate: 1 }
-        : { x: 380, y: -10, opacity: 0, scale: 1, rotate: 2.5 };
-
-      gsap.set("[data-slip-lane='left']", leftStart);
-      gsap.set("[data-slip-lane='right']", rightStart);
+      gsap.set("[data-slip-lane='left']", { ...leftRest, opacity: 1 });
+      gsap.set("[data-slip-lane='right']", { ...rightRest, opacity: 1 });
       gsap.set("[data-balance-initial]", { opacity: 1, y: 0 });
       gsap.set("[data-balance-final]", { opacity: 0, y: 15 });
-      gsap.set("[data-authority-stock]", { opacity: 0, y: -8 });
-      gsap.set("[data-commit-datum]", { opacity: 0, scaleY: 0.85 });
+      gsap.set("[data-authority-stock]", { opacity: 1, y: 0 });
+      gsap.set("[data-commit-datum]", { opacity: 1, scaleY: 1 });
       gsap.set("[data-stamp-reserved]", { opacity: 0, scale: 1.5, rotate: -8 });
       gsap.set("[data-stamp-unavailable]", { opacity: 0, scale: 1.5, rotate: 6 });
       gsap.set("[data-terminal-ledger]", { opacity: 0, y: 20 });
+      gsap.set("[data-concurrency-footer]", { opacity: 1 });
+      gsap.set("[data-ledger-station]", { y: 0 });
 
       // =========================================================================
-      // BEAT 1: BUDGET LEDGER ESTABLISHES (0.00 - 0.10)
-      // Folio, header, and the authoritative ₹500 balance register establish.
-      // Physical authority stock is confirmed in AVAILABLE stock.
+      // STAGE A — OPENING HOLD: BOTH VALID, QUIET CONTENTION (0.00 - 0.08)
+      // Composition stays at the transition's terminal frame: two individually
+      // legitimate claims flanking one ₹500 ledger. The tension is the point.
       // =========================================================================
-      timeline
-        .fromTo(
-          "[data-concurrency-footer]",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.06 },
-          0.04,
-        )
-        .fromTo(
-          "[data-ledger-station]",
-          { y: -15 },
-          { y: 0, duration: 0.08, ease: "power2.out" },
-          0.02,
-        )
-        .to(
-          "[data-authority-stock]",
-          { opacity: 1, y: 0, duration: 0.06, ease: "power1.out" },
-          0.06,
-        )
-        .to(
-          "[data-commit-datum]",
-          { opacity: 1, scaleY: 1, duration: 0.08, ease: "power2.out" },
-          0.04,
-        );
+      timeline.set({}, {}, 0.08);
 
       // =========================================================================
-      // BEAT 2: CONCURRENT ARRIVAL OF TWO INDEPENDENT REQUESTS (0.10 - 0.22)
-      // TX-1094 (10:14:02.110, ₹500, Cafe) and TX-1095 (10:14:02.114, ₹500, Books)
-      // arrive nearly simultaneously (only 4ms apart). Both see ₹500 REMAINING.
-      // =========================================================================
-      timeline
-        .to(
-          "[data-slip-lane='left']",
-          {
-            opacity: 1,
-            x: isMobile ? 0 : -230,
-            y: isMobile ? -75 : 5,
-            scale: isMobile ? 0.96 : 1,
-            rotate: isMobile ? -0.8 : -2,
-            duration: 0.12,
-            ease: "power2.out",
-          },
-          0.10,
-        )
-        .to(
-          "[data-slip-lane='right']",
-          {
-            opacity: 1,
-            x: isMobile ? 0 : 230,
-            y: isMobile ? 75 : -5,
-            scale: isMobile ? 0.96 : 1,
-            rotate: isMobile ? 0.8 : 1.5,
-            duration: 0.12,
-            ease: "power2.out",
-          },
-          0.11, // 0.01 offset for optical trackability, strictly preserving concurrent perception
-        );
-
-      // =========================================================================
-      // BEAT 3: "BOTH VALID" QUIET CONTENTION HOLD (0.22 - 0.32)
-      // Both slips hold position flanking the central ledger. Both show PENDING CLAIM.
-      // The viewer perceives that both are individually legitimate, but only ₹500 exists.
-      // =========================================================================
-      timeline.set({}, {}, 0.32);
-
-      // =========================================================================
-      // BEAT 4: CONVERGENCE TOWARD THE COMMIT DATUM (0.32 - 0.44)
+      // STAGE B — CONVERGENCE TOWARD THE COMMIT DATUM (0.08 - 0.26)
       // Both slips translate toward the central registration axis.
       // =========================================================================
       timeline
         .to(
           "[data-slip-lane='left']",
-          {
-            x: isMobile ? 0 : -130,
-            y: isMobile ? -60 : 0,
-            rotate: 0,
-            duration: 0.12,
-            ease: "power2.inOut",
-          },
-          0.32,
+          { x: isMobile ? 0 : -130, y: isMobile ? -60 : 0, rotate: 0, duration: 0.16, ease: "power2.inOut" },
+          0.08,
         )
         .to(
           "[data-slip-lane='right']",
-          {
-            x: isMobile ? 0 : 130,
-            y: isMobile ? 60 : 0,
-            rotate: 0,
-            duration: 0.12,
-            ease: "power2.inOut",
-          },
-          0.32,
+          { x: isMobile ? 0 : 130, y: isMobile ? 60 : 0, rotate: 0, duration: 0.16, ease: "power2.inOut" },
+          0.08,
         );
 
       // =========================================================================
-      // BEAT 5: ATOMIC SERIALIZATION AT COMMIT DATUM (0.44 - 0.60)
-      // Only ONE slip can cross the registration datum.
-      // TX-1094 crosses into the active reservation slot.
-      // TX-1095 is held fractionally behind the datum line.
+      // STAGE C — ATOMIC SERIALIZATION AT COMMIT DATUM (0.26 - 0.44)
+      // Only ONE slip can cross the registration datum. TX-1094 crosses into
+      // the active reservation slot; TX-1095 is held fractionally behind it.
       // =========================================================================
       timeline
         .to(
           "[data-slip-lane='left']",
-          {
-            x: isMobile ? 0 : -35,
-            y: isMobile ? -45 : 0,
-            scale: 1,
-            duration: 0.14,
-            ease: "power2.out",
-          },
-          0.44,
+          { x: isMobile ? 0 : -35, y: isMobile ? -45 : 0, scale: 1, duration: 0.16, ease: "power2.out" },
+          0.26,
         )
         .to(
           "[data-slip-lane='right']",
@@ -309,39 +211,27 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
             y: isMobile ? 80 : 0,
             scale: isMobile ? 0.92 : 1,
             opacity: isMobile ? 0.75 : 1,
-            duration: 0.14,
+            duration: 0.16,
             ease: "power2.out",
           },
-          0.44,
+          0.26,
         );
 
       // =========================================================================
-      // BEAT 6: PHYSICAL AUTHORITY STOCK TRANSFERS & RESERVED STAMP (0.60 - 0.70)
+      // STAGE D — PHYSICAL AUTHORITY STOCK TRANSFERS & RESERVED STAMP (0.44 - 0.56)
       // The physical ₹500 authority stock coupon translates into TX-1094's slot.
       // Bold red RESERVED stamp strikes onto TX-1094 with micro-impact shudder.
-      // Status updates to RESERVED // CONFIRMED.
       // =========================================================================
       timeline
         .to(
           "[data-authority-stock]",
-          {
-            x: isMobile ? 0 : -140,
-            y: isMobile ? -30 : 60,
-            duration: 0.08,
-            ease: "power3.inOut",
-          },
-          0.60,
+          { x: isMobile ? 0 : -140, y: isMobile ? -30 : 60, duration: 0.08, ease: "power3.inOut" },
+          0.44,
         )
         .to(
           "[data-stamp-reserved]",
-          {
-            opacity: 1,
-            scale: 1,
-            rotate: -3.5,
-            duration: 0.06,
-            ease: "back.out(2.2)",
-          },
-          0.64,
+          { opacity: 1, scale: 1, rotate: -3.5, duration: 0.05, ease: "back.out(2.2)" },
+          0.49,
         )
         .call(
           () => {
@@ -351,34 +241,24 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
             if (statusEl) statusEl.textContent = "RESERVED // CONFIRMED";
           },
           undefined,
-          0.65,
+          0.50,
         );
 
       // =========================================================================
-      // BEAT 7: AUTHORITATIVE BALANCE PHYSICAL UPDATE (0.70 - 0.78)
-      // The ₹500 numeral physically shifts out and the registered ₹0 drops into place.
-      // Dominant authoritative state: CURRENT REMAINING: ₹0.
+      // STAGE E — AUTHORITATIVE BALANCE PHYSICAL UPDATE (0.56 - 0.64)
+      // The ₹500 numeral physically shifts out and the registered ₹0 drops into
+      // place. Dominant authoritative state: CURRENT REMAINING: ₹0.
       // =========================================================================
       timeline
         .to(
           "[data-balance-initial]",
-          {
-            opacity: 0,
-            y: -18,
-            duration: 0.06,
-            ease: "power2.in",
-          },
-          0.70,
+          { opacity: 0, y: -18, duration: 0.05, ease: "power2.in" },
+          0.56,
         )
         .to(
           "[data-balance-final]",
-          {
-            opacity: 1,
-            y: 0,
-            duration: 0.06,
-            ease: "power2.out",
-          },
-          0.72,
+          { opacity: 1, y: 0, duration: 0.05, ease: "power2.out" },
+          0.58,
         )
         .call(
           () => {
@@ -387,36 +267,24 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
             }
           },
           undefined,
-          0.74,
+          0.60,
         );
 
       // =========================================================================
-      // BEAT 8: TX-1095 VISIBLY RE-EVALUATES AGAINST NEW REALITY (0.78 - 0.88)
-      // TX-1095 confronts CURRENT REMAINING: ₹0.
-      // Requested ₹500 exceeds available ₹0.
-      // Restrained red UNAVAILABLE mark records on TX-1095. Slip recedes slightly.
+      // STAGE F — TX-1095 VISIBLY RE-EVALUATES AGAINST NEW REALITY (0.64 - 0.80)
+      // TX-1095 confronts CURRENT REMAINING: ₹0. Requested ₹500 exceeds
+      // available ₹0. Restrained red UNAVAILABLE mark records; slip recedes.
       // =========================================================================
       timeline
         .to(
           "[data-slip-lane='right']",
-          {
-            x: isMobile ? 0 : 75,
-            scale: 0.97,
-            duration: 0.08,
-            ease: "power1.out",
-          },
-          0.78,
+          { x: isMobile ? 0 : 75, scale: 0.97, duration: 0.08, ease: "power1.out" },
+          0.64,
         )
         .to(
           "[data-stamp-unavailable]",
-          {
-            opacity: 1,
-            scale: 1,
-            rotate: 2.2,
-            duration: 0.06,
-            ease: "power2.out",
-          },
-          0.82,
+          { opacity: 1, scale: 1, rotate: 2.2, duration: 0.06, ease: "power2.out" },
+          0.70,
         )
         .call(
           () => {
@@ -426,35 +294,29 @@ export function ConcurrencyScene({ trackRef }: ConcurrencySceneProps) {
             if (statusEl) statusEl.textContent = "UNAVAILABLE // ₹0 REMAINING";
           },
           undefined,
-          0.84,
+          0.72,
         );
 
       // =========================================================================
-      // BEAT 9: TERMINAL CONSERVATION LEDGER PLATE LOCKS (0.88 - 0.94)
+      // STAGE G — TERMINAL CONSERVATION LEDGER PLATE LOCKS (0.80 - 0.92)
       // Complete institutional accounting plate verifies conservation formula:
       // ₹3,500 PRIOR + ₹500 RESERVED + ₹0 REMAINING = ₹4,000 MANDATE CAP.
       // =========================================================================
       timeline.to(
         "[data-terminal-ledger]",
-        {
-          opacity: 1,
-          y: 0,
-          duration: 0.06,
-          ease: "power2.out",
-        },
-        0.88,
+        { opacity: 1, y: 0, duration: 0.08, ease: "power2.out" },
+        0.80,
       );
 
       // =========================================================================
-      // BEAT 10: TERMINAL RESTING HOLD (0.94 - 1.00)
-      // Stable, portfolio-quality terminal composition.
+      // STAGE H — TERMINAL RESTING HOLD (0.92 - 1.00)
+      // Stable, portfolio-quality terminal composition. There is no 07 -> 08
+      // video transition — Scene 08 takes over from here with its own entrance.
       // =========================================================================
       timeline.set({}, {}, 1.00);
 
       return () => {
         visibilityTrigger.kill();
-        carrierBridgeIn.kill();
-        carrierBridgeOut.kill();
         timeline.kill();
       };
     },

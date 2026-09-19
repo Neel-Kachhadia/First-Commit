@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { SCENE_BY_KEY, SCENE_REGISTRY, type RegisteredSceneKey } from "@/lib/experience/scene-registry";
 import { useExperienceStore } from "@/lib/experience/store";
 import styles from "./GlobalNavbar.module.css";
@@ -14,10 +15,12 @@ const ACTION_NOTICE = "Destination reserved for the application phase; not imple
 
 export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps) {
   const activeScene = useExperienceStore((state) => state.activeScene);
+  const introComplete = useExperienceStore((state) => state.introComplete);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const navRef = useRef<HTMLElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
   const active = activeScene === "none" ? null : SCENE_BY_KEY[activeScene];
 
   const setOpen = useCallback((open: boolean) => {
@@ -67,7 +70,14 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
   }, [menuOpen, setOpen]);
 
   return (
-    <nav ref={navRef} className={styles.nav} aria-label="KavachPay control index" data-global-navbar>
+    <nav
+      ref={navRef}
+      className={styles.nav}
+      aria-label="KavachPay control index"
+      data-global-navbar
+      data-intro-hidden={!introComplete || undefined}
+      inert={!introComplete}
+    >
       <button className={styles.brand} type="button" onClick={() => navigate("prologue")}>
         KAVACHPAY
       </button>
@@ -97,13 +107,13 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
       </div>
 
       <div className={styles.actions}>
-        <button type="button" className={styles.secondaryAction} aria-disabled="true" onClick={() => announceUnavailable("Login")}>
+        <button type="button" className={styles.secondaryAction} onClick={() => router.push("/dashboard")}>
           LOGIN
         </button>
-        <button type="button" className={styles.secondaryAction} aria-disabled="true" onClick={() => announceUnavailable("Sign up")}>
+        <button type="button" className={styles.secondaryAction} onClick={() => router.push("/dashboard")}>
           SIGN UP
         </button>
-        <button type="button" className={styles.primaryAction} aria-disabled="true" onClick={() => announceUnavailable("Enter KavachPay")}>
+        <button type="button" className={styles.primaryAction} onClick={() => router.push("/dashboard")}>
           ENTER KAVACHPAY
         </button>
       </div>
@@ -151,9 +161,9 @@ export function GlobalNavbar({ onNavigate, onMenuOpenChange }: GlobalNavbarProps
           })}
         </div>
         <div className={styles.mobileActions}>
-          <button type="button" aria-disabled="true" onClick={() => announceUnavailable("Login")}>LOGIN</button>
-          <button type="button" aria-disabled="true" onClick={() => announceUnavailable("Sign up")}>SIGN UP</button>
-          <button type="button" className={styles.primaryAction} aria-disabled="true" onClick={() => announceUnavailable("Enter KavachPay")}>ENTER KAVACHPAY</button>
+          <button type="button" onClick={() => router.push("/dashboard")}>LOGIN</button>
+          <button type="button" onClick={() => router.push("/dashboard")}>SIGN UP</button>
+          <button type="button" className={styles.primaryAction} onClick={() => router.push("/dashboard")}>ENTER KAVACHPAY</button>
         </div>
       </div>
 

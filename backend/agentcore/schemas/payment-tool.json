@@ -1,0 +1,32 @@
+{
+  "name": "create_payment",
+  "description": "Request execution of a financial transaction under KavachPay authority",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "intentId": {
+        "type": "string"
+      },
+      "grantId": {
+        "type": "string"
+      },
+      "amount": {
+        "type": "number",
+        "description": "Amount in INR rupees (e.g., 1850 for ₹1,850)"
+      },
+      "merchant": {
+        "type": "string"
+      },
+      "category": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "intentId",
+      "grantId",
+      "amount",
+      "merchant",
+      "category"
+    ]
+  }
+}

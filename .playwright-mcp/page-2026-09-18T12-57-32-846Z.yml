@@ -1,0 +1,79 @@
+- main [ref=f10e2]:
+  - navigation "KavachPay control index":
+    - button "KAVACHPAY"
+    - generic "Film chapters":
+      - button "00 OPENING / HERO":
+        - generic: "00"
+      - button "01 MANDATE":
+        - generic: "01"
+      - button "02 ALLOW / STEP-UP / DENY":
+        - generic: "02"
+      - button "03 DELEGATION":
+        - generic: "03"
+      - button "04 STEP-UP CLEARANCE":
+        - generic: "04"
+      - button "05 REVOCATION":
+        - generic: "05"
+      - button "06 SPLIT-PAYMENT DEFENSE":
+        - generic: "06"
+      - button "07 BUDGET / CONCURRENCY":
+        - generic: "07"
+      - button "08 CAUSAL REPLAY":
+        - generic: "08"
+    - generic:
+      - button "LOGIN" [disabled]
+      - button "SIGN UP" [disabled]
+      - button "ENTER KAVACHPAY" [disabled]
+    - status
+  - generic [ref=f10e3]:
+    - region [ref=f10e4]:
+      - generic [ref=f10e5]:
+        - generic [ref=f10e6]:
+          - generic [ref=f10e7]: AUTHORITY IS NOT ACCESS.
+          - generic [ref=f10e8]: IT IS A BOUND CONTRACT.
+        - heading "KavachPay" [level=1] [ref=f10e9]
+        - generic [ref=f10e10]:
+          - paragraph [ref=f10e11]: CONTROLTRAVELSFURTHER
+          - paragraph [ref=f10e12]: SAME MONEY.A SAFER TOMORROW.
+        - generic [aria-hidden] [ref=f10e13]: KP 01
+        - generic [aria-hidden]:
+          - generic: +
+          - generic: SEC-00 // REG. 48.0
+        - generic [ref=f10e15]:
+          - generic [ref=f10e16]: 01 / MANDATE
+          - strong [ref=f10e17]: Permission, made exact.
+          - generic [ref=f10e18]: INTENT → BOUND AUTHORITY
+    - generic [aria-hidden]:
+      - article:
+        - generic:
+          - generic:
+            - generic:
+              - generic: KavachPay
+              - generic: TX–1081
+            - generic:
+              - generic: Grocery Agent
+              - generic: "REF: KP–1967–M"
+          - generic:
+            - generic:
+              - generic: ₹
+              - generic: 1,249
+            - generic: GROCERY
+          - generic: APPROVED
+          - generic:
+            - generic: REC // AUTH CHECK
+            - generic: KP–1967–M
+    - generic:
+      - generic:
+        - generic:
+          - generic: ₹500
+          - generic: ₹0
+        - generic: REMAINING
+      - generic:
+        - generic: AUTHORITY STOCK
+        - generic: ₹500 SPENDABLE
+    - generic:
+      - generic: CASE DOCKET // TX–1081
+      - generic: ₹1,249
+      - generic: BLINKIT
+      - generic: COMMITTED
+      - generic: CALLED FOR FORENSIC REPLAY // TRACING CAUSAL LINEAGE

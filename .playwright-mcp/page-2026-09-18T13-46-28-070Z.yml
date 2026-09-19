@@ -1,0 +1,194 @@
+- generic [active] [ref=f15e1]:
+  - main [ref=f15e2]:
+    - navigation "KavachPay control index" [ref=f15e3]:
+      - button "KAVACHPAY" [ref=f15e4] [cursor=pointer]
+      - generic "Film chapters" [ref=f15e5]:
+        - button "00 OPENING / HERO" [ref=f15e6] [cursor=pointer]:
+          - generic [ref=f15e7]: "00"
+        - button "01 MANDATE" [ref=f15e8] [cursor=pointer]:
+          - generic [ref=f15e9]: "01"
+        - button "02 ALLOW / STEP-UP / DENY" [ref=f15e10] [cursor=pointer]:
+          - generic [ref=f15e11]: "02"
+        - button "03 DELEGATION" [ref=f15e12] [cursor=pointer]:
+          - generic [ref=f15e13]: "03"
+        - button "04 STEP-UP CLEARANCE" [ref=f15e14] [cursor=pointer]:
+          - generic [ref=f15e15]: "04"
+        - button "05 REVOCATION" [ref=f15e16] [cursor=pointer]:
+          - generic [ref=f15e17]: "05"
+        - button "06 SPLIT-PAYMENT DEFENSE" [ref=f15e18] [cursor=pointer]:
+          - generic [ref=f15e19]: "06"
+          - generic [ref=f15e20]: SPLIT-PAYMENT DEFENSE
+        - button "07 BUDGET / CONCURRENCY" [ref=f15e21] [cursor=pointer]:
+          - generic [ref=f15e22]: "07"
+        - button "08 CAUSAL REPLAY" [ref=f15e23] [cursor=pointer]:
+          - generic [ref=f15e24]: "08"
+      - generic [ref=f15e25]:
+        - button "LOGIN" [disabled] [ref=f15e26] [cursor=pointer]
+        - button "SIGN UP" [disabled] [ref=f15e27] [cursor=pointer]
+        - button "ENTER KAVACHPAY" [disabled] [ref=f15e28] [cursor=pointer]
+      - status [ref=f15e29]
+    - generic [ref=f15e32]:
+      - region [ref=f15e33]:
+        - generic [ref=f15e34]:
+          - generic [ref=f15e36]:
+            - generic [ref=f15e37]:
+              - generic [ref=f15e38]: "06"
+              - generic [ref=f15e39]: /
+              - heading "SPLIT-PAYMENT DEFENSE" [level=2] [ref=f15e40]
+            - generic [ref=f15e41]:
+              - generic [ref=f15e42]: DIFFERENT TIMES.
+              - generic [ref=f15e43]: SAME INTENT
+          - generic [ref=f15e44]:
+            - generic [aria-hidden]:
+              - generic:
+                - generic:
+                  - generic: 10:00
+                  - generic: "|"
+                  - generic: 10:03 [TX-1091]
+                  - generic: "|"
+                  - generic: 10:06 [TX-1092]
+                  - generic: "|"
+                  - generic: 10:09 [TX-1093]
+                  - generic: "|"
+                  - generic: 10:15
+                - generic: "MONITORING WINDOW: 10:00–10:15"
+            - generic:
+              - generic:
+                - generic: "FORENSIC AUDIT DOSSIER // REF: KP-CR-1967-06"
+                - generic: STATEFUL POLICY ENFORCEMENT
+              - generic:
+                - generic:
+                  - generic: "[✓]"
+                  - strong: SAME MERCHANT.
+                  - generic: MARKET MART (MUMBAI)
+                - generic:
+                  - generic: "[✓]"
+                  - strong: SAME AGENT.
+                  - generic: ZEPTO (GROCERY DELEGATION)
+                - generic:
+                  - generic: "[✓]"
+                  - strong: SAME PURPOSE.
+                  - generic: GROCERY RESTRICTION BYPASS ATTEMPT
+              - generic: MANDATE KP-1967-M INTACT // EVASION ATTEMPT CONTAINED
+            - generic [ref=f15e45]:
+              - article [ref=f15e46]:
+                - generic [ref=f15e47]:
+                  - generic [ref=f15e48]:
+                    - generic [ref=f15e49]:
+                      - generic [ref=f15e50]: KavachPay
+                      - generic [ref=f15e51]: TX-1091
+                    - generic [ref=f15e52]: SLIP-091-1003
+                  - generic [ref=f15e53]:
+                    - generic [ref=f15e54]: MARKET MART
+                    - generic [ref=f15e55]: MUMBAI
+                  - generic [ref=f15e56]:
+                    - generic [ref=f15e57]:
+                      - generic [ref=f15e58]: ₹
+                      - generic [ref=f15e59]: 1,000
+                    - generic [ref=f15e60]:
+                      - generic [ref=f15e61]: TIME
+                      - generic [ref=f15e62]: 10:03
+                  - generic [ref=f15e63]: SUB-THRESHOLD // ₹1,000 < ₹1,500
+                  - generic [ref=f15e66]:
+                    - generic [ref=f15e67]: ORIGINATING AGENT
+                    - generic [ref=f15e68]: VIA AGENT ZEPTO
+                  - generic [ref=f15e69]:
+                    - generic [ref=f15e70]: PAYMENT PURPOSE
+                    - generic [ref=f15e71]: PURPOSE GROCERY
+                  - generic [ref=f15e72]:
+                    - generic [ref=f15e73]: "MANDATE: KP–1967–M"
+                    - generic [ref=f15e74]: CH-REQ // VALID
+              - article [ref=f15e75]:
+                - generic [ref=f15e76]:
+                  - generic [ref=f15e77]:
+                    - generic [ref=f15e78]:
+                      - generic [ref=f15e79]: KavachPay
+                      - generic [ref=f15e80]: TX-1092
+                    - generic [ref=f15e81]: SLIP-092-1006
+                  - generic [ref=f15e82]:
+                    - generic [ref=f15e83]: MARKET MART
+                    - generic [ref=f15e84]: MUMBAI
+                  - generic [ref=f15e85]:
+                    - generic [ref=f15e86]:
+                      - generic [ref=f15e87]: ₹
+                      - generic [ref=f15e88]: 1,000
+                    - generic [ref=f15e89]:
+                      - generic [ref=f15e90]: TIME
+                      - generic [ref=f15e91]: 10:06
+                  - generic [ref=f15e92]: SUB-THRESHOLD // ₹1,000 < ₹1,500
+                  - generic [ref=f15e95]:
+                    - generic [ref=f15e96]: ORIGINATING AGENT
+                    - generic [ref=f15e97]: VIA AGENT ZEPTO
+                  - generic [ref=f15e98]:
+                    - generic [ref=f15e99]: PAYMENT PURPOSE
+                    - generic [ref=f15e100]: PURPOSE GROCERY
+                  - generic [ref=f15e101]:
+                    - generic [ref=f15e102]: "MANDATE: KP–1967–M"
+                    - generic [ref=f15e103]: CH-REQ // VALID
+              - article [ref=f15e104]:
+                - generic [ref=f15e105]:
+                  - generic [ref=f15e106]:
+                    - generic [ref=f15e107]:
+                      - generic [ref=f15e108]: KavachPay
+                      - generic [ref=f15e109]: TX-1093
+                    - generic [ref=f15e110]: SLIP-093-1009
+                  - generic [ref=f15e111]:
+                    - generic [ref=f15e112]: MARKET MART
+                    - generic [ref=f15e113]: MUMBAI
+                  - generic [ref=f15e114]:
+                    - generic [ref=f15e115]:
+                      - generic [ref=f15e116]: ₹
+                      - generic [ref=f15e117]: 1,000
+                    - generic [ref=f15e118]:
+                      - generic [ref=f15e119]: TIME
+                      - generic [ref=f15e120]: 10:09
+                  - generic [ref=f15e121]: SUB-THRESHOLD // ₹1,000 < ₹1,500
+                  - generic [ref=f15e124]:
+                    - generic [ref=f15e125]: ORIGINATING AGENT
+                    - generic [ref=f15e126]: VIA AGENT ZEPTO
+                  - generic [ref=f15e127]:
+                    - generic [ref=f15e128]: PAYMENT PURPOSE
+                    - generic [ref=f15e129]: PURPOSE GROCERY
+                  - generic [ref=f15e130]:
+                    - generic [ref=f15e131]: "MANDATE: KP–1967–M"
+                    - generic [ref=f15e132]: CH-REQ // VALID
+            - generic:
+              - generic:
+                - generic:
+                  - generic: ₹1,000 [10:03]
+                  - generic: +
+                  - generic: ₹1,000 [10:06]
+                  - generic: +
+                  - generic: ₹1,000 [10:09]
+                - generic:
+                  - generic: "AGGREGATE SUM:"
+                  - strong: ₹3,000
+                  - generic: EXCEEDS THRESHOLD (> ₹1,500)
+            - generic [aria-hidden]:
+              - generic:
+                - generic: TEMPORAL CORRELATION VERDICT
+                - strong: ONE ECONOMIC ACTION
+                - generic: KAVACHPAY STATEFUL RECOGNITION
+              - generic:
+                - strong: BLOCKED
+                - generic: "POLICY REF: > ₹1,500 HOLD"
+          - generic [ref=f15e133]:
+            - generic [ref=f15e134]: KAVACHPAY
+            - generic [ref=f15e135]: TEMPORAL CORRELATION. BOUNDED INTENT.
+            - generic [ref=f15e136]: SPLIT DEFENSE // 06
+      - generic:
+        - generic:
+          - generic:
+            - generic: ₹500
+            - generic: ₹0
+          - generic: REMAINING
+        - generic:
+          - generic: AUTHORITY STOCK
+          - generic: ₹500 SPENDABLE
+      - generic:
+        - generic: CASE DOCKET // TX–1081
+        - generic: ₹1,249
+        - generic: BLINKIT
+        - generic: COMMITTED
+        - generic: CALLED FOR FORENSIC REPLAY // TRACING CAUSAL LINEAGE
+  - alert [ref=f15e137]

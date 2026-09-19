@@ -1,0 +1,95 @@
+import type { Request, Response } from "express";
+import { receiptService } from "../services/receipt-service.js";
+import { decisionRepository } from "../store/decision-repository.js";
+import { auditRepository } from "../store/audit-repository.js";
+
+/**
+ * GET /v0/decisions/:intentId/decisions
+ * List all decisions for an intent.
+ */
+export async function getDecisionsHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const intentId = req.params.intentId as string;
+
+    if (!intentId) {
+      res.status(400).json({ error: "intentId is required" });
+      return;
+    }
+
+    const decisions = await decisionRepository.getDecisionsForIntent(intentId);
+    res.status(200).json({ decisions });
+  } catch (err: any) {
+    console.error("[DecisionsHandler] getDecisions error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+/**
+ * GET /v0/decisions/:intentId/verify/:decisionId
+ *
+ * Verifies the cryptographic authenticity of a stored decision receipt.
+ * Recomputes the HMAC-SHA256 over the stored receiptHash and compares
+ * it to the stored signature.
+ *
+ * Response:
+ *  {
+ *    valid: boolean,
+ *    algorithm: "HMAC-SHA256",
+ *    signature: "<hex>",
+ *    receiptHash: "<hex>",
+ *    signedAt: "<ISO>",
+ *    authorityPath?: string[],
+ *    stateBefore?: Record<string, number>,
+ *    stateAfter?: Record<string, number>,
+ *  }
+ */
+export async function verifyReceiptHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const intentId = req.params.intentId as string;
+    const decisionId = req.params.decisionId as string;
+
+    if (!intentId || !decisionId) {
+      res.status(400).json({ error: "intentId and decisionId are required" });
+      return;
+    }
+
+    const result = await receiptService.verifyReceipt(intentId, decisionId);
+
+    res.status(result.valid ? 200 : 422).json(result);
+  } catch (err: any) {
+    console.error("[DecisionsHandler] verifyReceipt error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+/**
+ * GET /v0/audit?userId=
+ *
+ * List recent audit events for a user.
+ */
+export async function listAuditHandler(
+  req: Request,
+  res: Response
+): Promise<void> {
+  try {
+    const userId = req.query.userId as string;
+    const limit = Math.min(Number(req.query.limit ?? 50), 200);
+
+    if (!userId) {
+      res.status(400).json({ error: "userId query parameter is required" });
+      return;
+    }
+
+    const events = await auditRepository.listEvents(userId, limit);
+    res.status(200).json({ events });
+  } catch (err: any) {
+    console.error("[AuditHandler] listAudit error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+}

@@ -12,7 +12,7 @@
   --kp-yellow: #c6aa47;
   --kp-muted: #aaa08c;
   --kp-rule: rgba(235, 225, 201, 0.56);
-  --font-display: var(--font-instrument-serif);
+  --font-display: var(--font-crimson-text);
   --font-admin: var(--font-barlow-condensed);
   --font-mono: var(--font-ibm-plex-mono);
   --page-gutter: clamp(1.15rem, 2.1vw, 2.6rem);
@@ -24,17 +24,9 @@
   --kp-global-nav-safe-area: var(--kp-global-nav-height);
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html,
-body {
+.kavach-experience-page {
   max-width: 100vw;
+  min-height: 100vh;
   overflow-x: clip;
   background-color: var(--kp-black);
   background: var(--kp-black);
@@ -44,9 +36,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-html { color-scheme: dark; scrollbar-color: var(--kp-red-dark) var(--kp-black); }
+.kavach-experience-page *,
+.kavach-experience-page *::before,
+.kavach-experience-page *::after {
+  box-sizing: border-box;
+}
 
-body { min-height: 100%; }
+.kavach-experience-page a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.kavach-experience-page button,
+.kavach-experience-page a {
+  -webkit-tap-highlight-color: transparent;
+}
 
 @media (max-width: 56rem) {
   :root { --kp-global-nav-height: calc(3.35rem + env(safe-area-inset-top)); }
@@ -56,18 +60,6 @@ body { min-height: 100%; }
   background-color: var(--kp-black) !important;
   background: var(--kp-black) !important;
 }
-
-::selection { background: var(--kp-red); color: var(--kp-paper-light); }
-
-:focus-visible { outline: 2px solid var(--kp-paper-light); outline-offset: 4px; }
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button,
-a { -webkit-tap-highlight-color: transparent; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

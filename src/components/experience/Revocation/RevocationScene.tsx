@@ -106,24 +106,17 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
       const travelLineage = root.current.querySelector<HTMLElement>(
         "[data-independent-register='travel']",
       );
-      const setTravelCarrierMode = (mode: "hidden" | "bridge" | "scene") => {
+      const setTravelRecordOwned = (owned: boolean) => {
         if (!travelRecord) return;
-        if (mode === "hidden") {
-          gsap.set([travelRecord, travelLineage], { visibility: "hidden", opacity: 0 });
-          travelRecord.setAttribute("aria-hidden", "true");
-          return;
-        }
-        gsap.set(travelRecord, {
-          visibility: mode === "bridge" ? "visible" : "inherit",
-          opacity: 1,
+        gsap.set([travelRecord, travelLineage], {
+          visibility: owned ? "inherit" : "hidden",
+          opacity: owned ? 1 : 0,
         });
-        gsap.set(travelLineage, { visibility: "inherit", opacity: 1 });
-        if (mode === "bridge") travelRecord.setAttribute("aria-hidden", "true");
-        else travelRecord.removeAttribute("aria-hidden");
+        if (owned) travelRecord.removeAttribute("aria-hidden");
+        else travelRecord.setAttribute("aria-hidden", "true");
       };
 
-      // Body visibility stays exact. Only the independent Travel record may appear
-      // in the incoming bridge; chapter chrome remains scene-owned.
+      // Body visibility stays exact. Chapter chrome remains scene-owned.
       // start uses a 1px epsilon (not an authored overlap) — GSAP's onEnter for a
       // non-scrubbed trigger requires progress to strictly exceed 0, so landing
       // exactly on the boundary pixel would otherwise leave the body hidden until
@@ -135,14 +128,14 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
         end: "bottom top",
         onEnter: () => {
           applyVisibility(true);
-          setTravelCarrierMode("scene");
+          setTravelRecordOwned(true);
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "revocation" } }),
           );
         },
         onEnterBack: () => {
           applyVisibility(true);
-          setTravelCarrierMode("scene");
+          setTravelRecordOwned(true);
           window.dispatchEvent(
             new CustomEvent("kp:scene", { detail: { id: "revocation" } }),
           );
@@ -150,285 +143,164 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
         onLeave: () => {
           if (isPersistent) {
             applyVisibility(false);
-            setTravelCarrierMode("hidden");
+            setTravelRecordOwned(false);
           }
         },
         onLeaveBack: () => {
           applyVisibility(false);
-          setTravelCarrierMode("bridge");
+          setTravelRecordOwned(false);
         },
       });
 
+      // Incoming 04->05 transition already lands on the fully intact,
+      // registered authority lineage (its own terminal content): Shopping,
+      // Grocery, Delivery all IN FORCE, Travel ACTIVE. The live scene begins
+      // there — no register-unfolding entry to replay — and performs only
+      // the remaining product story: targeting, revocation, propagation,
+      // selectivity proof.
       gsap.set("[data-revocation-header]", { opacity: 1, y: 0 });
-      gsap.set("[data-record]:not([data-record='TX-1082'])", { opacity: 0 });
-      setTravelCarrierMode("hidden");
+      gsap.set("[data-revocation-footer]", { opacity: 1 });
+      gsap.set("[data-register-station]", { opacity: 1, scale: 1, y: 0 });
+      gsap.set("[data-record]", { opacity: 1 });
+      setTravelRecordOwned(true);
       gsap.set(travelRecord, { pointerEvents: "none" });
 
-      // Incoming 04 -> 05 bridge. Step-Up's terminal compact request is measured
-      // against this record, so the late cross-dissolve swaps copies at <=1px.
-      const travelBridgeIn = ScrollTrigger.create({
-        trigger: triggerEl,
-        start: "top top+=120px",
-        end: "top top",
-        scrub: true,
-        onEnter: () => setTravelCarrierMode("bridge"),
-        onEnterBack: () => setTravelCarrierMode("bridge"),
-        onLeave: () => setTravelCarrierMode("scene"),
-        onLeaveBack: () => setTravelCarrierMode("hidden"),
-        onUpdate: (self) => {
-          gsap.set(travelRecord, { opacity: Math.pow(self.progress, 8) });
-        },
-      });
-
-      const syncTravelCarrierVisibility = () => {
-        if (visibilityTrigger.isActive) {
-          setTravelCarrierMode("scene");
-        } else if (travelBridgeIn.isActive) {
-          setTravelCarrierMode("bridge");
-        } else {
-          setTravelCarrierMode("hidden");
-        }
-      };
-      ScrollTrigger.addEventListener("refresh", syncTravelCarrierVisibility);
+      // =========================================================================
+      // STAGE A — OPENING HOLD (0.00 - 0.06)
+      // All four records established and legible, matching the transition's
+      // terminal frame exactly.
+      // =========================================================================
+      timeline.set({}, {}, 0.06);
 
       // =========================================================================
-      // BEAT 1: TRAVEL RECORD LANDING & REGISTER UNFOLDING (0.00 - 0.16)
-      // TX-1082 lands into its independent register before sibling records establish.
-      // =========================================================================
-      timeline
-        .fromTo(
-          "[data-revocation-header]",
-          { y: -8 },
-          { y: 0, duration: 0.08, ease: "power1.out" },
-          0.04,
-        )
-        .set("[data-register-station]", { opacity: 1, scale: 1, y: 0 }, 0.00)
-        .fromTo(
-          "[data-revocation-footer]",
-          { opacity: 0 },
-          { opacity: 1, duration: 0.06 },
-          0.10,
-        );
-
-      // =========================================================================
-      // BEAT 2: INITIAL VALID REGISTRATION ALIGNMENT (0.16 - 0.26)
-      // All 4 records establish with their signatures in physical register
-      // =========================================================================
-      timeline
-        .to(
-          "[data-record]",
-          { opacity: 1, duration: 0.06, stagger: 0.02 },
-          0.16,
-        )
-        .set({}, {}, 0.26);
-
-      // =========================================================================
-      // BEAT 3: SHOPPING RECALL TARGETING (0.26 - 0.38)
+      // STAGE B — SHOPPING RECALL TARGETING (0.06 - 0.22)
       // Shopping is selected into Authority Recall Aperture / Datum 05
       // =========================================================================
       timeline
         .to(
           "[data-recall-aperture]",
-          { opacity: 1, duration: 0.08, ease: "power1.inOut" },
-          0.26,
+          { opacity: 1, duration: 0.10, ease: "power1.inOut" },
+          0.06,
         )
         .to(
           "[data-record='AUTH-0301']",
           {
             scale: 1.012,
             boxShadow: "0 14px 36px rgba(0, 0, 0, 0.65), 0 3px 8px rgba(0, 0, 0, 0.4)",
-            duration: 0.08,
+            duration: 0.10,
             ease: "power1.out",
           },
-          0.28,
+          0.10,
         );
 
       // =========================================================================
-      // BEAT 3.5: SOURCE SPINE UNLOCK (0.35 - 0.38)
+      // STAGE C — SOURCE SPINE UNLOCK (0.22 - 0.25)
       // A small, precise registration release — the datum pin retracts fractionally
       // before any sliding motion begins. No bounce, no mechanism, just a release.
       // =========================================================================
       timeline
-        .to(
-          "[data-notch-bar]",
-          { scaleY: 0.35, duration: 0.02, ease: "power1.in" },
-          0.35,
-        )
-        .to(
-          "[data-notch-bar]",
-          { x: -3, duration: 0.015, ease: "power1.out" },
-          0.365,
-        );
+        .to("[data-notch-bar]", { scaleY: 0.35, duration: 0.015, ease: "power1.in" }, 0.22)
+        .to("[data-notch-bar]", { x: -3, duration: 0.015, ease: "power1.out" }, 0.235);
 
       // =========================================================================
-      // BEAT 4: HERO MOMENT — SOURCE SPINE WITHDRAWAL (0.38 - 0.54)
-      // The mechanical spine unlocks and physically slides out of Shopping
-      // At ~0.46 (approx 50% withdrawn), Shopping validity fails & children begin misregistration
+      // STAGE D — HERO MOMENT: SOURCE SPINE WITHDRAWAL (0.25 - 0.46)
+      // The mechanical spine unlocks and physically slides out of Shopping.
+      // Partway through, inherited registration in Grocery/Delivery starts to waver.
       // =========================================================================
       timeline
-        // Spine unlocks and begins sliding out to the left
         .to(
           "[data-source-spine]",
-          {
-            x: spineWithdrawX * 0.5,
-            duration: 0.08,
-            ease: "power2.in",
-          },
-          0.38,
+          { x: spineWithdrawX * 0.5, duration: 0.10, ease: "power2.in" },
+          0.25,
         )
-        // At 50% withdrawn (0.46): inherited registration in Grocery/Delivery starts to waver
         .to(
           "[data-inherited-register='AUTH-0302']",
-          {
-            x: -2,
-            duration: 0.06,
-            ease: "power1.out",
-          },
-          0.44,
+          { x: -2, duration: 0.07, ease: "power1.out" },
+          0.33,
         )
         .to(
           "[data-inherited-register='AUTH-0303']",
-          {
-            x: -2,
-            duration: 0.06,
-            ease: "power1.out",
-          },
-          0.45,
+          { x: -2, duration: 0.07, ease: "power1.out" },
+          0.34,
         )
-        // Spine completes full mechanical withdrawal past threshold
         .to(
           "[data-source-spine]",
-          {
-            x: spineWithdrawX,
-            opacity: 0.85,
-            duration: 0.08,
-            ease: "power2.out",
-          },
-          0.46,
+          { x: spineWithdrawX, opacity: 0.85, duration: 0.10, ease: "power2.out" },
+          0.36,
         );
 
       // =========================================================================
-      // BEAT 5: SHOPPING REVOCATION REGISTRATION (0.54 - 0.66)
-      // Official administrative REVOKED stamp records the event
+      // STAGE E — SHOPPING REVOCATION REGISTRATION (0.46 - 0.58)
+      // Official administrative REVOKED stamp records the event.
       // =========================================================================
       timeline
         .to(
           "[data-stamp-revoked]",
-          {
-            opacity: 1,
-            scale: 1,
-            duration: 0.06,
-            ease: "back.out(1.6)",
-          },
-          0.54,
+          { opacity: 1, scale: 1, duration: 0.07, ease: "back.out(1.6)" },
+          0.46,
         )
         .to(
           "[data-record='AUTH-0301']",
-          {
-            borderColor: "rgba(169, 42, 36, 0.7)",
-            duration: 0.06,
-          },
-          0.54,
+          { borderColor: "rgba(169, 42, 36, 0.7)", duration: 0.06 },
+          0.46,
         );
 
       // =========================================================================
-      // BEAT 6: SIBLING MISREGISTRATION PROPAGATION (0.64 - 0.78)
-      // Grocery and Delivery react as parallel sibling consequences of Shopping
+      // STAGE F — SIBLING MISREGISTRATION PROPAGATION (0.58 - 0.76)
+      // Grocery and Delivery react as parallel sibling consequences of Shopping.
       // =========================================================================
       timeline
-        // Both siblings lose inherited registration signature
         .to(
           "[data-inherited-register='AUTH-0302']",
-          {
-            x: -4.5,
-            borderColor: "rgba(169, 42, 36, 0.75)",
-            duration: 0.06,
-            ease: "power2.inOut",
-          },
-          0.64,
+          { x: -4.5, borderColor: "rgba(169, 42, 36, 0.75)", duration: 0.07, ease: "power2.inOut" },
+          0.58,
         )
         .to(
           "[data-inherited-register='AUTH-0303']",
-          {
-            x: -4.5,
-            borderColor: "rgba(169, 42, 36, 0.75)",
-            duration: 0.06,
-            ease: "power2.inOut",
-          },
-          0.66,
+          { x: -4.5, borderColor: "rgba(169, 42, 36, 0.75)", duration: 0.07, ease: "power2.inOut" },
+          0.60,
         )
-        // Both siblings drop fractionally off baseline (physical misregistration)
         .to(
           "[data-record='AUTH-0302']",
-          {
-            y: 3.5,
-            rotate: -0.4,
-            borderColor: "rgba(127, 29, 25, 0.6)",
-            duration: 0.06,
-            ease: "power1.out",
-          },
-          0.67,
+          { y: 3.5, rotate: -0.4, borderColor: "rgba(127, 29, 25, 0.6)", duration: 0.07, ease: "power1.out" },
+          0.62,
         )
         .to(
           "[data-record='AUTH-0303']",
-          {
-            y: 3.5,
-            rotate: 0.3,
-            borderColor: "rgba(127, 29, 25, 0.6)",
-            duration: 0.06,
-            ease: "power1.out",
-          },
-          0.69,
+          { y: 3.5, rotate: 0.3, borderColor: "rgba(127, 29, 25, 0.6)", duration: 0.07, ease: "power1.out" },
+          0.64,
         )
-        // Sibling stamps register
         .to(
           "[data-stamp-withdrawn='AUTH-0302']",
-          {
-            opacity: 1,
-            scale: 1,
-            duration: 0.05,
-            ease: "power2.out",
-          },
-          0.70,
+          { opacity: 1, scale: 1, duration: 0.06, ease: "power2.out" },
+          0.66,
         )
         .to(
           "[data-stamp-withdrawn='AUTH-0303']",
-          {
-            opacity: 1,
-            scale: 1,
-            duration: 0.05,
-            ease: "power2.out",
-          },
-          0.73,
+          { opacity: 1, scale: 1, duration: 0.06, ease: "power2.out" },
+          0.70,
         );
 
       // =========================================================================
-      // BEAT 7: TRAVEL SELECTIVITY PROOF (0.76 - 0.88)
-      // Travel record advances independently — proving selectivity
+      // STAGE G — TRAVEL SELECTIVITY PROOF (0.76 - 0.90)
+      // Travel record advances independently — proving selectivity.
       // =========================================================================
       timeline
         .to(
           "[data-independent-register='travel']",
-          {
-            x: travelAdvanceX * 0.65,
-            duration: 0.06,
-            ease: "power1.inOut",
-          },
+          { x: travelAdvanceX * 0.65, duration: 0.07, ease: "power1.inOut" },
           0.76,
         )
         .to(
           "[data-independent-register='travel']",
-          {
-            x: travelAdvanceX,
-            duration: 0.06,
-            ease: "power1.out",
-          },
-          0.82,
+          { x: travelAdvanceX, duration: 0.07, ease: "power1.out" },
+          0.83,
         );
 
       // =========================================================================
-      // BEAT 8: COMPLETE HISTORICAL RECORD HOLD (0.88 - 1.00)
-      // Final archival state holds generously with all 4 records present
+      // STAGE H — TERMINAL HOLD (0.90 - 1.00)
+      // Final archival state holds generously with all 4 records present —
+      // this is the frame the 05->06 transition begins from.
       // =========================================================================
       timeline.set({}, {}, 1.00);
 
@@ -505,8 +377,6 @@ export function RevocationScene({ trackRef }: RevocationSceneProps) {
 
       return () => {
         visibilityTrigger.kill();
-        travelBridgeIn.kill();
-        ScrollTrigger.removeEventListener("refresh", syncTravelCarrierVisibility);
         timeline.scrollTrigger?.kill();
         timeline.kill();
       };

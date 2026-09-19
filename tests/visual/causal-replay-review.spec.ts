@@ -1,6 +1,11 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import {
+  CAUSAL_REPLAY_STAGE_COUNT,
+  CAUSAL_REPLAY_STAGE_WINDOWS,
+  REPLAY_HOLD_FRACTION,
+} from "../../src/lib/experience/causal-replay";
 import { prepareVisualPage, seekSceneProgress } from "./helpers/scene-checkpoints";
 
 const denseStepsDesktop = [
@@ -52,97 +57,6 @@ test.describe("Scene 08 — Causal Replay / The Evidence Reel Visual & Semantic 
         await expect(page.locator("[data-gate-reticle]")).toBeVisible();
       }
 
-      // 08.01 PROVIDER RESULT in gate (0.20 - 0.29)
-      if (progress >= 0.22 && progress <= 0.28) {
-        const exposure0 = page.locator("[data-evidence-exposure='0']");
-        await expect(exposure0).toBeVisible();
-        const text = await exposure0.textContent();
-        expect(text).toContain("08.01");
-        expect(text).toContain("PROVIDER RESULT");
-        expect(text).toContain("RCP-1081-ALLOW");
-        expect(text).toContain("₹1,249");
-      }
-
-      // 08.02 EXECUTION in gate (0.29 - 0.37)
-      if (progress >= 0.31 && progress <= 0.36) {
-        const exposure1 = page.locator("[data-evidence-exposure='1']");
-        await expect(exposure1).toBeVisible();
-        const text = await exposure1.textContent();
-        expect(text).toContain("08.02");
-        expect(text).toContain("EXECUTION");
-        expect(text).toContain("REQ-1081-01");
-        expect(text).toContain("RAZORPAY");
-      }
-
-      // 08.03 DECISION in gate (0.37 - 0.48)
-      if (progress >= 0.40 && progress <= 0.46) {
-        const exposure2 = page.locator("[data-evidence-exposure='2']");
-        await expect(exposure2).toBeVisible();
-        const text = await exposure2.textContent();
-        expect(text).toContain("08.03");
-        expect(text).toContain("DECISION");
-        expect(text).toContain("APPROVED // ALLOW");
-        expect(text).toContain("AGENTCORE / CEDAR POLICY");
-      }
-
-      // 08.04 BUDGET STATE in gate with Temporal Three-Phase Proof (0.48 - 0.60)
-      if (progress >= 0.50 && progress <= 0.58) {
-        const exposure3 = page.locator("[data-evidence-exposure='3']");
-        await expect(exposure3).toBeVisible();
-        const text = await exposure3.textContent();
-        expect(text).toContain("08.04");
-        expect(text).toContain("BUDGET STATE");
-        expect(text).toContain("BEFORE ATOMIC RESERVATION");
-        expect(text).toContain("ATOMIC CAUSAL EVENT");
-        expect(text).toContain("AFTER RESERVATION");
-        expect(text).toContain("₹2,751");
-        expect(text).toContain("₹0 PRIOR + ₹1,249 RESERVED + ₹2,751 REMAINING = ₹4,000");
-      }
-
-      // 08.05 AGENT PATH in gate (0.60 - 0.68)
-      if (progress >= 0.62 && progress <= 0.67) {
-        const exposure4 = page.locator("[data-evidence-exposure='4']");
-        await expect(exposure4).toBeVisible();
-        const text = await exposure4.textContent();
-        expect(text).toContain("08.05");
-        expect(text).toContain("AGENT PATH");
-        expect(text).toContain("Grocery Agent");
-      }
-
-      // 08.06 AUTHORITY / DELEGATION in gate (0.68 - 0.77)
-      if (progress >= 0.70 && progress <= 0.76) {
-        const exposure5 = page.locator("[data-evidence-exposure='5']");
-        await expect(exposure5).toBeVisible();
-        const text = await exposure5.textContent();
-        expect(text).toContain("08.06");
-        expect(text).toContain("AUTHORITY / DELEGATION");
-        expect(text).toContain("AUTH–0302");
-        expect(text).toContain("SHOPPING AUTHORITY (AUTH–0301)");
-      }
-
-      // 08.07 MANDATE in gate (0.77 - 0.87)
-      if (progress >= 0.79 && progress <= 0.85) {
-        const exposure6 = page.locator("[data-evidence-exposure='6']");
-        await expect(exposure6).toBeVisible();
-        const text = await exposure6.textContent();
-        expect(text).toContain("08.07");
-        expect(text).toContain("MANDATE");
-        expect(text).toContain("KP–1967–M");
-        expect(text).toContain("₹4,000 / WEEK");
-      }
-
-      // 08.08 ORIGINAL INTENT in gate (Hero Origin Reveal, 0.87 - 0.96)
-      if (progress >= 0.89 && progress <= 0.95) {
-        const exposure7 = page.locator("[data-evidence-exposure='7']");
-        await expect(exposure7).toBeVisible();
-        const text = await exposure7.textContent();
-        expect(text).toContain("08.08");
-        expect(text).toContain("ORIGINAL INTENT");
-        expect(text).toContain("“Buy groceries for me this week.”");
-        expect(text).toContain("HUMAN OWNER (YOU)");
-        expect(text).toContain("100% AUDITABLE LINEAGE TO HUMAN ROOT");
-      }
-
       // Terminal Full-Chain Spine (0.96+)
       if (progress >= 0.96) {
         await expect(page.locator("[data-full-chain]")).toBeVisible();
@@ -173,5 +87,31 @@ test.describe("Scene 08 — Causal Replay / The Evidence Reel Visual & Semantic 
     await seekSceneProgress(page, "[data-scene='causal-replay']", 0.24);
     const revResult = page.locator("[data-evidence-exposure='0']");
     await expect(revResult).toBeVisible();
+  });
+
+  test("each authored window holds its own exposure on the gate with the full canonical evidence", async ({ page }) => {
+    await prepareVisualPage(page);
+    await page.locator("[data-scene='causal-replay']").waitFor({ state: "attached", timeout: 15_000 });
+    // Expectations per exposure (RESULT -> ORIGIN rewind). Each is evaluated in the middle of its own hold:
+    // the window boundaries are the shared schedule's, not hard-coded percentages.
+    const expected: Record<number, string[]> = {
+      0: ["08.01", "PROVIDER RESULT", "RCP-1081-ALLOW", "₹1,249"],
+      1: ["08.02", "EXECUTION", "REQ-1081-01", "RAZORPAY"],
+      2: ["08.03", "DECISION", "APPROVED // ALLOW", "AGENTCORE / CEDAR POLICY"],
+      3: ["08.04", "BUDGET STATE", "BEFORE ATOMIC RESERVATION", "ATOMIC CAUSAL EVENT", "AFTER RESERVATION", "₹2,751", "₹0 PRIOR + ₹1,249 RESERVED + ₹2,751 REMAINING = ₹4,000"],
+      4: ["08.05", "AGENT PATH", "Grocery Agent"],
+      5: ["08.06", "AUTHORITY / DELEGATION", "AUTH–0302", "SHOPPING AUTHORITY (AUTH–0301)"],
+      6: ["08.07", "MANDATE", "KP–1967–M", "₹4,000 / WEEK"],
+      7: ["08.08", "ORIGINAL INTENT", "“Buy groceries for me this week.”", "HUMAN OWNER (YOU)", "100% AUDITABLE LINEAGE TO HUMAN ROOT"],
+    };
+    for (let i = 0; i < CAUSAL_REPLAY_STAGE_COUNT; i += 1) {
+      const [a, b] = CAUSAL_REPLAY_STAGE_WINDOWS[i];
+      await seekSceneProgress(page, "[data-scene='causal-replay']", a + (b - a) * REPLAY_HOLD_FRACTION * 0.5);
+      const exposure = page.locator(`[data-evidence-exposure='${i}']`);
+      await expect(exposure, `exposure ${i} on the gate`).toBeVisible();
+      expect(Number(await exposure.evaluate((el) => getComputedStyle(el).opacity))).toBeGreaterThan(0.99);
+      const text = (await exposure.textContent()) ?? "";
+      for (const needle of expected[i]) expect(text, `exposure ${i} must contain ${needle}`).toContain(needle);
+    }
   });
 });

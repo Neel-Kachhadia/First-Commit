@@ -1,0 +1,23 @@
+- main [ref=f8e2]:
+  - navigation "KavachPay control index":
+    - button "KAVACHPAY"
+    - generic: — / CONTROL INDEX
+    - button "CONTROL INDEX"
+    - status
+  - region [ref=f8e4]:
+    - generic [ref=f8e5]:
+      - generic [ref=f8e6]:
+        - generic [ref=f8e7]: AUTHORITY IS NOT ACCESS.
+        - generic [ref=f8e8]: IT IS A BOUND CONTRACT.
+      - heading "KavachPay" [level=1] [ref=f8e9]
+      - generic [ref=f8e10]:
+        - paragraph [ref=f8e11]: CONTROLTRAVELSFURTHER
+        - paragraph [ref=f8e12]: SAME MONEY.A SAFER TOMORROW.
+      - generic [aria-hidden] [ref=f8e13]: KP 01
+      - generic [aria-hidden]:
+        - generic: +
+        - generic: SEC-00 // REG. 48.0
+      - generic [ref=f8e15]:
+        - generic [ref=f8e16]: 01 / MANDATE
+        - strong [ref=f8e17]: Permission, made exact.
+        - generic [ref=f8e18]: INTENT → BOUND AUTHORITY

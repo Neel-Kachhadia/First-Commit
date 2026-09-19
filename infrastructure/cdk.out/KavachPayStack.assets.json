@@ -1,0 +1,21 @@
+{
+  "version": "54.0.0",
+  "files": {
+    "314d7c52eef4b970c23bad290501902ab8ba2decfd4e5f5c55c5168b67d22d00": {
+      "displayName": "KavachPayStack Template",
+      "source": {
+        "path": "KavachPayStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "985539777421-ap-south-1-3a33bb8f": {
+          "bucketName": "cdk-hnb659fds-assets-985539777421-ap-south-1",
+          "objectKey": "314d7c52eef4b970c23bad290501902ab8ba2decfd4e5f5c55c5168b67d22d00.json",
+          "region": "ap-south-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::985539777421:role/cdk-hnb659fds-file-publishing-role-985539777421-ap-south-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

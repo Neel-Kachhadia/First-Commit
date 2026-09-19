@@ -1,0 +1,182 @@
+import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
+
+type Tone = "active" | "allowed" | "stepup" | "denied" | "neutral";
+
+const toneStyles: Record<Tone, string> = {
+  active: "border-success/35 text-success bg-success/8",
+  allowed: "border-success/35 text-success bg-success/10",
+  stepup: "border-stepup/40 text-stepup bg-stepup/10",
+  denied: "border-destructive/40 text-destructive bg-destructive/10",
+  neutral: "border-border text-muted-foreground bg-muted",
+};
+
+const dotStyles: Record<Tone, string> = {
+  active: "bg-success",
+  allowed: "bg-success",
+  stepup: "bg-stepup",
+  denied: "bg-destructive",
+  neutral: "bg-muted-foreground",
+};
+
+export function StatusPill({
+  tone,
+  label,
+  className,
+}: {
+  tone: Tone;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "status-chip inline-flex items-center rounded-[5px] border font-mono font-medium uppercase whitespace-nowrap",
+        toneStyles[tone],
+        className,
+      )}
+    >
+      <span
+        className={cn(
+          "status-chip-dot shrink-0 rounded-full",
+          dotStyles[tone],
+          tone === "active" && "status-live-dot",
+        )}
+      />
+      {label}
+    </span>
+  );
+}
+
+export function agentTone(status: string): { tone: Tone; label: string } {
+  switch (status) {
+    case "active":
+      return { tone: "active", label: "Active" };
+    case "exhausted":
+      return { tone: "stepup", label: "Limit reached" };
+    case "frozen":
+      return { tone: "denied", label: "Stopped" };
+    default:
+      return { tone: "denied", label: "Revoked" };
+  }
+}
+
+export function ledgerTone(status: string): { tone: Tone; label: string } {
+  switch (status) {
+    // Backend "allowed" states
+    case "ALLOW":
+    case "ALLOWED":
+    case "RESERVED":
+    case "EXECUTED":
+    case "APPROVED":
+    case "allowed":
+      return { tone: "allowed", label: "Allowed" };
+
+    // Backend "step-up" states — awaiting human approval
+    case "STEP_UP":
+    case "STEP_UP_REQUIRED":
+    case "pending":
+      return { tone: "stepup", label: "Needs approval" };
+
+    // Backend "denied" / transitional states
+    case "DENY":
+    case "DENIED":
+    case "REVOKED":
+    case "FAILED":
+    case "PENDING": // transitional in-flight state, not a real step-up
+    default:
+      return { tone: "denied", label: "Denied" };
+  }
+}
+
+export function PageHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: string;
+  description: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <header className="page-heading relative grid gap-4 border-b border-border pb-5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+      <div className="min-w-0">
+        <p className="mb-1.5 text-xs font-medium text-destructive">KavachPay control plane</p>
+        <h1 className="text-[2.15rem] font-semibold leading-tight tracking-[-0.035em] sm:text-[2.55rem]">
+          {title}
+        </h1>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      {actions ? (
+        <div className="flex flex-wrap gap-2 sm:justify-end">{actions}</div>
+      ) : null}
+    </header>
+  );
+}
+
+export function AuthorityBar({
+  consumed,
+  limit,
+  muted = false,
+}: {
+  consumed: number;
+  limit: number;
+  muted?: boolean;
+}) {
+  const pct =
+    limit > 0 ? Math.min(100, Math.round((consumed / limit) * 100)) : 0;
+  return (
+    <div
+      className="h-1.5 w-full overflow-hidden rounded-sm bg-muted"
+      role="img"
+      aria-label={`${pct}% of authority consumed`}
+    >
+      <div
+        className={cn(
+          "authority-fill h-full rounded-sm transition-[width] duration-500 ease-out",
+          muted ? "bg-muted-foreground/50" : "bg-primary",
+        )}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+export function Metric({
+  label,
+  value,
+  hint,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: "default" | "primary" | "success" | "stepup";
+}) {
+  const valueTone = {
+    default: "text-foreground",
+    primary: "text-primary",
+    success: "text-success",
+    stepup: "text-stepup",
+  }[tone];
+  return (
+    <div className="metric-instrument min-h-32 p-5">
+      <p className="label-caps">{label}</p>
+      <p
+        className={cn(
+          "amount mt-3 text-2xl font-medium tracking-tight",
+          valueTone,
+        )}
+      >
+        {value}
+      </p>
+      {hint ? (
+        <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}

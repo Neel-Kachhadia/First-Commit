@@ -13,6 +13,7 @@ import {
   CylinderGeometry,
   DoubleSide,
   Group,
+  Material,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -28,8 +29,11 @@ import {
 import { useExperienceStore, type PerformanceTier } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import {
-  CAUSAL_REPLAY_STAGE_COUNT,
-  CAUSAL_REPLAY_STAGE_WINDOWS,
+  FRAME_HIGH,
+  REPLAY_UV_PER_WORLD_UNIT,
+  filmShiftRepeats,
+  replayFrame,
+  replayReveal,
 } from "@/lib/experience/causal-replay";
 
 const MATERIALS = {
@@ -43,8 +47,6 @@ const MATERIALS = {
   ],
 } as const;
 
-export const STAGE_WINDOWS = CAUSAL_REPLAY_STAGE_WINDOWS;
-
 const TRANSPORT = {
   /** World-space film travel across the complete forensic rewind. */
   distance: 7.55,
@@ -52,34 +54,14 @@ const TRANSPORT = {
   takeupRadius: 0.75,
   rollerRadius: 0.065,
   /** Preserve approved stock registration while deriving UV travel from distance. */
-  uvPerWorldUnit: 5.2 / 7.55,
+  uvPerWorldUnit: REPLAY_UV_PER_WORLD_UNIT,
 } as const;
 
 const lerp = (from: number, to: number, t: number) => from + (to - from) * t;
+/** Test/diagnostic hook only (?visualTest): exposes the values actually applied to the transport. */
+const DIAGNOSTICS =
+  typeof window !== "undefined" && new URLSearchParams(window.location.search).has("visualTest");
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-
-/**
- * Maps scroll progress to continuous film frame index (0..7).
- * Holds in gate for ~70% of each window, then transitions to the next frame.
- */
-function continuousFrameProgress(p: number): number {
-  if (p <= STAGE_WINDOWS[0][0]) return 0;
-  const last = STAGE_WINDOWS[STAGE_WINDOWS.length - 1];
-  if (p >= last[1]) return CAUSAL_REPLAY_STAGE_COUNT - 1;
-
-  for (let i = 0; i < STAGE_WINDOWS.length; i += 1) {
-    const [start, end] = STAGE_WINDOWS[i];
-    const holdEnd = start + (end - start) * 0.72;
-    if (p <= holdEnd) return i;
-    if (p <= end) {
-      const t = (p - holdEnd) / (end - holdEnd);
-      // Smooth mechanical seating ease (cubic out)
-      const eased = 1 - Math.pow(1 - t, 2.4);
-      return lerp(i, Math.min(i + 1, CAUSAL_REPLAY_STAGE_COUNT - 1), eased);
-    }
-  }
-  return CAUSAL_REPLAY_STAGE_COUNT - 1;
-}
 
 /** Creates procedural 70mm archival film edge perforation texture in memory */
 function createFilmStockTexture(): CanvasTexture {
@@ -217,6 +199,8 @@ function createReelFlangeGeometry(outerRadius: number, hubRadius: number, numCut
  * -> Tangent Entry
  * -> Take-up Reel (background/right).
  */
+const GATE_CONTROL_INDEX = 10;
+
 function createContinuousRibbonGeometry(): BufferGeometry {
   const supplyCenter = new Vector3(-2.15, 0.82, 0.22);
   const supplyRadius = 0.74;
@@ -326,6 +310,8 @@ function createContinuousRibbonGeometry(): BufferGeometry {
   geo.setAttribute("uv", new BufferAttribute(new Float32Array(uvs), 2));
   geo.setIndex(indices);
   geo.computeVertexNormals();
+  // u at the inspection gate centre = control point 10 (0, 0, -0.02): t = 10 / (N - 1), u = t * 6.
+  geo.userData.gateU = (GATE_CONTROL_INDEX / (controlPoints.length - 1)) * 6.0;
   return geo;
 }
 
@@ -479,6 +465,28 @@ export function CausalReplayRibbon({
     woundTakeupGeo,
   ]);
 
+  // Materials that fade with the apparatus entrance (collected once from the group).
+  const fadeMats = useRef<{ m: Material; base: number }[]>([]);
+  const collectFadeMats = () => {
+    const group = groupRef.current;
+    if (!group) return;
+    const skip = new Set<Material | null | undefined>([
+      ribbonMatRef.current,
+      gateLightRef.current?.material as Material | undefined,
+    ]);
+    const seen = new Set<Material>();
+    group.traverse((obj) => {
+      const mesh = obj as Mesh;
+      if (!mesh.isMesh) return;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const m of mats) {
+        if (!m || skip.has(m) || seen.has(m)) continue;
+        seen.add(m);
+        fadeMats.current.push({ m, base: m.opacity });
+      }
+    });
+  };
+
   const applyProgress = (p: number) => {
     const group = groupRef.current;
     if (!group) return;
@@ -487,12 +495,13 @@ export function CausalReplayRibbon({
       activeScene === "causalReplay" ||
       progressBus.getActiveScene() === "causalReplay" ||
       p > 0;
-    // Stage opens progressively between p=0.00 and p=0.18
-    const revealIn = p <= 0.18 ? clamp01(p / 0.16) : 1;
+    // The apparatus establishes itself over p = 0.03 .. 0.15 (shared with the DOM layer).
+    const revealIn = replayReveal(p);
 
     const visible = isReplay && revealIn > 0;
     group.visible = visible;
     if (!visible) return;
+    if (fadeMats.current.length === 0) collectFadeMats();
 
     // Viewport-aware adaptation for shorter laptop heights (e.g. 1366x768)
     const isShortViewport = viewport.height < 6.5;
@@ -500,16 +509,22 @@ export function CausalReplayRibbon({
     // diagrammatic circles — scaled up from the original fit-inside sizing.
     const baseScale = isShortViewport ? 1.08 : 1.32;
     group.scale.setScalar(baseScale * lerp(0.88, 1, revealIn));
+    for (const { m, base } of fadeMats.current) {
+      m.transparent = revealIn < 1 || base < 1;
+      m.opacity = base * revealIn;
+    }
 
     // Position of persistent inspection gate aperture in world space
     const inspectionGateZ = -0.28;
     group.position.set(0.08, isShortViewport ? 0.02 : 0, inspectionGateZ);
 
-    const currentFrameProg = continuousFrameProgress(p);
-    const activeIndex = Math.floor(currentFrameProg);
-    const transportDistance = p * TRANSPORT.distance;
+    // ONE transport value, derived from the shared replay schedule (the same replayFrame(p) the
+    // DOM evidence layer uses). It is constant during every hold, so reels, rollers and film are
+    // all stationary while an exposure is read, and it moves them together during each advance.
+    const f = replayFrame(p);
+    const shiftRepeats = filmShiftRepeats(f);
+    const transportDistance = shiftRepeats / TRANSPORT.uvPerWorldUnit;
 
-    // One physical transport value drives every moving contact surface.
     if (supplyReelRef.current) {
       supplyReelRef.current.rotation.z =
         -transportDistance / TRANSPORT.supplyRadius;
@@ -528,19 +543,35 @@ export function CausalReplayRibbon({
     });
 
     if (ribbonMatRef.current && ribbonMatRef.current.map) {
-      ribbonMatRef.current.map.offset.x =
-        -transportDistance * TRANSPORT.uvPerWorldUnit;
+      // Texture coordinate at the gate = FRAME_HIGH - shift: frame 0 is centred at rest, and each
+      // advance lands the next physical frame on the gate centre.
+      const gateU = (ribbonGeo.userData.gateU as number) ?? 0;
+      const phase0 = (((FRAME_HIGH - gateU) % 1) + 1) % 1;
+      ribbonMatRef.current.map.offset.x = phase0 - shiftRepeats;
       ribbonMatRef.current.opacity = 0.96 * revealIn;
     }
 
-    // 3. Subtle optical illumination at the gate pulses softly into sharp focus when a frame locks
+    if (DIAGNOSTICS) {
+      (window as unknown as { __kpReplay?: unknown }).__kpReplay = {
+        p,
+        frame: f,
+        shiftRepeats,
+        supplyRot: supplyReelRef.current?.rotation.z ?? null,
+        takeupRot: takeupReelRef.current?.rotation.z ?? null,
+        rollerRot: rollerRefs.current.map((r) => r?.rotation.y ?? null),
+        filmOffset: ribbonMatRef.current?.map?.offset.x ?? null,
+        reveal: revealIn,
+        visible: group.visible,
+      };
+    }
+
+    // Gate illumination: a smooth function of how close the film is to a registered hold.
     if (gateLightRef.current) {
-      const activeWindow = STAGE_WINDOWS[activeIndex];
-      const isRegistered =
-        activeWindow && p >= activeWindow[0] && p <= activeWindow[1];
+      const off = Math.abs(f - Math.round(f));
+      const registered = 1 - Math.min(1, off / 0.25);
       const gateMaterial = gateLightRef.current.material as MeshBasicMaterial;
       if (gateMaterial) {
-        gateMaterial.opacity = isRegistered ? 0.16 : 0.06;
+        gateMaterial.opacity = (0.06 + 0.1 * registered) * revealIn;
       }
     }
   };
