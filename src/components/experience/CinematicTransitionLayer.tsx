@@ -5,6 +5,7 @@ import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
 import { experienceStore } from "@/lib/experience/store";
 import {
   TRANSITION_REGISTRY,
+  TRANSITION_TIER_SPECS,
   TRANSITION_EDGE_FRACTION,
   TRANSITION_OVERLAP_PX,
   type TransitionQuality,
@@ -21,6 +22,8 @@ import {
 } from "@/lib/experience/transition-quality";
 import { probeTransitionCapabilities } from "@/lib/experience/transition-capabilities";
 import { computeTransitionOpacity, progressToVideoTime } from "@/lib/experience/transition-math";
+import { BoundaryTransport, DEFAULT_TRANSPORT_PARAMS, SEEK_TUNING, shouldWriteSeek, type TransportParams } from "@/lib/experience/transition-transport";
+import { transportBridge } from "@/lib/experience/transition-transport-bridge";
 import { TRANSITION_SEAMS, insetToClipPath, seamOpacity, seamPoseAt, seamVideoProgress, type BoundarySeam, type SeamPose } from "@/lib/experience/transition-seam";
 import styles from "./CinematicTransitionLayer.module.css";
 
@@ -39,17 +42,46 @@ type BoundaryMeta = {
   seamKey: string | null;
   /** Last time this element presented a new frame (requestVideoFrameCallback), 0 if unsupported. */
   lastFrameAt: number;
+  /** Media time of the frame the compositor last presented (rVFC), null until one was. */
+  presentedMediaTime: number | null;
   trigger: ScrollTrigger | null;
+  /** Cinematic transport: raw target -> velocity-limited presented progress. */
+  transport: BoundaryTransport;
+  /** Media time the presented progress wants (coalesced: only the LATEST matters). */
+  desired: number;
+  /** Media time last written to the element, and when (never read back mid-seek). */
+  lastRequested: number | null;
+  lastRequestAt: number;
+  /** Diagnostics: number of currentTime writes on this boundary. */
+  writes: number;
+  /** presented|target last applied (skips redundant style/seek work while at rest). */
+  appliedKey: string | null;
+  /** Last applied opacity / presented progress (quality sampling gate for flushed seeks). */
+  lastOpacity: number;
+  lastPresented: number;
 };
 
 const IS_DEV = process.env.NODE_ENV !== "production";
 /** No seek completing for this long while the film is being scrubbed = a stall sample. */
 const STALL_MS = 400;
+/** Counter-movement below 2x this many scroll px never reverses the cinematic direction (trackpad noise). */
+const TRANSPORT_DEADBAND_PX = 2;
 
 const MOBILE_QUERY = "(max-width: 48rem)";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 const isMobileViewport = () => window.matchMedia(MOBILE_QUERY).matches;
+
+/** Dev-only frame recorder for `window.__kpMotion` (never started in production; the hook is not installed there). */
+function createMotionRecorder() {
+  return {
+    on: false,
+    frames: [] as Array<Record<string, unknown>>,
+    push(frame: Record<string, unknown>) {
+      if (this.frames.length < 60_000) this.frames.push(frame);
+    },
+  };
+}
 
 /** True where the video layer is never shown (mobile cut / reduced motion). */
 const isBypassMode = () =>
@@ -82,7 +114,16 @@ export function CinematicTransitionLayer() {
       unresolvedSince: null,
       seamKey: null,
       lastFrameAt: 0,
+      presentedMediaTime: null,
       trigger: null,
+      transport: new BoundaryTransport(),
+      desired: -1,
+      lastRequested: null,
+      lastRequestAt: 0,
+      writes: 0,
+      appliedKey: null,
+      lastOpacity: 0,
+      lastPresented: 0,
     }));
 
     // ---- Adaptive quality session (session-local, nothing persisted/sent) ----
@@ -98,7 +139,11 @@ export function CinematicTransitionLayer() {
     const seamsOff = IS_DEV && new URLSearchParams(window.location.search).get("transitionSeam") === "off";
     // Dev/test only: closed-loop calibration replaces a boundary's poses at the CURRENT viewport.
     const seamOverrides: Record<string, { start?: SeamPose; end?: SeamPose }> = {};
-    const applyFns: Array<(progress: number) => void> = [];
+    /** Running average of the display frame interval (ms); drives tick-aware seek pacing. */
+    let frameMsAverage = 16.7;
+    const applyFns: Array<(presented: number, target: number) => void> = [];
+    const engagedFns: Array<() => boolean> = [];
+    const seekFns: Array<() => void> = [];
     const allowHigh = AUTO_PROMOTE_TO_HIGH || parseAutoHighOverride(window.location.search, IS_DEV);
     let controller: TransitionQualityController | null = null;
     let capabilityReport: CapabilityReport = null;
@@ -147,12 +192,23 @@ export function CinematicTransitionLayer() {
       );
       if (!videoEl || !spacerEl) return;
 
-      const applyProgress = (progress: number) => {
+      /** True while this boundary is driven by the transport (Lenis running, film live, metadata known). */
+      const transportEngaged = () =>
+        transportBridge.enabled && !transportBridge.programmatic && !isBypassMode() && !meta[index].failed && meta[index].duration > 0;
+
+      /**
+       * Presents a boundary. `presented` (transport output) chooses the FRAME and the seam
+       * pose so picture and geometry always agree; `target` (raw scroll intent) drives only
+       * the layer's opacity envelope, because the live DOM flips at raw scroll positions and
+       * the film must be opaque exactly then. Without the transport both are the same number.
+       */
+      const apply = (presented: number, target: number) => {
         if (isBypassMode() || meta[index].failed) {
           meta[index].seamKey = null; // a later re-entry must re-apply the pose
           gsap.set(videoEl, { opacity: 0 });
           return;
         }
+        const progress = presented;
 
         let seam: BoundarySeam | undefined = seamsOff ? undefined : TRANSITION_SEAMS[boundary.id];
         const override = IS_DEV ? seamOverrides[boundary.id] : undefined;
@@ -167,8 +223,8 @@ export function CinematicTransitionLayer() {
           // Calibrated boundary: the film conforms to the live scenes at both ends.
           const viewport = { width: window.innerWidth, height: window.innerHeight };
           const overlapFrac = TRANSITION_OVERLAP_PX / rangePx;
-          opacity = seamOpacity(progress, overlapFrac);
-          const seamKey = `${progress}|${viewport.width}|${viewport.height}|${override ? 1 : 0}`;
+          opacity = seamOpacity(target, overlapFrac);
+          const seamKey = `${progress}|${target}|${viewport.width}|${viewport.height}|${override ? 1 : 0}`;
           if (meta[index].seamKey !== seamKey) {
             meta[index].seamKey = seamKey;
             const pose = seamPoseAt(seam, progress, viewport, overlapFrac);
@@ -184,19 +240,59 @@ export function CinematicTransitionLayer() {
             if (backdropEl && seam.backdrop) gsap.set(backdropEl, { opacity: pose.blend * opacity, backgroundColor: seam.backdrop });
           }
         } else {
-          opacity = computeTransitionOpacity(progress, TRANSITION_EDGE_FRACTION);
+          opacity = computeTransitionOpacity(target, TRANSITION_EDGE_FRACTION);
           gsap.set(videoEl, { opacity });
         }
 
         if (meta[index].duration > 0) {
           const seamCfg = seamsOff ? undefined : TRANSITION_SEAMS[boundary.id];
           const framePosition = seamCfg ? seamVideoProgress(seamCfg, progress, TRANSITION_OVERLAP_PX / rangePx) : progress;
-          const target = progressToVideoTime(framePosition, meta[index].duration);
-          if (Math.abs(videoEl.currentTime - target) > 0.008) {
+          const wanted = progressToVideoTime(framePosition, meta[index].duration);
+          meta[index].desired = wanted;
+          meta[index].lastOpacity = opacity;
+          meta[index].lastPresented = progress;
+          if (transportEngaged()) {
+            requestSeek();
+          } else if (Math.abs(videoEl.currentTime - wanted) > 0.008) {
+            // Passthrough (no Lenis: visual tests, reduced motion, native scroll): the original 1:1 mapping.
             noteSeekRequest(opacity >= 0.5 && progress > 0.05 && progress < 0.95);
-            videoEl.currentTime = target;
+            meta[index].lastRequested = wanted;
+            meta[index].lastRequestAt = performance.now();
+            meta[index].writes += 1;
+            videoEl.currentTime = wanted;
           }
         }
+      };
+
+      /**
+       * Seek coalescing: only the LATEST desired time matters. Sub-half-frame changes are never
+       * written (no decoder churn without a new picture) and an in-flight seek is not aborted by
+       * a newer one unless it is stuck (a flood of seek A, B, C, D... starves the decoder). The
+       * `seeked` event flushes the newest desired time immediately.
+       */
+      const requestSeek = () => {
+        const m = meta[index];
+        if (m.duration <= 0 || m.desired < 0) return;
+        const now = performance.now();
+        const spec = m.tier ? TRANSITION_TIER_SPECS[m.tier] : null;
+        if (
+          !shouldWriteSeek({
+            desired: m.desired,
+            lastRequested: m.lastRequested,
+            seeking: videoEl.seeking,
+            sinceRequestMs: now - m.lastRequestAt,
+            frameDuration: spec ? 1 / spec.fps : 1 / 60,
+            settled: m.transport.settled,
+            frameMs: frameMsAverage,
+          })
+        ) {
+          return;
+        }
+        noteSeekRequest(m.lastOpacity >= 0.5 && m.lastPresented > 0.05 && m.lastPresented < 0.95);
+        m.lastRequested = m.desired;
+        m.lastRequestAt = now;
+        m.writes += 1;
+        videoEl.currentTime = m.desired;
       };
 
       // Quality signal 1: service time of the LATEST seek request (request -> `seeked`).
@@ -224,14 +320,17 @@ export function CinematicTransitionLayer() {
         m.pendingSeek = null;
         m.unresolvedSince = null;
         if (request) recordSample(index, performance.now() - request.at, request.sample);
+        // Flush: the newest desired time goes out the moment the previous seek is done.
+        if (transportEngaged() && m.desired >= 0 && m.desired !== m.lastRequested) requestSeek();
       };
 
       // Presented-frame clock for stall detection (no-op where rVFC is missing).
       let frameCallbackId: number | null = null;
       const armFrameCallback = () => {
         if (typeof videoEl.requestVideoFrameCallback !== "function") return;
-        frameCallbackId = videoEl.requestVideoFrameCallback(() => {
+        frameCallbackId = videoEl.requestVideoFrameCallback((_now, metadata) => {
           meta[index].lastFrameAt = performance.now();
+          meta[index].presentedMediaTime = metadata.mediaTime;
           armFrameCallback();
         });
       };
@@ -240,7 +339,9 @@ export function CinematicTransitionLayer() {
         if (frameCallbackId !== null && typeof videoEl.cancelVideoFrameCallback === "function") videoEl.cancelVideoFrameCallback(frameCallbackId);
       });
 
-      applyFns[index] = applyProgress;
+      applyFns[index] = apply;
+      engagedFns[index] = transportEngaged;
+      seekFns[index] = requestSeek;
 
       const onLoadedMetadata = () => {
         meta[index].duration = videoEl.duration;
@@ -248,7 +349,11 @@ export function CinematicTransitionLayer() {
         // fast jump straight into an unprefetched boundary); re-apply the
         // trigger's current progress so the video doesn't stay stuck on a
         // stale frame until the next scroll tick.
-        if (trigger) applyProgress(trigger.progress);
+        if (trigger) {
+          meta[index].transport.reset(trigger.progress);
+          meta[index].appliedKey = null;
+          apply(trigger.progress, trigger.progress);
+        }
       };
       const onError = () => {
         const m = meta[index];
@@ -278,6 +383,11 @@ export function CinematicTransitionLayer() {
         videoEl.removeEventListener("error", onError);
       });
 
+      const configureTransport = () => {
+        const t = meta[index].trigger;
+        const range = t ? t.end - t.start : 0;
+        if (range > 0) meta[index].transport.configure({ overlapFrac: TRANSITION_OVERLAP_PX / range }, TRANSPORT_DEADBAND_PX / range);
+      };
       const trigger = ScrollTrigger.create({
         trigger: spacerEl,
         start: "top top+=64",
@@ -285,12 +395,106 @@ export function CinematicTransitionLayer() {
         scrub: true,
         invalidateOnRefresh: true,
         onUpdate: (self) => {
-          applyProgress(self.progress);
+          // Transport engaged: the single ticker (KavachExperience) owns presentation via step().
+          // Otherwise (no Lenis: visual tests, reduced motion, native-only) the original 1:1 mapping.
+          if (transportEngaged()) return;
+          meta[index].transport.reset(self.progress);
+          apply(self.progress, self.progress);
         },
+        onRefresh: () => configureTransport(),
       });
       meta[index].trigger = trigger;
       triggers.push(trigger);
+      configureTransport();
     });
+
+    // ---- Cinematic transport driver -----------------------------------------------------
+    // ONE chain: Lenis' canonical scroll -> ScrollTrigger progress (= raw target, immediate)
+    // -> BoundaryTransport (velocity/accel-limited, coalesced) -> frame + seam. The step runs in
+    // the same gsap tick, right after lenis.raf (KavachExperience), so there is one writer per frame.
+    let lastTick: number | null = null;
+    let lastScrollY = window.scrollY;
+    const recorder = createMotionRecorder();
+    const stepAll = (nowSeconds: number) => {
+      const stepStart = recorder.on ? performance.now() : 0;
+      const dt = lastTick === null ? 0 : nowSeconds - lastTick;
+      lastTick = nowSeconds;
+      lastScrollY = window.scrollY;
+      if (dt > 0.002 && dt < 0.1) frameMsAverage += (dt * 1000 - frameMsAverage) * 0.1;
+      let watched = -1;
+      meta.forEach((m, i) => {
+        const trig = m.trigger;
+        if (!trig || !engagedFns[i]?.()) return;
+        const t = m.transport;
+        t.feed(trig.progress);
+        t.step(dt);
+        const key = `${t.presented}|${t.target}`;
+        if (key !== m.appliedKey) {
+          m.appliedKey = key;
+          applyFns[i](t.presented, t.target);
+        } else if (m.desired >= 0 && m.desired !== m.lastRequested) {
+          seekFns[i]();
+        }
+        if (watched < 0 && (!t.settled || (trig.progress > 0 && trig.progress < 1))) watched = i;
+      });
+      if (recorder.on && watched >= 0) recorder.push({ ...motionFrame(watched, nowSeconds, dt), stepMs: performance.now() - stepStart });
+    };
+    /** Bounded pending intent + handoff gates: what raw scroll position the transport lets the page reach. */
+    const governScroll = (y: number): number => {
+      const prev = lastScrollY;
+      const lo = Math.min(y, prev);
+      const hi = Math.max(y, prev);
+      const order = y >= prev ? meta.map((_, i) => i) : meta.map((_, i) => meta.length - 1 - i);
+      for (const i of order) {
+        const m = meta[i];
+        const trig = m.trigger;
+        if (!trig || !engagedFns[i]?.() || hi <= trig.start || lo >= trig.end) continue;
+        const range = trig.end - trig.start;
+        const limits = m.transport.limits();
+        const limited = Math.min(trig.start + limits.hi * range, Math.max(trig.start + limits.lo * range, y));
+        lastScrollY = limited;
+        return limited;
+      }
+      lastScrollY = y;
+      return y;
+    };
+    const enabledChanged = (enabled: boolean) => {
+      lastTick = null;
+      lastScrollY = window.scrollY;
+      meta.forEach((m, i) => {
+        m.appliedKey = null;
+        if (!m.trigger) return;
+        m.transport.reset(m.trigger.progress);
+        if (!enabled) applyFns[i]?.(m.trigger.progress, m.trigger.progress);
+      });
+    };
+    const unregisterTransport = transportBridge.register({ step: stepAll, governScroll, enabledChanged });
+    cleanups.push(unregisterTransport);
+    const motionFrame = (i: number, nowSeconds: number, dt: number) => {
+      const m = meta[i];
+      const el = videoRefs.current[i];
+      const t = m.transport;
+      return {
+        t: performance.now(),
+        dt: dt * 1000,
+        id: TRANSITION_REGISTRY[i].id,
+        tier: m.tier,
+        y: window.scrollY,
+        target: t.target,
+        presented: t.presented,
+        gap: t.target - t.presented,
+        velocity: t.velocity,
+        acceleration: t.acceleration,
+        desiredTime: m.desired,
+        requestedTime: m.lastRequested,
+        currentTime: el ? el.currentTime : null,
+        presentedMediaTime: m.presentedMediaTime,
+        seeking: el ? el.seeking : null,
+        frameAgeMs: m.lastFrameAt ? performance.now() - m.lastFrameAt : null,
+        writes: m.writes,
+        opacity: el ? parseFloat(el.style.opacity || "0") : null,
+      };
+    };
 
     // Staging policy. The <video> elements ship WITHOUT a src, so nothing is
     // fetched until a boundary is actually about to be scrubbed:
@@ -313,6 +517,10 @@ export function CinematicTransitionLayer() {
       m.duration = 0;
       m.pendingSeek = null;
       m.unresolvedSince = null;
+      m.lastRequested = null;
+      m.desired = -1;
+      m.presentedMediaTime = null;
+      m.appliedKey = null;
       videoEl.preload = "auto";
       videoEl.setAttribute("src", TRANSITION_REGISTRY[index].sources[tier]);
     }
@@ -334,6 +542,10 @@ export function CinematicTransitionLayer() {
       meta[index].tier = null;
       meta[index].pendingSeek = null;
       meta[index].unresolvedSince = null;
+      meta[index].lastRequested = null;
+      meta[index].desired = -1;
+      meta[index].presentedMediaTime = null;
+      meta[index].appliedKey = null;
       videoEl.preload = "none";
       videoEl.removeAttribute("src");
       videoEl.load();
@@ -420,6 +632,64 @@ export function CinematicTransitionLayer() {
 
     // Development / test hook only (never present in a production build).
     if (IS_DEV) {
+      (window as unknown as { __kpMotion?: unknown }).__kpMotion = {
+        defaults: DEFAULT_TRANSPORT_PARAMS,
+        params: () => ({ ...meta[0].transport.params }),
+        /** Live-tune every boundary's transport (e.g. `__kpMotion.setParams({ vMax: 0.9 })`). */
+        setParams: (patch: Partial<TransportParams>) => meta.forEach((m) => Object.assign(m.transport.params, patch)),
+        setSeekInterval: (ms: number) => { SEEK_TUNING.minIntervalMs = ms; },
+        enabled: () => transportBridge.enabled,
+        snapshot: () =>
+          meta.map((m, i) => ({
+            id: TRANSITION_REGISTRY[i].id,
+            tier: m.tier,
+            engaged: engagedFns[i]?.() ?? false,
+            ...m.transport.snapshot(),
+            desiredTime: m.desired,
+            requestedTime: m.lastRequested,
+            currentTime: videoRefs.current[i]?.currentTime ?? null,
+            presentedMediaTime: m.presentedMediaTime,
+            writes: m.writes,
+            jumps: m.transport.jumps,
+          })),
+        record: (on: boolean) => {
+          recorder.on = on;
+          if (on) recorder.frames = [];
+        },
+        frames: () => recorder.frames,
+      };
+    }
+    // `?motionDebug=1` (dev only): a small readout of the transport for the boundary being scrubbed.
+    let debugTimer: number | undefined;
+    let debugEl: HTMLPreElement | null = null;
+    if (IS_DEV && new URLSearchParams(window.location.search).get("motionDebug") === "1") {
+      debugEl = document.createElement("pre");
+      debugEl.setAttribute("data-motion-debug", "");
+      debugEl.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:99999;margin:0;padding:6px 8px;font:11px/1.35 ui-monospace,monospace;color:#9fe;background:rgba(0,0,0,.72);pointer-events:none;white-space:pre";
+      document.body.appendChild(debugEl);
+      debugTimer = window.setInterval(() => {
+        const i = meta.findIndex((m) => m.trigger && m.trigger.progress > 0 && m.trigger.progress < 1);
+        if (!debugEl) return;
+        if (i < 0) {
+          debugEl.textContent = `motion ${transportBridge.enabled ? "transport" : "passthrough"} | idle`;
+          return;
+        }
+        const m = meta[i];
+        const el = videoRefs.current[i];
+        const t = m.transport;
+        debugEl.textContent = [
+          `${TRANSITION_REGISTRY[i].id}  tier ${m.tier ?? "-"}  ${transportBridge.enabled ? "transport" : "passthrough"}`,
+          `scrollY ${window.scrollY.toFixed(0)}  raw ${(m.trigger?.progress ?? 0).toFixed(4)}`,
+          `target ${t.target.toFixed(4)}  presented ${t.presented.toFixed(4)}  gap ${t.debt.toFixed(4)}`,
+          `v ${t.velocity.toFixed(3)}/s  a ${t.acceleration.toFixed(2)}/s^2`,
+          `media desired ${m.desired.toFixed(3)}  req ${m.lastRequested?.toFixed(3) ?? "-"}  ct ${el?.currentTime.toFixed(3) ?? "-"}  shown ${m.presentedMediaTime?.toFixed(3) ?? "-"}`,
+          `seeking ${el?.seeking ? "y" : "n"}  frame age ${m.lastFrameAt ? (performance.now() - m.lastFrameAt).toFixed(0) : "-"} ms  writes ${m.writes}`,
+        ].join("\n");
+      }, 100);
+    }
+
+    // Development / test hook only (never present in a production build).
+    if (IS_DEV) {
       (window as unknown as { __kpTransitionQuality?: unknown }).__kpTransitionQuality = {
         state: () => ({
           quality: currentQuality(),
@@ -458,7 +728,7 @@ export function CinematicTransitionLayer() {
           else delete seamOverrides[id];
           const i = TRANSITION_REGISTRY.findIndex((b) => b.id === id);
           if (i >= 0) meta[i].seamKey = null;
-          if (i >= 0) applyFns[i]?.(progressOf(i));
+          if (i >= 0) applyFns[i]?.(meta[i].transport.presented, meta[i].transport.target);
         },
         /** Feed synthetic seek latencies (ms) into the CURRENT tier's rolling window. */
         inject: (latencies: number[]) => {
@@ -476,6 +746,9 @@ export function CinematicTransitionLayer() {
       window.clearTimeout(resizeTimer);
       window.removeEventListener("resize", onResize);
       if (IS_DEV) delete (window as unknown as { __kpTransitionQuality?: unknown }).__kpTransitionQuality;
+      if (IS_DEV) delete (window as unknown as { __kpMotion?: unknown }).__kpMotion;
+      if (debugTimer !== undefined) window.clearInterval(debugTimer);
+      debugEl?.remove();
       triggers.forEach((trigger) => trigger.kill());
       cleanups.forEach((fn) => fn());
       stageObserver.disconnect();

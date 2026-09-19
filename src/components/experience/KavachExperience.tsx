@@ -18,6 +18,7 @@ import { FilmIntro } from "./FilmIntro/FilmIntro";
 import { CinematicTransitionLayer } from "./CinematicTransitionLayer";
 import { experienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
+import { transportBridge } from "@/lib/experience/transition-transport-bridge";
 import {
   SCENE_BY_KEY,
   SCENE_REGISTRY,
@@ -63,10 +64,16 @@ export function KavachExperience() {
     const visualTest = new URLSearchParams(window.location.search).has("visualTest");
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (lenisRef.current && !visualTest && !reducedMotion) {
+      // A navigation jump is not wheel intent: it passes through the film transport untouched
+      // (the first wheel/touch input after it, or its completion, hands control back).
+      transportBridge.setProgrammatic(true);
       lenisRef.current.scrollTo(target, {
         duration: 0.72,
         force: true,
-        onComplete: () => ScrollTrigger.update(),
+        onComplete: () => {
+          transportBridge.setProgrammatic(false);
+          ScrollTrigger.update();
+        },
       });
     } else {
       window.scrollTo({ top: target, left: 0, behavior: "auto" });
@@ -167,6 +174,8 @@ export function KavachExperience() {
     const ownershipTriggers: ScrollTrigger[] = [];
 
     const stopSmoothScroll = () => {
+      transportBridge.setEnabled(false);
+      transportBridge.setProgrammatic(false);
       if (tick) gsap.ticker.remove(tick);
       lenisRef.current?.destroy();
       lenisRef.current = null;
@@ -188,10 +197,33 @@ export function KavachExperience() {
       // FilmIntro's lock effect (a child) can run before this parent effect creates Lenis;
       // converge on the correct state regardless of which fired first.
       if (introLockedRef.current) activeLenis.stop();
-      tick = (time: number) => activeLenis.raf(time * 1000);
-      activeLenis.on("scroll", ScrollTrigger.update);
+      // ONE chain per frame: Lenis' canonical scroll -> ScrollTrigger (raw target) -> film transport.
+      tick = (time: number) => {
+        activeLenis.raf(time * 1000);
+        transportBridge.step(time);
+      };
+      activeLenis.on("scroll", (instance) => {
+        // Wheel-driven smooth scroll only: bound the pending intent and hold the page at the
+        // handoff gates until the film is home. Programmatic navigation and native (keyboard,
+        // scrollbar, touch) scrolling pass through and are absorbed by the transport instead.
+        if (instance.isScrolling === "smooth" && !transportBridge.programmatic) {
+          const y = instance.scroll;
+          const limited = transportBridge.governScroll(y);
+          if (limited !== y) {
+            if (instance.targetScroll === limited) instance.targetScroll = y;
+            instance.scrollTo(limited, { immediate: true, force: true }); // emits again -> ScrollTrigger.update below
+            return;
+          }
+        }
+        ScrollTrigger.update();
+      });
+      activeLenis.on("virtual-scroll", () => transportBridge.setProgrammatic(false));
       gsap.ticker.add(tick);
       gsap.ticker.lagSmoothing(0);
+      // Dev/test A/B only: `?transport=off` keeps the previous raw scroll -> frame mapping.
+      if (!(process.env.NODE_ENV !== "production" && new URLSearchParams(window.location.search).get("transport") === "off")) {
+        transportBridge.setEnabled(true);
+      }
     };
 
     const handleMotionPreference = () => {
