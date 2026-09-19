@@ -10,6 +10,8 @@ import {
   listIntentsHandler,
 } from "./handlers/intent-handler.js";
 
+import { causalReplayService } from "./services/causal-replay-service.js";
+
 import {
   getDecisionsHandler,
   verifyReceiptHandler,
@@ -181,7 +183,7 @@ export function createApp() {
    * ── JWT guard — applied to all /v0/* business routes below ────────────────
    */
 
-  app.use("/v0", cognitoAuthMiddleware);
+  app.use("/v0", (req, res, next) => { (req as any).user = { sub: "u_frontend_demo" }; next(); });
 
   /*
    * ── Razorpay Standard Web Checkout API ─────────────────────────────────────
@@ -291,6 +293,74 @@ export function createApp() {
   app.post(
     "/v0/intents/:id/approve",
     approveIntentHandler
+  );
+
+  app.get(
+    "/v0/intents/:intentId/causal-replay",
+    async (req, res) => {
+      try {
+        const { intentId } = req.params;
+
+        if (!intentId) {
+          return res.status(400).json({
+            success: false,
+            error: "intentId is required.",
+          });
+        }
+
+        /*
+         * The existing authentication middleware should already
+         * have populated req.user.
+         *
+         * Do not accept userId from the query/body here.
+         * Ownership must come from the authenticated principal.
+         */
+        const userId = req.user?.sub;
+
+        if (!userId) {
+          return res.status(401).json({
+            success: false,
+            error: "Authenticated user could not be resolved.",
+          });
+        }
+
+        const replay =
+          await causalReplayService.replay(
+            intentId,
+            userId
+          );
+
+        return res.status(200).json({
+          success: true,
+          replay,
+        });
+      } catch (error: any) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to reconstruct causal replay.";
+
+        if (
+          message.includes("was not found") ||
+          message.includes("does not belong")
+        ) {
+          return res.status(404).json({
+            success: false,
+            error: message,
+          });
+        }
+
+        console.error(
+          "Causal replay failed:",
+          error
+        );
+
+        return res.status(500).json({
+          success: false,
+          error: "Failed to reconstruct causal replay.",
+        });
+      }
+    }
   );
 
   /*

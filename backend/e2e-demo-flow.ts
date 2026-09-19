@@ -94,6 +94,7 @@ async function runFlow() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       intentId: stepUpIntentId,
+      userId: USER_ID,
     }),
   });
   const execData = await execRes.json();
@@ -116,7 +117,7 @@ async function runFlow() {
     event: "order.paid",
     contains: ["payment", "order"],
     payload: {
-      payment: { entity: { id: `pay_${randomUUID()}`, amount: 250000, status: "captured", notes: { intentId: stepUpIntentId } } },
+      payment: { entity: { id: `pay_${randomUUID()}`, amount: 250000, status: "captured", order_id: orderId, notes: { intentId: stepUpIntentId } } },
       order: { entity: { id: orderId, amount: 250000, receipt: stepUpIntentId, status: "paid", notes: { intentId: stepUpIntentId } } }
     },
     created_at: Math.floor(Date.now() / 1000)

@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { apiClient } from "@/lib/api-client";
+import { CausalReplayPanel, type CausalReplay } from "@/components/kavach/causal-replay";
 import { CheckCircle2, Clock3, Filter, Loader2, Plus, Search, ShieldX } from "lucide-react";
 import { DecisionGlyph } from "@/components/kavach/icons";
 import { Button } from "@/components/ui/button";
@@ -71,6 +73,27 @@ function ActivityPageContent({ initialQuery }: { initialQuery: string }) {
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
   const [selected, setSelected] = useState<LedgerEntry | null>(null);
+
+  const [replayIntentId, setReplayIntentId] = useState<string | null>(null);
+  const [replayOpen, setReplayOpen] = useState(false);
+  const [replayLoading, setReplayLoading] = useState(false);
+  const [replayData, setReplayData] = useState<CausalReplay | null>(null);
+
+  const handleReplay = async (intentId: string) => {
+    setReplayIntentId(intentId);
+    setReplayOpen(true);
+    setReplayLoading(true);
+
+    try {
+      const response = await apiClient.getCausalReplay(intentId);
+      setReplayData(response.replay);
+    } catch (error) {
+      console.error("Failed to load causal replay:", error);
+      setReplayData(null);
+    } finally {
+      setReplayLoading(false);
+    }
+  };
 
   // ── Create Intent dialog state ─────────────────────────────────────────
   const [intentOpen, setIntentOpen] = useState(false);
@@ -676,6 +699,16 @@ function ActivityPageContent({ initialQuery }: { initialQuery: string }) {
                       </td>
                       <td className="px-4 py-4">
                         <StatusPill tone={tone.tone} label={tone.label} />
+                        <button
+                          type="button"
+                          className="mt-2 text-[10px] font-semibold text-muted-foreground hover:text-foreground hover:underline uppercase block tracking-wider"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleReplay(entry.id);
+                          }}
+                        >
+                          [ REPLAY CAUSE ]
+                        </button>
                       </td>
                       <td className="whitespace-nowrap px-5 py-4 text-right text-xs text-muted-foreground">
                         {formatDateTime(entry.at)}
@@ -698,6 +731,21 @@ function ActivityPageContent({ initialQuery }: { initialQuery: string }) {
           if (!open) setSelected(null);
         }}
       />
+
+      <Sheet
+        open={replayOpen}
+        onOpenChange={(open) => {
+          setReplayOpen(open);
+          if (!open) {
+            setReplayData(null);
+            setReplayIntentId(null);
+          }
+        }}
+      >
+        <SheetContent className="w-full sm:max-w-md md:max-w-lg p-0 border-l" side="right">
+          <CausalReplayPanel replay={replayData} loading={replayLoading} />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -397,4 +397,16 @@ export const apiClient = {
     }
     return json;
   },
+
+  getCausalReplay: async (intentId: string) => {
+    const res = await fetch(`${API_BASE_URL}/v0/intents/${encodeURIComponent(intentId)}/causal-replay`, {
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Causal replay fetch failed:", res.status, errorText);
+      throw new Error(`Failed to fetch causal replay: ${res.status} ${errorText}`);
+    }
+    return res.json();
+  },
 };

@@ -74,6 +74,12 @@ export interface PaymentRecord {
   razorpayOrderId: string;
   razorpayPaymentId?: string;
 
+  /**
+   * Razorpay webhook event that confirmed the provider result.
+   * This is persisted evidence for causal replay.
+   */
+  providerWebhookEventId?: string;
+
   status: PaymentStatus;
 
   createdAt: string;
