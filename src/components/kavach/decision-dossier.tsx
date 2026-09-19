@@ -253,6 +253,7 @@ export function DecisionDossier({
             )}
           </div>
         </div>
+        </div>
 
         {isStepUp ? (
           <div className="shrink-0 border-t border-border bg-background p-4">

@@ -20,6 +20,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { toast } from "sonner";
 import {
   Menu,
   Moon,
@@ -134,35 +135,37 @@ function NavList({
 }
 
 function EmergencyStop() {
-  const [open, setOpen] = useState(false);
+  const { agents, revokeAgent } = useKavach();
+  const [stopping, setStopping] = useState(false);
+
+  const handleStop = async () => {
+    setStopping(true);
+    try {
+      const activeAgents = agents.filter(a => a.status === "active");
+      for (const agent of activeAgents) {
+        await revokeAgent(agent.id);
+      }
+      toast.success("All active agents have been stopped.");
+    } catch (error) {
+      toast.error("Failed to stop some agents.");
+    } finally {
+      setStopping(false);
+    }
+  };
 
   return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setOpen(true)}
-        aria-label="Emergency stop unavailable; view details"
-      >
-        <OctagonPause className="h-4 w-4" aria-hidden="true" />
-        <span className="hidden sm:inline">Stop unavailable</span>
-        <span className="sm:hidden">Stop</span>
-      </Button>
-      <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Emergency stop is not connected</AlertDialogTitle>
-            <AlertDialogDescription>
-              The dashboard does not yet have a server-enforced emergency stop. This control cannot halt payments. To stop an agent now, open its mandate and revoke it individually.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction asChild><Link href="/agents">Review agents</Link></AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleStop}
+      disabled={stopping}
+      className="text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+      aria-label="Stop all agents"
+    >
+      <OctagonPause className="h-4 w-4" aria-hidden="true" />
+      <span className="hidden sm:inline">{stopping ? "Stopping..." : "Stop all"}</span>
+      <span className="sm:hidden">Stop</span>
+    </Button>
   );
 }
 
@@ -211,53 +214,7 @@ function Brand({
   );
 }
 
-function ResetDemo() {
-  const [resetting, setResetting] = useState(false);
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState("");
 
-  const handleReset = async () => {
-    if (resetting) return;
-    try {
-      setResetting(true);
-      setError("");
-      await apiClient.resetDemo();
-      window.location.reload();
-    } catch (error) {
-      console.error("Failed to reset demo:", error);
-      setError("The demo could not be reset. Your current data has not been cleared. Please try again.");
-    } finally {
-      setResetting(false);
-    }
-  };
-
-  return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} aria-label="Reset demo" className="shrink-0">
-        <RotateCcw className="h-4 w-4 lg:hidden" aria-hidden="true" />
-        <span className="hidden lg:inline">Reset demo</span>
-      </Button>
-      <AlertDialog open={open} onOpenChange={(next) => { if (!resetting) { setOpen(next); setError(""); } }}>
-        <AlertDialogContent className="w-[calc(100vw-2rem)] rounded-xl border-border p-6 sm:p-7">
-          <AlertDialogHeader className="text-left">
-            <span className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary"><RotateCcw className="h-5 w-5" aria-hidden="true" /></span>
-            <AlertDialogTitle className="text-2xl">Start the demo over?</AlertDialogTitle>
-            <AlertDialogDescription className="text-[15px] leading-relaxed">
-              This removes the current demo mandates and decisions, then restores the starting demo state. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
-          <AlertDialogFooter className="mt-3 gap-2 sm:space-x-0">
-            <AlertDialogCancel disabled={resetting}>Keep current data</AlertDialogCancel>
-            <Button onClick={handleReset} disabled={resetting} className="bg-primary text-primary-foreground hover:bg-primary/90">
-              {resetting ? "Resetting…" : "Reset demo"}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
-  );
-}
 
 function Notifications() {
   const { approvals, agents } = useKavach();
@@ -451,7 +408,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="border-t border-border p-4">
                   <div className="mb-3 flex items-center justify-between gap-2 border-b border-border pb-3">
                     <span className="text-sm text-muted-foreground">Appearance & demo</span>
-                    <div className="flex items-center gap-2"><ThemeToggle /><ResetDemo /></div>
+                    <div className="flex items-center gap-2"><ThemeToggle /></div>
                   </div>
                   <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex w-full items-center gap-3 rounded-md p-1.5 text-left hover:bg-muted">
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-primary/12 text-xs font-semibold text-primary">
@@ -481,7 +438,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
               <Notifications />
               <div className="hidden md:block"><ThemeToggle /></div>
-              <div className="hidden md:block"><ResetDemo /></div>
               <EmergencyStop />
             </div>
           </div>

@@ -31,7 +31,12 @@ interface IntentRecord {
   blockedItem?: string;
   blockedCategory?: string;
   matchedPolicy?: string;
-  providerStatus?: LedgerEntry["providerStatus"];
+  providerStatus?: string;
+  orderId?: string;
+  providerOrderId?: string;
+  paymentId?: string;
+  providerPaymentId?: string;
+  webhookVerified?: boolean;
 }
 
 export function grantToAgent(grant: GrantRecord): Agent {
