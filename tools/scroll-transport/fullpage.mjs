@@ -23,7 +23,7 @@ const rep = (n, dy, gap) => Array.from({ length: n }, () => ({ dy, gap }));
 
 /** Wheel programs; `until` says when a traversal is complete. */
 const TRAVERSALS = {
-  normal: { dir: 1, events: () => rep(4000, 100, 100) },                       // ~1000 px/s notched wheel
+  normal: { dir: 1, events: () => [...rep(20, 100, 100), { dy: 0, gap: 700 }, ...rep(3, -50, 100), { dy: 0, gap: 500 }, ...rep(4000, 100, 100)] }, // normal wheel plus an explicit stop/reverse/continue demonstration
   slow: { dir: 1, events: () => rep(20000, 4, 16) },                           // ~250 px/s micro deltas
   fast: { dir: 1, events: () => rep(4000, 300, 40) },                          // ~7500 px/s flicks
   mixed: { dir: 1, events: () => { const out = []; for (let k = 0; k < 400; k += 1) out.push(...rep(12, 100, 100), ...rep(30, 6, 16), ...rep(5, 300, 40)); return out; } },
@@ -33,7 +33,8 @@ const TRAVERSALS = {
 const RECORDER = `
 (() => {
   if (window.__fp) return;
-  const fp = (window.__fp = { on: false, frames: [], writes: 0, presented: {}, owners: [] });
+  const fp = (window.__fp = { on: false, frames: [], writes: 0, presented: {}, owners: [], wheel: [] });
+  window.addEventListener('wheel', (e) => { if (fp.on) fp.wheel.push({ t: performance.now(), dy: e.deltaY }); }, {capture: true, passive: true});
   const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "currentTime");
   Object.defineProperty(HTMLMediaElement.prototype, "currentTime", { configurable: true, get() { return desc.get.call(this); }, set(v) { if (fp.on) fp.writes += 1; desc.set.call(this, v); } });
   const arm = (el) => { if (el.__a || typeof el.requestVideoFrameCallback !== "function") return; el.__a = true; const id = el.dataset.transitionVideo; const cb = (n, md) => { fp.presented[id] = md.mediaTime; el.requestVideoFrameCallback(cb); }; el.requestVideoFrameCallback(cb); };
@@ -41,12 +42,13 @@ const RECORDER = `
   const loop = (ts) => {
     document.querySelectorAll("[data-transition-video]").forEach(arm);
     if (fp.on) {
+      if (window.__kpWheel !== fp.wheelHook) { fp.invalidations++; fp.wheelHook = window.__kpWheel; }
       const stage = document.querySelector("[data-cinematic-stage]");
       const owner = stage && stage.dataset.activeScene;
       if (owner !== lastOwner) { fp.owners.push({ t: ts, owner, y: window.scrollY }); lastOwner = owner; }
       const st = window.ScrollTrigger ? window.ScrollTrigger.getAll().filter((t) => t.trigger && t.trigger.dataset && t.trigger.dataset.transitionTrack) : [];
       const act = st.find((t) => t.progress > 0 && t.progress < 1);
-      let f = { t: ts, y: window.scrollY };
+      let f = { t: ts, y: window.scrollY, owner, wheel: window.__kpWheel?.snapshot() ?? null };
       if (act) { const id = act.trigger.dataset.transitionTrack; const v = document.querySelector("[data-transition-video='" + id + "']"); f = { ...f, id, tp: act.progress, ct: v.currentTime, dur: v.duration, pm: fp.presented[id] ?? null, op: parseFloat(v.style.opacity || "0") }; }
       fp.frames.push(f);
     }
@@ -75,7 +77,9 @@ function analyse(name, res) {
   }
   const order = owners.map((o) => o.owner).filter(Boolean);
   const dedup = order.filter((o, i) => i === 0 || o !== order[i - 1]);
-  const seqOk = name === "reverse" ? dedup.every((o, i) => i === 0 || Number(o) <= Number(dedup[i - 1]) || true) : true;
+  const expected = ["prologue", "mandate", "decisions", "delegation", "stepUp", "revocation", "splitDefense", "concurrency", "causalReplay"];
+  if (name === "reverse") expected.reverse();
+  const seqOk = JSON.stringify(dedup) === JSON.stringify(expected);
   return { traversal: name, ownerSequence: dedup, ownerChanges: owners.length, maxScrollY: Math.round(maxY), currentTimeWrites: writes, boundaries: perBoundary, seqOk };
 }
 
@@ -92,6 +96,8 @@ for (const name of trArg.split(",")) {
   await page.waitForFunction(() => window.ScrollTrigger && document.querySelectorAll("[data-transition-track]").length === 7, null, { timeout: 60_000 });
   if (q.includes("intro=1")) { await page.locator("[data-film-intro]").waitFor({ state: "hidden", timeout: 30_000 }).catch(() => console.log("intro did not hide in 30 s")); }
   await sleep(1500);
+  if (process.env.WHEEL_PARAMS) await page.evaluate((p) => window.__kpWheel.setParams(JSON.parse(p)), process.env.WHEEL_PARAMS);
+  if (process.env.PARAMS) await page.evaluate((p) => window.__kpMotion.setParams(JSON.parse(p)), process.env.PARAMS);
   if (process.env.WARM && prog.dir === -1) {
     // Prime the HTTP cache with a quick forward pass (unrecorded) so first-arrival buffering is not part of the measurement.
     await page.mouse.move(VW / 2, VH / 2);
@@ -102,12 +108,13 @@ for (const name of trArg.split(",")) {
   await page.mouse.move(VW / 2, VH / 2);
   // warm the media so a traversal never measures first-load buffering
   await page.evaluate(() => { document.querySelectorAll("[data-transition-video]").forEach((v) => v.load && 0); });
-  await page.evaluate(() => { window.__fp.on = true; });
+  const settings = await page.evaluate(() => ({ boundary: window.__kpMotion?.params(), wheel: window.__kpWheel?.params?.(), tier: document.querySelector('[data-cinematic-transition-layer]')?.dataset.transitionQuality }));
+  await page.evaluate(() => { window.__fp.on = true; window.__fp.invalidations = 0; window.__fp.wheelHook = window.__kpWheel; });
   const t0 = performance.now(); let at = t0 + 200; await sleepUntil(at);
   const events = prog.events();
   let idleTicks = 0;
   for (let i = 0; i < events.length; i += 1) {
-    await page.mouse.wheel(0, events[i].dy);
+    if (events[i].dy) await page.mouse.wheel(0, events[i].dy);
     at += events[i].gap; await sleepUntil(at);
     if (i % 25 === 0) {
       const atEnd = await page.evaluate((dir) => (dir > 0 ? window.scrollY >= document.documentElement.scrollHeight - innerHeight - 2 : window.scrollY <= 2), prog.dir);
@@ -116,14 +123,19 @@ for (const name of trArg.split(",")) {
     }
   }
   await sleep(1200);
-  const res = await page.evaluate(() => { window.__fp.on = false; return { frames: window.__fp.frames, owners: window.__fp.owners, writes: window.__fp.writes }; });
+  const res = await page.evaluate(() => { window.__fp.on = false; return { frames: window.__fp.frames, owners: window.__fp.owners, writes: window.__fp.writes, wheel: window.__fp.wheel, invalidations: window.__fp.invalidations }; });
+  const endingSettings = await page.evaluate(() => ({ boundary: window.__kpMotion?.params(), wheel: window.__kpWheel?.params?.(), tier: document.querySelector('[data-cinematic-transition-layer]')?.dataset.transitionQuality }));
+  if (res.invalidations || !res.frames.length || JSON.stringify(settings) !== JSON.stringify(endingSettings)) throw new Error('Transport settings changed during traversal; discard this run');
   const seconds = (performance.now() - t0) / 1000;
-  const a = analyse(name, res); a.wallSeconds = r4(seconds);
+  const a = analyse(name, res); a.wallSeconds = r4(seconds); a.settings = settings;
   fs.writeFileSync(path.join(OUT, `${name}.json`), JSON.stringify(a, null, 1));
+  fs.writeFileSync(path.join(OUT, `${name}-raw.json`), JSON.stringify(res));
   const vid = page.video();
   await ctx.close();
   try { if (vid) fs.copyFileSync(await vid.path(), path.join(OUT, `${name}.webm`)); } catch (e) { console.log("video copy failed", e.message); }
-  fs.rmSync(path.join(OUT, `_${name}`), { recursive: true, force: true });
+  const temporaryVideoDir = path.resolve(OUT, `_${name}`);
+  if (!temporaryVideoDir.startsWith(path.resolve(OUT) + path.sep)) throw new Error("Recording directory outside output root");
+  fs.rmSync(temporaryVideoDir, { recursive: true, force: true });
   console.log(name, JSON.stringify({ seconds: a.wallSeconds, owners: a.ownerSequence.join(">"), changes: a.ownerChanges, writes: a.currentTimeWrites, worst60Max: Math.max(0, ...Object.values(a.boundaries).map((b) => b.shown60DeltaMax)), dips: Math.max(0, ...Object.values(a.boundaries).map((b) => b.maxOpacityDip)) }));
   summary.push(a);
 }

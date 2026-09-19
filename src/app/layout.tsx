@@ -7,6 +7,7 @@ import "./globals.css";
 import "../styles.css";
 import { configureAmplify } from "@/lib/auth/amplify-config";
 import { AuthProvider } from "@/lib/auth/auth-context";
+import { CustomCursor } from "@/components/cursor/CustomCursor";
 
 // Configure Amplify once at module load time (runs on server + client).
 configureAmplify();
@@ -48,7 +49,10 @@ export default function RootLayout({
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
         />
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <CustomCursor />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

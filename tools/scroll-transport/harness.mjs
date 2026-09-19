@@ -70,7 +70,8 @@ export const PROFILES = {
 const RECORDER = `
 (() => {
   if (window.__rec) return;
-  const rec = (window.__rec = { on: false, frames: [], writes: [], seeked: [], presentedLog: [], presented: {}, t0: 0, long: [] });
+  const rec = (window.__rec = { on: false, frames: [], writes: [], seeked: [], presentedLog: [], presented: {}, t0: 0, long: [], wheel: [] });
+  window.addEventListener('wheel', (e) => { if (rec.on) rec.wheel.push({ t: performance.now(), dy: e.deltaY, mode: e.deltaMode }); }, { capture: true, passive: true });
   try { new PerformanceObserver((l) => l.getEntries().forEach((e) => { if (rec.on) rec.long.push({ t: e.startTime, d: e.duration }); })).observe({ entryTypes: ['longtask'] }); } catch (e) {}
   document.addEventListener('seeked', (e) => { if (rec.on) rec.seeked.push({ t: performance.now(), id: e.target.dataset && e.target.dataset.transitionVideo }); }, true);
   const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "currentTime");
@@ -95,7 +96,8 @@ const RECORDER = `
     if (rec.on) {
       const st = window.ScrollTrigger ? window.ScrollTrigger.getAll().filter((t) => t.trigger && t.trigger.dataset && t.trigger.dataset.transitionTrack) : [];
       const act = st.find((t) => t.progress > 0 && t.progress < 1) || null;
-      let f = { t: ts, y: window.scrollY };
+      if (window.__kpWheel !== rec.wheelHook) { rec.invalidations++; rec.wheelHook = window.__kpWheel; }
+      let f = { t: ts, y: window.scrollY, wheel: window.__kpWheel?.snapshot() ?? null };
       if (act) {
         const id = act.trigger.dataset.transitionTrack;
         const v = document.querySelector("[data-transition-video='" + id + "']");
@@ -153,6 +155,7 @@ async function openPage(browser) {
   await page.waitForFunction(() => window.ScrollTrigger && document.querySelectorAll("[data-transition-track]").length === 7, null, { timeout: 60_000 });
   await sleep(1500);
   if (process.env.PARAMS) await page.evaluate((p) => window.__kpMotion.setParams(JSON.parse(p)), process.env.PARAMS);
+  if (process.env.WHEEL_PARAMS) await page.evaluate((p) => window.__kpWheel.setParams(JSON.parse(p)), process.env.WHEEL_PARAMS);
   if (process.env.SEEK_INTERVAL) await page.evaluate((v) => window.__kpMotion.setSeekInterval(Number(v)), process.env.SEEK_INTERVAL);
   await page.mouse.move(VW / 2, VH / 2);
   return { ctx, page };
@@ -165,9 +168,10 @@ async function runProfile(page, name, profile, boundaryIndex) {
   await jumpScroll(page, y0);
   await waitBuffered(page, rng0.id);
   // Make sure this boundary's video is staged + metadata is known before measuring.
-  await page.evaluate(() => { window.__rec.frames = []; window.__rec.writes = []; window.__rec.pframes = 0; });
+  await page.evaluate(() => { const r = window.__rec; r.frames = []; r.writes = []; r.pframes = 0; r.wheel = []; r.seeked = []; r.presentedLog = []; r.long = []; });
   await sleep(300);
-  await page.evaluate(() => { const r = window.__rec; r.on = true; r.t0 = performance.now(); if (window.__kpMotion) window.__kpMotion.record(true); });
+  const settings = await page.evaluate(() => ({ boundary: window.__kpMotion?.params(), wheel: window.__kpWheel?.params?.(), tier: document.querySelector('[data-cinematic-transition-layer]')?.dataset.transitionQuality }));
+  await page.evaluate(() => { const r = window.__rec; r.on = true; r.invalidations = 0; r.wheelHook = window.__kpWheel; r.t0 = performance.now(); if (window.__kpMotion) window.__kpMotion.record(true); });
   const t0 = performance.now();
   let at = t0 + 120; // leading quiet frames
   await sleepUntil(at);
@@ -184,8 +188,10 @@ async function runProfile(page, name, profile, boundaryIndex) {
   }
   const lastWheelAt = performance.now() - t0;
   await sleep(900); // settle window
-  const rec = await page.evaluate(() => { const r = window.__rec; r.on = false; let internal = null; if (window.__kpMotion) { internal = window.__kpMotion.frames().slice(); window.__kpMotion.record(false); } return { frames: r.frames, writes: r.writes, long: r.long, seeked: r.seeked, presentedLog: r.presentedLog, pframes: r.pframes, t0: r.t0, internal }; });
-  return { name, boundary: rng0.id, range, y0, cumulative, lastWheelAt, wheelLog, rec, wall0: t0 };
+  const rec = await page.evaluate(() => { const r = window.__rec; r.on = false; let internal = null; if (window.__kpMotion) { internal = window.__kpMotion.frames().slice(); window.__kpMotion.record(false); } return { frames: r.frames, writes: r.writes, long: r.long, seeked: r.seeked, presentedLog: r.presentedLog, pframes: r.pframes, t0: r.t0, wheel: r.wheel, invalidations: r.invalidations, internal }; });
+  const endingSettings = await page.evaluate(() => ({ boundary: window.__kpMotion?.params(), wheel: window.__kpWheel?.params?.(), tier: document.querySelector('[data-cinematic-transition-layer]')?.dataset.transitionQuality }));
+  if (rec.invalidations || !rec.frames.length || JSON.stringify(settings) !== JSON.stringify(endingSettings)) throw new Error('Transport settings changed during measurement; discard this run');
+  return { name, boundary: rng0.id, range, y0, cumulative, lastWheelAt, wheelLog, rec, settings, wall0: t0 };
 }
 
 // ------------------------------------------------------------------ analysis
@@ -287,13 +293,31 @@ export function analyze(run) {
   const lag = fr.filter((f) => f.pm !== null && f.pm !== undefined).map((f) => (f.ct - f.pm) * 1000);
   const stale = lag.filter((l) => Math.abs(l) > 25).length;
   // settle latency: last wheel event -> last frame where the visual progress moved
-  const lastWheelAbs = run.wall0 + run.lastWheelAt; // node clock; convert using page t0 offset
-  let lastMove = null; let lastMoveIdx = -1;
-  for (let i = 1; i < fr.length; i += 1) if (Math.abs(vp[i] - vp[i - 1]) > 1 / (fr[i].dur * 240)) { lastMove = fr[i].t; lastMoveIdx = i; }
+  let lastMove = null;
+  for (let i = 1; i < fr.length; i += 1) if (Math.abs(vp[i] - vp[i - 1]) > 1 / (fr[i].dur * 240)) lastMove = fr[i].t;
   const lastWheelPage = t0 + run.lastWheelAt;
   const settleMs = lastMove === null ? null : Math.max(0, lastMove - lastWheelPage);
   // largest visual jump over ~1 frame
   const largestJump = absd.length ? Math.max(...absd) : 0;
+  // Browser timestamps only. The legacy node-clock estimate includes the wait AFTER
+  // the final wheel event and understates stop latency by one input interval.
+  const inputs = run.rec.wheel ?? [];
+  const firstInput = inputs[0];
+  const lastInput = inputs.at(-1);
+  let firstVisible = null;
+  let lastVisible = null;
+  for (let i = 1; i < fr.length; i += 1) {
+    if (Math.abs(vp[i] - vp[i - 1]) <= 1 / (fr[i].dur * 240)) continue;
+    if (firstInput && fr[i].t >= firstInput.t && firstVisible === null) firstVisible = fr[i].t - firstInput.t;
+    lastVisible = fr[i].t;
+  }
+  const reverseInput = inputs.find((e) => firstInput && Math.sign(e.dy) !== Math.sign(firstInput.dy) && e.dy);
+  let reverseVisible = null;
+  if (reverseInput) for (let i = 1; i < fr.length; i += 1) {
+    if (fr[i].t >= reverseInput.t && (vp[i] - vp[i - 1]) * Math.sign(reverseInput.dy) > 1 / (fr[i].dur * 240)) {
+      reverseVisible = fr[i].t - reverseInput.t; break;
+    }
+  }
   // reverse spike: max |velocity change| in the window around the scroll-direction reversal (scroll-side)
   let reverseSpike = null;
   if (/fwd_rev|rev_fwd/.test(run.name)) {
@@ -344,6 +368,7 @@ export function analyze(run) {
     writeToPresentMs: { n: pres.length, p50: round(pct(pres, 50), 1), p95: round(pct(pres, 95), 1), max: round(Math.max(0, ...pres), 1) },
     req60, shown60,
     internal,
+    browserInput: { firstVisibleMs: round(firstVisible, 1), stopMs: lastInput && lastVisible !== null ? round(Math.max(0, lastVisible - lastInput.t), 1) : null, reverseVisibleMs: round(reverseVisible, 1) },
     scrollProgressVelocityPeakAbs: round(Math.max(0, ...tvel.map(Math.abs)), 3),
     peakAccel: round(Math.max(0, ...acc.map(Math.abs)), 2),
     velocityStepP95: round(pct(jerkVel, 95), 3),

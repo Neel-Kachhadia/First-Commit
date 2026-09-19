@@ -72,3 +72,40 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Scoped custom cursor suppression & native input preservation */
+@media (pointer: fine) {
+  html.has-custom-cursor,
+  html.has-custom-cursor body,
+  html.has-custom-cursor a,
+  html.has-custom-cursor button,
+  html.has-custom-cursor [role="button"],
+  html.has-custom-cursor [data-cursor="interactive"] {
+    cursor: none !important;
+  }
+
+  /* Native text editing behavior preserved for inputs, textareas, and contenteditable */
+  html.has-custom-cursor input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
+  html.has-custom-cursor textarea,
+  html.has-custom-cursor [contenteditable="true"],
+  html.has-custom-cursor [data-cursor="text"] {
+    cursor: text !important;
+  }
+
+  /* Native escape hatch */
+  html.has-custom-cursor [data-cursor="native"] {
+    cursor: auto !important;
+  }
+
+  /* Native select */
+  html.has-custom-cursor select {
+    cursor: default !important;
+  }
+
+  /* Native disabled */
+  html.has-custom-cursor [disabled],
+  html.has-custom-cursor [aria-disabled="true"],
+  html.has-custom-cursor [data-cursor="disabled"] {
+    cursor: not-allowed !important;
+  }
+}

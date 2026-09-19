@@ -19,6 +19,7 @@ import { CinematicTransitionLayer } from "./CinematicTransitionLayer";
 import { experienceStore } from "@/lib/experience/store";
 import { progressBus } from "@/lib/experience/progress-bus";
 import { transportBridge } from "@/lib/experience/transition-transport-bridge";
+import { WheelTransport, type WHEEL_TRANSPORT_PARAMS } from "@/lib/experience/wheel-transport";
 import {
   SCENE_BY_KEY,
   SCENE_REGISTRY,
@@ -40,6 +41,11 @@ declare global {
   interface Window {
     ScrollTrigger?: typeof ScrollTrigger;
     gsap?: typeof gsap;
+    __kpWheel?: {
+      snapshot: () => ReturnType<WheelTransport["snapshot"]>;
+      params: () => typeof WHEEL_TRANSPORT_PARAMS;
+      setParams: (patch: Partial<typeof WHEEL_TRANSPORT_PARAMS>) => void;
+    };
   }
 }
 
@@ -180,17 +186,42 @@ export function KavachExperience() {
       lenisRef.current?.destroy();
       lenisRef.current = null;
       tick = null;
+      delete window.__kpWheel;
       gsap.ticker.lagSmoothing(500, 33);
     };
 
     const startSmoothScroll = () => {
       if (visualTest || motionQuery.matches || lenisRef.current) return;
+      const wheel = new WheelTransport();
+      const mobileQuery = window.matchMedia("(max-width: 48rem)");
+      const originalWheel = process.env.NODE_ENV !== "production" && new URLSearchParams(window.location.search).get("wheelTransport") === "off";
+      let wheelActive = false;
+      let lastWheelTick: number | null = null;
+      const wheelEnabled = () => !originalWheel && !mobileQuery.matches && transportBridge.enabled;
       const lenis = new Lenis({
         autoRaf: false,
         duration: 0.72,
         smoothWheel: true,
         syncTouch: false,
         wheelMultiplier: 0.94,
+        virtualScroll: ({ deltaY, event }) => {
+          const instance = lenisRef.current;
+          if (!instance || !wheelEnabled() || !event.type.includes("wheel") || event.ctrlKey ||
+            event.defaultPrevented || !event.cancelable || !deltaY || instance.isStopped || instance.isLocked) return true;
+          if (event.composedPath().some((node) => node instanceof HTMLElement &&
+            (node.hasAttribute("data-lenis-prevent") || node.hasAttribute("data-lenis-prevent-wheel") ||
+              node.hasAttribute("data-lenis-prevent-vertical")))) return true;
+          event.preventDefault();
+          if (!wheelActive || transportBridge.programmatic) {
+            // Cancel an existing navigation tween before wheel input takes ownership.
+            instance.scrollTo(instance.actualScroll, { immediate: true });
+            wheel.reset(instance.actualScroll, instance.limit);
+          }
+          transportBridge.setProgrammatic(false);
+          wheelActive = true;
+          wheel.input(deltaY, instance.actualScroll, instance.limit, performance.now());
+          return false; // Replace Lenis' wheel interpolation, not a second inertia layer.
+        },
       });
       lenisRef.current = lenis;
       const activeLenis = lenis;
@@ -200,8 +231,32 @@ export function KavachExperience() {
       // ONE chain per frame: Lenis' canonical scroll -> ScrollTrigger (raw target) -> film transport.
       tick = (time: number) => {
         activeLenis.raf(time * 1000);
+        const dt = lastWheelTick === null ? 0 : time - lastWheelTick;
+        lastWheelTick = time;
+        if (!wheelEnabled() || activeLenis.isStopped || activeLenis.isLocked || transportBridge.programmatic ||
+          wheelActive && Math.abs(activeLenis.actualScroll - wheel.presented) > 2) {
+          wheelActive = false;
+          wheel.reset(activeLenis.actualScroll, activeLenis.limit);
+        }
+        if (wheelActive) {
+          const next = wheel.step(dt);
+          const limited = transportBridge.governScroll(next);
+          if (Math.abs(limited - next) > 0.01) wheel.reset(limited, activeLenis.limit);
+          activeLenis.scrollTo(limited, { immediate: true });
+          if (wheel.settled) wheelActive = false;
+        }
         transportBridge.step(time);
       };
+      if (process.env.NODE_ENV !== "production") {
+        window.__kpWheel = {
+          snapshot: () => wheel.snapshot(),
+          params: () => ({ ...wheel.params }),
+          setParams: (patch) => {
+            Object.assign(wheel.params, patch);
+            wheel.reset(activeLenis.actualScroll, activeLenis.limit);
+          },
+        };
+      }
       activeLenis.on("scroll", (instance) => {
         // Wheel-driven smooth scroll only: bound the pending intent and hold the page at the
         // handoff gates until the film is home. Programmatic navigation and native (keyboard,

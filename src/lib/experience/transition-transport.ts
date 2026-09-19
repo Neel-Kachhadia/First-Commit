@@ -109,7 +109,12 @@ export class BoundaryTransport {
   /** Number of jump-snaps (discontinuities) so far; diagnostics. */
   jumps = 0;
 
-  constructor(params: Partial<TransportParams> = {}, edges: TransportEdges = { overlapFrac: 0.03 }, initial = 0) {
+  constructor(
+    params: Partial<TransportParams> = {},
+    edges: TransportEdges = { overlapFrac: 0.03 },
+    initial = 0,
+    private readonly snapEndpoints = true
+  ) {
     this.params = { ...DEFAULT_TRANSPORT_PARAMS, ...params };
     this.edges = { ...edges };
     this.eff = this.p = this.lastEff = clamp01(initial);
@@ -191,7 +196,7 @@ export class BoundaryTransport {
       this.jumps += 1;
     }
     // Fully outside the boundary the film is released (opacity 0): nothing to animate.
-    if ((this.eff <= 0 || this.eff >= 1) && this.p !== this.eff) {
+    if (this.snapEndpoints && (this.eff <= 0 || this.eff >= 1) && this.p !== this.eff) {
       this.p = this.eff;
       this.v = 0;
       this.a = 0;
@@ -213,6 +218,13 @@ export class BoundaryTransport {
     const vMax = P.vMax * boost;
     const accel = P.accel * boost;
     const isTargetStatic = this.eff === this.lastEff;
+    if (isTargetStatic && Math.abs(this.eff - this.p) < 1e-9) {
+      this.p = this.eff;
+      this.v = 0;
+      this.a = 0;
+      this.rest = true;
+      return this.p;
+    }
     const isReversing = this.v !== 0 && Math.sign(this.eff - this.p) !== Math.sign(this.v);
     const effectiveDecel = (isReversing ? (P.reverseDecel ?? P.decel) : (isTargetStatic ? (P.stopDecel ?? P.decel) : P.decel)) * boost;
 
