@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState, useCallback, type ReactNode } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -13,6 +13,10 @@ import {
   Mic,
   MicOff,
   Square,
+  AudioLines,
+  LoaderCircle,
+  RotateCcw,
+  CircleAlert,
 } from "lucide-react";
 import { ApprovalGlyph, MandateGlyph } from "@/components/kavach/icons";
 import { Button } from "@/components/ui/button";
@@ -33,6 +37,7 @@ import { CATEGORIES, formatINR, type LedgerStatus } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
 import { useVoiceFill } from "@/hooks/use-voice-fill";
 import type { MandateExtraction } from "@/lib/api-client";
+import voiceStyles from "./rules-voice.module.css";
 
 // ─── AI-filled field highlight classes ───────────────────────────────────────
 
@@ -58,72 +63,29 @@ function MicButton({
   onStart,
   onStop,
 }: {
-  state: "idle" | "recording" | "processing";
+  state: ReturnType<typeof useVoiceFill>["state"];
   onStart: () => void;
   onStop: () => void;
 }) {
-  if (state === "recording") {
-    return (
-      <button
-        type="button"
-        onClick={onStop}
-        aria-label="Stop recording"
-        className="group flex items-center gap-2 rounded-full border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20"
-      >
-        {/* Pulsing dot */}
-        <span className="relative flex h-2 w-2 shrink-0">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive opacity-60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-destructive" />
-        </span>
-        Listening…
-        <Square className="h-3 w-3" aria-hidden="true" />
-      </button>
-    );
-  }
-
-  if (state === "processing") {
-    return (
-      <button
-        type="button"
-        disabled
-        aria-label="Processing voice input"
-        className="flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground"
-      >
-        {/* Spinner */}
-        <svg
-          className="h-3 w-3 animate-spin"
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden="true"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-          />
-        </svg>
-        Processing…
-      </button>
-    );
-  }
-
+  const recording = state === "recording";
+  const processing = state === "requesting" || state === "transcribing" || state === "extracting";
   return (
     <button
       type="button"
-      onClick={onStart}
-      aria-label="Start voice dictation"
-      className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/8 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15 hover:border-primary/50"
+      onClick={recording ? onStop : onStart}
+      disabled={processing}
+      aria-label={recording ? "Stop recording mandate" : processing ? "Processing voice mandate" : "Speak mandate"}
+      className={voiceStyles.trigger}
+      data-state={recording ? "recording" : processing ? "processing" : "ready"}
     >
-      <Mic className="h-3.5 w-3.5" aria-hidden="true" />
-      Speak mandate
+      <span className={voiceStyles.triggerIcon} aria-hidden="true">
+        {recording ? <Square size={13} fill="currentColor" /> : processing ? <LoaderCircle size={18} className={voiceStyles.spin} /> : <Mic size={18} />}
+      </span>
+      <span className={voiceStyles.triggerCopy}>
+        <strong>{recording ? "Stop recording" : processing ? "Working on your voice…" : state === "idle" ? "Speak mandate" : "Speak again"}</strong>
+        <small>{recording ? "Microphone is live" : processing ? "Keep this page open" : "Describe the rule aloud"}</small>
+      </span>
+      {!recording && !processing ? <AudioLines size={18} className={voiceStyles.triggerWave} aria-hidden="true" /> : null}
     </button>
   );
 }
@@ -132,16 +94,16 @@ function MicButton({
 
 function AiFilledBadge() {
   return (
-    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-primary/70">
-      <span aria-hidden="true">✦</span> AI filled — verify before confirming
+    <span className="mt-1 inline-flex items-center gap-1 text-[13px] font-medium text-primary/80">
+      <Check className="h-3.5 w-3.5" aria-hidden="true" /> Suggested by voice — verify before confirming
     </span>
   );
 }
 
 function UnresolvedBadge({ fieldLabel }: { fieldLabel: string }) {
   return (
-    <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-medium text-amber-500">
-      <span aria-hidden="true">⚠</span> Unclear from voice — please enter{" "}
+    <span className="mt-1 inline-flex items-center gap-1 text-[13px] font-medium text-stepup">
+      <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" /> Unclear from voice — please enter{" "}
       {fieldLabel} manually
     </span>
   );
@@ -267,6 +229,7 @@ export default function RulesPage() {
   const [tests, setTests] = useState<TestResult[]>([]);
   const [customMerchant, setCustomMerchant] = useState("Apollo Pharmacy");
   const [customAmount, setCustomAmount] = useState("750");
+  const transcriptRef = useRef<HTMLTextAreaElement>(null);
 
   // ── AI-filled tracking ─────────────────────────────────────────────────────
   const [aiFilled, setAiFilled] = useState<Record<string, boolean>>({});
@@ -391,12 +354,9 @@ export default function RulesPage() {
     onExtracted: handleExtracted,
   });
 
-  const micState =
-    voice.state === "recording"
-      ? "recording"
-      : voice.isProcessing
-        ? "processing"
-        : "idle";
+  useEffect(() => {
+    if (voice.state === "pending_review") transcriptRef.current?.focus();
+  }, [voice.state]);
 
   const validate = () => {
     const next: Record<string, string> = {};
@@ -419,6 +379,10 @@ export default function RulesPage() {
     return Object.keys(next).length === 0;
   };
   const goToTest = () => {
+    if (voice.isRecording || voice.isProcessing) {
+      toast.info("Finish the voice step before testing this mandate.");
+      return;
+    }
     if (validate()) setStep(2);
   };
   const runSuite = () => {
@@ -540,9 +504,8 @@ export default function RulesPage() {
 
       {step === 1 ? (
         <section className="surface-card overflow-hidden">
-          {/* Panel header with mic button */}
           <div className="border-b border-border p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-4">
+            <div className={voiceStyles.header}>
               <div>
                 <div className="flex items-center gap-2">
                   <FileCheck2 className="h-4 w-4 text-primary" />
@@ -553,76 +516,71 @@ export default function RulesPage() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   Every field below becomes an enforceable policy boundary.
                 </p>
+                <p className={voiceStyles.voiceInvitation}>Speak a first draft, then inspect every suggested field before activation.</p>
               </div>
               <MicButton
-                state={micState}
+                state={voice.state}
                 onStart={voice.startRecording}
                 onStop={voice.stopRecording}
               />
             </div>
 
-            {/* Transcript — editable before extraction fires */}
-            {voice.transcript !== null && (
-              <div className="mt-4 rounded-md border border-border bg-muted/40 p-3 text-xs leading-relaxed">
-                <p className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-                  <span aria-hidden="true">💬</span>
-                  Heard — edit if needed, then confirm:
-                </p>
-                <textarea
-                  id="voice-transcript-editor"
-                  aria-label="Voice transcript — edit before extracting"
-                  value={voice.transcript}
-                  onChange={(e) => voice.editTranscript(e.target.value)}
-                  rows={3}
-                  className="w-full resize-none rounded border border-border bg-background px-2 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
+            {voice.state !== "idle" && (
+              <div className={voiceStyles.session} data-state={voice.state}>
+                <div className={voiceStyles.sessionHeading}>
+                  <span className={voiceStyles.sessionStep}>VOICE / {voice.state === "requesting" ? "MICROPHONE" : voice.state === "recording" ? "CAPTURE" : voice.state === "transcribing" ? "TRANSCRIBE" : voice.state === "extracting" ? "FILL FIELDS" : voice.state === "error" ? "RETRY" : "REVIEW"}</span>
+                  <span className={voiceStyles.sessionStatus} role="status" aria-live="polite">
+                    {voice.state === "recording" ? "Microphone live" : voice.state === "requesting" ? "Waiting for permission" : voice.state === "transcribing" ? "Transcribing audio" : voice.state === "extracting" ? "Finding policy fields" : voice.state === "done" ? "Suggestions added to draft" : voice.state === "error" ? "Needs attention" : "Transcript ready"}
+                  </span>
+                </div>
 
-                {/* Confirm & Extract — shown while reviewing or after done (re-extract) */}
-                {(voice.state === "pending_review" || voice.state === "done" || voice.state === "extracting") && (
-                  <button
-                    id="voice-confirm-extract-btn"
-                    type="button"
-                    onClick={voice.confirmAndExtract}
-                    disabled={voice.isProcessing || !voice.transcript?.trim()}
-                    className="mt-2 flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {voice.state === "extracting" ? (
-                      <>
-                        <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                        </svg>
-                        Extracting…
-                      </>
-                    ) : (
-                      <>
-                        <span aria-hidden="true">✦</span>
-                        {voice.state === "done" ? "Re-extract" : "Confirm & Extract"}
-                      </>
-                    )}
-                  </button>
+                {voice.state === "recording" && (
+                  <div className={voiceStyles.liveStage}>
+                    <div className={voiceStyles.blobFrame} aria-hidden="true">
+                      <span className={voiceStyles.blobHalo} />
+                      <span className={voiceStyles.blob} style={{ "--voice-scale": 1 + voice.level * .3 } as CSSProperties}><AudioLines size={31} /></span>
+                    </div>
+                    <div className={voiceStyles.liveCopy}>
+                      <strong>Listening to your mandate</strong>
+                      <p>Say the agent, amount, per-payment threshold and approved merchants. Audio is sent for transcription when you stop.</p>
+                      <div className={voiceStyles.liveMeta}><span className={voiceStyles.liveDot} /> Live · {Math.floor(voice.elapsedSeconds / 60).toString().padStart(2, "0")}:{(voice.elapsedSeconds % 60).toString().padStart(2, "0")}</div>
+                    </div>
+                    <button className={voiceStyles.stopButton} type="button" onClick={voice.stopRecording}><Square size={15} fill="currentColor" aria-hidden="true" /> Stop & transcribe</button>
+                  </div>
                 )}
 
-                {voice.ambiguities && (
-                  <p className="mt-2 flex items-start gap-1.5 text-amber-500">
-                    <MicOff
-                      className="mt-0.5 h-3 w-3 shrink-0"
-                      aria-hidden="true"
-                    />
-                    {voice.ambiguities}
-                  </p>
+                {(voice.state === "requesting" || voice.state === "transcribing") && (
+                  <div className={voiceStyles.processingStage} role="status">
+                    <LoaderCircle size={30} className={voiceStyles.spin} aria-hidden="true" />
+                    <div><strong>{voice.state === "requesting" ? "Allow microphone access" : "Turning speech into text"}</strong><p>{voice.state === "requesting" ? "Your browser may ask for permission." : "Your transcript will appear here for review before any fields change."}</p></div>
+                    <div className={voiceStyles.processingLines} aria-hidden="true"><span /><span /></div>
+                  </div>
+                )}
+
+                {voice.transcript !== null && (
+                  <div className={voiceStyles.transcriptPanel}>
+                    <div className={voiceStyles.transcriptHeader}>
+                      <div><h3>Your words</h3><p>{voice.state === "done" ? "Suggestions were added below. Review the highlighted fields." : "Edit any misheard details before filling the mandate."}</p></div>
+                      <span>EDITABLE TRANSCRIPT</span>
+                    </div>
+                    <label className="sr-only" htmlFor="voice-transcript-editor">Voice transcript</label>
+                    <textarea ref={transcriptRef} id="voice-transcript-editor" value={voice.transcript} onChange={(event) => voice.editTranscript(event.target.value)} disabled={voice.state === "extracting"} rows={3} className={voiceStyles.transcriptInput} />
+                    {voice.state === "extracting" && <div className={voiceStyles.extracting} role="status"><LoaderCircle size={18} className={voiceStyles.spin} aria-hidden="true" /><span>Identifying category, limits and merchants…</span></div>}
+                    {voice.ambiguities && <p className={voiceStyles.ambiguity}><MicOff size={17} aria-hidden="true" />{voice.ambiguities}</p>}
+                    <div className={voiceStyles.transcriptActions}>
+                      <button id="voice-confirm-extract-btn" type="button" onClick={voice.confirmAndExtract} disabled={voice.isProcessing || !voice.transcript.trim()} className={voiceStyles.applyButton}>
+                        {voice.state === "extracting" ? <LoaderCircle size={17} className={voiceStyles.spin} aria-hidden="true" /> : <ArrowRight size={17} aria-hidden="true" />}
+                        {voice.state === "extracting" ? "Applying suggestions…" : voice.state === "done" ? "Apply edits again" : "Use this to fill fields"}
+                      </button>
+                      <button type="button" onClick={voice.startRecording} disabled={voice.isProcessing} className={voiceStyles.secondaryButton}><RotateCcw size={16} aria-hidden="true" /> Record again</button>
+                    </div>
+                  </div>
+                )}
+
+                {voice.error && (
+                  <div className={voiceStyles.errorPanel} role="alert"><CircleAlert size={19} aria-hidden="true" /><div><strong>Voice step interrupted</strong><p>{voice.error}</p></div>{voice.transcript === null && <button type="button" onClick={voice.startRecording}>Try again</button>}</div>
                 )}
               </div>
-            )}
-
-            {/* Error message */}
-            {voice.error && (
-              <p
-                role="alert"
-                className="mt-3 text-xs text-destructive"
-              >
-                {voice.error}
-              </p>
             )}
           </div>
 
@@ -668,7 +626,7 @@ export default function RulesPage() {
               {aiFilled["category"] && <AiFilledBadge />}
               {voice.unresolvedFields.includes("category") && (
                 <p className="text-xs text-amber-500">
-                  Category unclear — try mentioning it in your mandate (e.g. "groceries", "pharmacy").
+                  Category unclear — try mentioning it in your mandate (e.g. &ldquo;groceries&rdquo;, &ldquo;pharmacy&rdquo;).
                 </p>
               )}
             </div>

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   apiClient,
   type MandateExtraction,
@@ -16,6 +16,7 @@ interface UseVoiceFillOptions {
 
 type VoiceFillState =
   | "idle"
+  | "requesting"
   | "recording"
   | "transcribing"
   | "pending_review"   // transcript ready — waiting for user to confirm / edit
@@ -28,6 +29,8 @@ interface UseVoiceFillReturn {
   /** Convenience booleans derived from state */
   isRecording: boolean;
   isProcessing: boolean;
+  level: number;
+  elapsedSeconds: number;
   transcript: string | null;
   unresolvedFields: string[];
   ambiguities: string | null;
@@ -70,13 +73,43 @@ export function useVoiceFill({
   const [unresolvedFields, setUnresolvedFields] = useState<string[]>([]);
   const [ambiguities, setAmbiguities] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [level, setLevel] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
   // Keep a stable ref to currentFormState for use inside callbacks
   const formStateRef = useRef<MandateFormState>(currentFormState);
-  formStateRef.current = currentFormState;
+  useEffect(() => {
+    formStateRef.current = currentFormState;
+  }, [currentFormState]);
+
+  const stopMeter = useCallback(() => {
+    if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+    animationFrameRef.current = null;
+    if (timerRef.current !== null) clearInterval(timerRef.current);
+    timerRef.current = null;
+    void audioContextRef.current?.close().catch(() => {});
+    audioContextRef.current = null;
+    setLevel(0);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
+      if (timerRef.current !== null) clearInterval(timerRef.current);
+      void audioContextRef.current?.close().catch(() => {});
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      if (mediaRecorderRef.current) mediaRecorderRef.current.onstop = null;
+    };
+  }, []);
 
   // ── Reset ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +119,7 @@ export function useVoiceFill({
     setUnresolvedFields([]);
     setAmbiguities(null);
     setError(null);
+    setElapsedSeconds(0);
   }, []);
 
   // ── Layer 4: edit transcript before extraction ─────────────────────────────
@@ -99,6 +133,9 @@ export function useVoiceFill({
   const runExtraction = useCallback(
     async (text: string) => {
       try {
+        setError(null);
+        setAmbiguities(null);
+        setUnresolvedFields([]);
         setState("extracting");
         const { extraction } = await apiClient.extractMandateFields(
           text,
@@ -134,6 +171,7 @@ export function useVoiceFill({
       try {
         setState("transcribing");
         const { text } = await apiClient.transcribeAudio(audioBlob);
+        if (!text?.trim()) throw new Error("No speech was detected. Try again closer to the microphone.");
         setTranscript(text);
 
         // Pause here — user can review/edit before extraction fires
@@ -150,6 +188,7 @@ export function useVoiceFill({
 
   const startRecording = useCallback(async () => {
     reset();
+    setState("requesting");
 
     // Check browser support
     if (
@@ -170,11 +209,17 @@ export function useVoiceFill({
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch {
-      setError(
-        "Microphone permission denied. Please allow microphone access and try again."
-      );
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setError(err instanceof DOMException && err.name === "NotFoundError"
+        ? "No microphone was found. Connect one and try again."
+        : "Microphone access was not available. Check browser permission and try again.");
       setState("error");
+      return;
+    }
+
+    if (!mountedRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
       return;
     }
 
@@ -189,16 +234,23 @@ export function useVoiceFill({
       "audio/ogg",
     ].find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
 
-    const recorder = new MediaRecorder(
-      stream,
-      mimeType ? { mimeType } : undefined
-    );
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    } catch {
+      stream.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      setError("This browser could not start audio recording. Please try another browser.");
+      setState("error");
+      return;
+    }
 
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
 
     recorder.onstop = async () => {
+      stopMeter();
       // Stop all mic tracks so the browser releases the device
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -207,13 +259,53 @@ export function useVoiceFill({
         type: mimeType || "audio/webm",
       });
       chunksRef.current = [];
+      if (blob.size === 0) {
+        setError("No audio was captured. Please try recording again.");
+        setState("error");
+        return;
+      }
       await runTranscription(blob);
     };
 
     mediaRecorderRef.current = recorder;
-    recorder.start();
+    try {
+      recorder.start();
+    } catch {
+      stream.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      setError("Recording could not start. Please try again.");
+      setState("error");
+      return;
+    }
+    const startedAt = Date.now();
+    timerRef.current = setInterval(() => setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000)), 250);
+    try {
+      const context = new AudioContext();
+      audioContextRef.current = context;
+      const source = context.createMediaStreamSource(stream);
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      const samples = new Uint8Array(analyser.fftSize);
+      let lastUpdate = 0;
+      const sample = (timestamp: number) => {
+        if (timestamp - lastUpdate >= 70) {
+          analyser.getByteTimeDomainData(samples);
+          let sum = 0;
+          for (const value of samples) sum += ((value - 128) / 128) ** 2;
+          setLevel(Math.min(1, Math.sqrt(sum / samples.length) * 5));
+          lastUpdate = timestamp;
+        }
+        animationFrameRef.current = requestAnimationFrame(sample);
+      };
+      animationFrameRef.current = requestAnimationFrame(sample);
+    } catch {
+      // Recording remains usable when live audio metering is unavailable.
+      void audioContextRef.current?.close().catch(() => {});
+      audioContextRef.current = null;
+    }
     setState("recording");
-  }, [reset, runTranscription]);
+  }, [reset, runTranscription, stopMeter]);
 
   // ── Stop recording ─────────────────────────────────────────────────────────
 
@@ -222,8 +314,8 @@ export function useVoiceFill({
       mediaRecorderRef.current &&
       mediaRecorderRef.current.state === "recording"
     ) {
+      setState("transcribing");
       mediaRecorderRef.current.stop();
-      // State transitions to "transcribing" inside onstop → runTranscription
     }
   }, []);
 
@@ -231,7 +323,9 @@ export function useVoiceFill({
     state,
     isRecording: state === "recording",
     isProcessing:
-      state === "transcribing" || state === "extracting",
+      state === "requesting" || state === "transcribing" || state === "extracting",
+    level,
+    elapsedSeconds,
     transcript,
     unresolvedFields,
     ambiguities,
