@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { groqService, type MandateFormState } from "../services/groq-service.js";
+import { categoryService } from "../services/category-service.js";
 
 // ─── Multer config ────────────────────────────────────────────────────────────
 
@@ -74,7 +75,12 @@ export async function transcribeHandler(
       return;
     }
 
-    const text = await groqService.transcribeAudio(file.buffer, file.mimetype);
+    // Fetch dynamic brand list for hint prompt
+    const userId = req.user?.sub ?? "__anonymous__";
+    const allCategories = await categoryService.listCategories(userId);
+    const brandNames = categoryService.buildCanonicalBrandList();
+
+    const text = await groqService.transcribeAudio(file.buffer, file.mimetype, brandNames);
 
     res.status(200).json({ success: true, text });
   } catch (error) {
@@ -128,9 +134,17 @@ export async function extractMandateVoiceHandler(
       return;
     }
 
+    // Fetch dynamic categories + brand list for the NLU prompt
+    const userId = req.user?.sub ?? "__anonymous__";
+    const allCategories = await categoryService.listCategories(userId);
+    const categoryNames = allCategories.map((c) => c.name);
+    const brandNames = categoryService.buildCanonicalBrandList();
+
     const extraction = await groqService.extractMandateFields(
       transcript,
-      currentFormState
+      currentFormState,
+      categoryNames,
+      brandNames
     );
 
     // ── Audit log ─────────────────────────────────────────────────────────────

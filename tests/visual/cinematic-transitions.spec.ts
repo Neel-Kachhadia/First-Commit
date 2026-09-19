@@ -198,7 +198,7 @@ test.describe("Bypass paths", () => {
   });
 
   test("a boundary whose video fails to load falls back to a clean cut without trapping scroll", async ({ page }) => {
-    await page.route("**/00-01-opening-mandate.mp4", (route) => route.fulfill({ status: 404 }));
+    await page.route("**/00-01-opening-mandate*.mp4", (route) => route.fulfill({ status: 404 }));
     await prepareVisualPage(page);
 
     await scrollToBoundaryProgress(page, "00-01", 0.5);

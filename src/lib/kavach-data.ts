@@ -1,6 +1,21 @@
-import { MANDATE_CATEGORIES } from "../../shared/categories";
-export { MANDATE_CATEGORIES };
-export type { MandateCategory } from "../../shared/categories";
+import {
+  MANDATE_CATEGORIES,
+  CATEGORY_PRESETS,
+  CANONICAL_BRAND_NAMES,
+  defaultExpiryDate,
+  type MandateCategory,
+  type CategoryPreset,
+} from "../../shared/categories";
+
+export {
+  MANDATE_CATEGORIES,
+  CATEGORY_PRESETS,
+  CANONICAL_BRAND_NAMES,
+  defaultExpiryDate,
+  type MandateCategory,
+  type CategoryPreset,
+};
+
 
 export type AgentStatus = "active" | "exhausted" | "frozen" | "revoked";
 export type LedgerStatus =

@@ -15,6 +15,15 @@
   object-position: center;
   opacity: 0;
   pointer-events: none;
-  will-change: opacity;
+  will-change: opacity, transform;
+  transform-origin: 50% 50%;
   background: var(--kp-black);
+}
+
+/* Live-background-coloured plate under a calibrated film: with the film's `lighten` blend it lifts film blacks to the live black (endpoint black-level convergence). */
+.seamBackdrop {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
 }

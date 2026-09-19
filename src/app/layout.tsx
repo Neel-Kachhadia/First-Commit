@@ -43,9 +43,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${body.variable} ${admin.variable} ${mono.variable}`} suppressHydrationWarning>
       <body>
-        <Script id="kavachpay-theme-bootstrap" strategy="beforeInteractive">
-          {themeBootstrapScript}
-        </Script>
+        <Script
+          id="kavachpay-theme-bootstrap"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
+        />
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

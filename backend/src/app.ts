@@ -27,6 +27,12 @@ import {
 } from "./handlers/ap2-handler.js";
 
 import {
+  listCategoriesHandler,
+  createCategoryHandler,
+  deleteCategoryHandler,
+} from "./handlers/category-handler.js";
+
+import {
   extractMandateHandler,
 } from "./handlers/bedrock-handler.js";
 
@@ -236,6 +242,14 @@ export function createApp() {
     "/v0/grants/:id/revoke",
     revokeGrantHandler
   );
+
+  /*
+   * ── Categories ──────────────────────────────────────────────────────────────
+   */
+
+  app.get("/v0/categories", listCategoriesHandler);
+  app.post("/v0/categories", createCategoryHandler);
+  app.delete("/v0/categories/:slug", deleteCategoryHandler);
 
   app.get(
     "/v0/exposure",

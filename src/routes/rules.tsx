@@ -437,27 +437,38 @@ export default function RulesPage() {
     setTests((current) => [item, ...current]);
     setTested(true);
   };
-  const activate = () => {
-    const id = createAgent({
-      name: draft.name.trim(),
-      purpose: draft.purpose.trim(),
-      rule: {
-        monthlyLimit: Number(draft.limit),
-        perTransactionCap: Number(draft.cap),
-        category: draft.category,
-        merchants: merchantList,
-        window: draft.period,
-        expiresOn: draft.expiresOn,
-        allowDelegation: draft.allowDelegation,
-        delegationDepth: draft.allowDelegation
-          ? Number(draft.delegationDepth)
-          : 0,
-      },
-    });
-    toast.success("Mandate activated", {
-      description: `${draft.name} now holds ${formatINR(Number(draft.limit))} per ${draft.period.toLowerCase()}.`,
-    });
-    router.push(`/agents/${id}`);
+  const [activating, setActivating] = useState(false);
+  const activate = async () => {
+    setActivating(true);
+    try {
+      const id = await createAgent({
+        name: draft.name.trim(),
+        purpose: draft.purpose.trim(),
+        rule: {
+          monthlyLimit: Number(draft.limit),
+          perTransactionCap: Number(draft.cap),
+          category: draft.category,
+          merchants: merchantList,
+          window: draft.period,
+          expiresOn: draft.expiresOn,
+          allowDelegation: draft.allowDelegation,
+          delegationDepth: draft.allowDelegation
+            ? Number(draft.delegationDepth)
+            : 0,
+        },
+      });
+      toast.success("Mandate activated", {
+        description: `${draft.name} now holds ${formatINR(Number(draft.limit))} per ${draft.period.toLowerCase()}.`,
+      });
+      router.push(`/agents/${id}`);
+    } catch (err) {
+      toast.error("Failed to activate mandate", {
+        description:
+          err instanceof Error ? err.message : "An unexpected error occurred.",
+      });
+    } finally {
+      setActivating(false);
+    }
   };
 
   return (
@@ -950,8 +961,8 @@ export default function RulesPage() {
               <Button variant="outline" onClick={() => setStep(2)}>
                 <ArrowLeft className="h-4 w-4" /> Back to test
               </Button>
-              <Button onClick={activate}>
-                Activate mandate <ApprovalGlyph className="h-4 w-4" />
+              <Button onClick={activate} disabled={activating}>
+                {activating ? "Activating…" : "Activate mandate"} <ApprovalGlyph className="h-4 w-4" />
               </Button>
             </div>
           </div>
