@@ -50,6 +50,7 @@ export interface CreateGrantPayload {
 }
 
 export interface Category {
+  id: string;
   slug: string;
   name: string;
   purpose: string;
@@ -148,6 +149,19 @@ export interface AuditEvent {
 }
 
 export const apiClient = {
+  getCategories: async (): Promise<Category[]> => {
+    const res = await fetch(`${API_BASE_URL}/v0/categories`, {
+      headers: await authHeaders(),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch categories: ${res.status}`);
+    }
+    const json = await res.json();
+    // The backend uses 'slug' as the primary identifier, but frontend expects 'id'
+    return json.categories.map((c: any) => ({ ...c, id: c.slug }));
+  },
+
   getAudit: async (): Promise<{ events: AuditEvent[] }> => {
     const res = await fetch(`${API_BASE_URL}/v0/audit?limit=50`, { headers: await authHeaders() });
     if (!res.ok) throw new Error("Failed to fetch authority timeline");
@@ -251,15 +265,7 @@ export const apiClient = {
     return res.json();
   },
 
-  getCategories: async (): Promise<Category[]> => {
-    const res = await fetch(`${API_BASE_URL}/v0/categories`, {
-      headers: await authHeaders(),
-      cache: "no-store",
-    });
-    if (!res.ok) throw new Error("Failed to fetch categories");
-    const json = await res.json();
-    return json.categories ?? [];
-  },
+
 
   /**
    * Create a payment intent via POST /v0/intents.

@@ -32,6 +32,22 @@ export type LedgerStatus =
   | "FAILED"
   | "PENDING";
 
+export type ProviderExecutionStatus =
+  | "NOT_INVOKED"
+  | "SUBMITTED_TO_PROVIDER"
+  | "PROVIDER_PENDING"
+  | "PROVIDER_CAPTURED"
+  | "PROVIDER_FAILED";
+
+export interface ProviderExecution {
+  provider: "RAZORPAY";
+  environment: "TEST_MODE";
+  orderId?: string;
+  paymentId?: string;
+  status: ProviderExecutionStatus;
+  webhookVerified?: boolean;
+}
+
 export interface SpendingRule {
   monthlyLimit: number;
   perTransactionCap: number;
@@ -67,10 +83,10 @@ export interface LedgerEntry {
   reason: string;
   reasonCode?: string;
   at: string;
+  execution?: ProviderExecution;
   blockedItem?: string;
   blockedCategory?: string;
   matchedPolicy?: string;
-  providerStatus?: "NOT_INVOKED" | "INVOKED" | "SKIPPED";
 }
 
 export interface ApprovalRequest {
@@ -190,8 +206,9 @@ export const seedLedger: LedgerEntry[] = [
     description: "Delhi to Bengaluru flight, 24 Sep",
     amount: 4900,
     status: "PENDING",
-    reason: "Above the ₹2,500 per-transaction cap — step-up approval required.",
+    reason: "Above the ₹12,500 per-transaction cap — step-up approval required.",
     at: "2026-09-16T09:12:00+05:30",
+    execution: { provider: "RAZORPAY", environment: "TEST_MODE", status: "PROVIDER_PENDING", orderId: "order_mock1" },
   },
   {
     id: "txn-1089",
@@ -202,6 +219,7 @@ export const seedLedger: LedgerEntry[] = [
     status: "PENDING",
     reason: "Above the ₹1,500 per-transaction cap — step-up approval required.",
     at: "2026-09-16T08:41:00+05:30",
+    execution: { provider: "RAZORPAY", environment: "TEST_MODE", status: "PROVIDER_PENDING", orderId: "order_mock2" },
   },
   {
     id: "txn-1088",
@@ -210,8 +228,9 @@ export const seedLedger: LedgerEntry[] = [
     description: "Footwear order",
     amount: 799,
     status: "DENIED",
-    reason: "Monthly authority of ₹2,000 already consumed.",
+    reason: "Monthly authority of ₹12,000 already consumed.",
     at: "2026-09-15T19:24:00+05:30",
+    execution: { provider: "RAZORPAY", environment: "TEST_MODE", status: "NOT_INVOKED" },
   },
   {
     id: "txn-1087",
@@ -222,6 +241,7 @@ export const seedLedger: LedgerEntry[] = [
     status: "APPROVED",
     reason: "Within the ₹4,000 monthly grocery rule.",
     at: "2026-09-14T18:02:00+05:30",
+    execution: { provider: "RAZORPAY", environment: "TEST_MODE", status: "PROVIDER_CAPTURED", orderId: "order_mock3", paymentId: "pay_mock3", webhookVerified: true },
   },
   {
     id: "txn-1086",
@@ -232,6 +252,7 @@ export const seedLedger: LedgerEntry[] = [
     status: "DENIED",
     reason: "Agent authority revoked on 12 Sep.",
     at: "2026-09-13T21:15:00+05:30",
+    execution: { provider: "RAZORPAY", environment: "TEST_MODE", status: "NOT_INVOKED" },
   },
   {
     id: "txn-1085",
