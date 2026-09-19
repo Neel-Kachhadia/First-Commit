@@ -180,6 +180,17 @@ export const apiClient = {
     return res.json();
   },
 
+  runAttackScenario: async (scenario: string): Promise<import("@/lib/attack-lab").ScenarioResponse> => {
+    const res = await fetch(`${API_BASE_URL}/v0/demo/scenarios/${encodeURIComponent(scenario)}`, {
+      method: "POST",
+      headers: await authHeaders(),
+      cache: "no-store",
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error ?? `Scenario failed (${res.status})`);
+    return body;
+  },
+
   // ── Voice-to-Form-Fill ─────────────────────────────────────────────────────
 
   /**
@@ -221,4 +232,3 @@ export const apiClient = {
     return res.json();
   },
 };
-

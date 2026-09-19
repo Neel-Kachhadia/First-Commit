@@ -31,9 +31,9 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  Check,
-  ShieldCheck,
-  User,
+  UserRound,
+  LogOut,
+  FlaskConical,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -78,6 +78,7 @@ const NAV = [
     icon: MandateGlyph,
     exact: false,
   },
+  { to: "/attack-labs", label: "Attack Labs", icon: FlaskConical, exact: false },
 ] as const;
 
 function NavList({
@@ -278,7 +279,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Use the email prefix as a fallback name, or default to "KavachPay User"
   const name = user?.email ? user.email.split("@")[0] : "KavachPay User";
   const email = user?.email || "";
-  const userId = user?.sub || "";
   const [menuOpen, setMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
@@ -364,7 +364,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {name}
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    {userId ? `${userId.substring(0, 12)}...` : ""}
+                    {email}
                   </span>
                 </span>
                 <ChevronDown
@@ -379,43 +379,31 @@ export function AppShell({ children }: { children: ReactNode }) {
             <DropdownMenuContent
               side="top"
               align="start"
-              className="w-64 p-1.5 shadow-xl border border-border bg-popover"
+              sideOffset={8}
+              className="w-64 max-w-[calc(100vw-1.5rem)] rounded-lg border border-border bg-popover p-1.5 shadow-xl"
             >
-              <DropdownMenuLabel className="flex items-center gap-3 py-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-sm font-semibold text-primary">
-                  {profileInitials(name)}
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <p className="text-sm font-semibold leading-none">{name}</p>
-                  <p className="text-xs text-muted-foreground leading-none">{email}</p>
-                  <div className="flex items-center gap-1.5 pt-1.5">
-                    <span className="inline-flex items-center rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                      {userId}
-                    </span>
-                    <span className="inline-flex items-center rounded bg-success/15 px-1.5 py-0.5 text-[10px] font-medium text-success">
-                      Principal
-                    </span>
-                  </div>
-                </div>
+              <DropdownMenuLabel className="min-w-0 px-3 py-2.5 font-normal">
+                <p className="truncate text-base font-semibold leading-tight text-foreground">
+                  {name}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground" title={email}>
+                  {email}
+                </p>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild className="cursor-pointer gap-2 py-2">
+              <DropdownMenuItem asChild className="h-10 cursor-pointer gap-2.5 px-3 text-sm font-medium">
                 <Link href="/profile">
-                  <ShieldCheck className="h-4 w-4 text-stepup" />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium">Principal & Authority Settings</span>
-                    <span className="text-[10px] text-muted-foreground">Zero-KYC authentication view</span>
-                  </div>
+                  <UserRound className="h-4 w-4 text-muted-foreground" />
+                  Your account
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => logout()}
-                className="cursor-pointer gap-2 py-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+                className="h-10 cursor-pointer gap-2.5 px-3 text-sm font-medium text-destructive focus:bg-destructive/10 focus:text-destructive"
               >
-                <div className="flex flex-col">
-                  <span className="text-xs font-medium">Log out</span>
-                </div>
+                <LogOut className="h-4 w-4" />
+                Log out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

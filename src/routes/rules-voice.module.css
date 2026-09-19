@@ -1,0 +1,75 @@
+.header { display: flex; align-items: center; justify-content: space-between; gap: 22px; }
+.voiceInvitation { margin-top: 9px; color: var(--muted-foreground); font-size: 15px; line-height: 1.4; }
+.trigger { position: relative; display: flex; align-items: center; gap: 10px; flex: none; min-width: 175px; min-height: 46px; padding: 6px 12px 6px 8px; border: 1px solid var(--authority-deck); border-radius: 6px; background: var(--authority-deck); color: var(--authority-deck-foreground); text-align: left; cursor: pointer; box-shadow: 0 3px 0 color-mix(in srgb, var(--authority-deck) 20%, transparent); transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease; }
+.trigger:hover:not(:disabled) { transform: translateY(-1.5px); box-shadow: 0 4.5px 0 color-mix(in srgb, var(--authority-deck) 20%, transparent); }
+.trigger:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 1px 0 color-mix(in srgb, var(--authority-deck) 20%, transparent); }
+.trigger:focus-visible, .stopButton:focus-visible, .applyButton:focus-visible, .secondaryButton:focus-visible, .errorPanel button:focus-visible { outline: 3px solid var(--ring); outline-offset: 3px; }
+.trigger:disabled { cursor: wait; opacity: .72; box-shadow: none; }
+.trigger[data-state="recording"] { background: var(--instrument); border-color: var(--destructive); color: var(--instrument-foreground); }
+.triggerIcon { position: relative; display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 1px solid currentColor; border-radius: 4px; }
+.triggerIcon::after { content: ""; position: absolute; inset: -3px; border: 1px solid currentColor; border-radius: 6px; opacity: .42; }
+.trigger[data-state="recording"] .triggerIcon::after { animation: iconPulse 1.8s ease-in-out infinite; }
+.triggerCopy { display: flex; flex: 1; flex-direction: column; gap: 0; line-height: 1.13; }
+.triggerCopy strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.triggerCopy small { margin-top: 2px; font-size: 11px; opacity: .84; white-space: nowrap; }
+.triggerWave { flex: none; opacity: .82; }
+.session { overflow: hidden; margin-top: 23px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); animation: reveal .26s ease-out both; }
+.sessionHeading { display: flex; justify-content: space-between; gap: 15px; padding: 13px 18px; border-bottom: 1px solid var(--border); }
+.session[data-state="done"] .sessionStatus { color: var(--success); }
+.session[data-state="error"] .sessionStatus { color: var(--destructive); }
+.session[data-state="recording"] .sessionStatus { color: var(--destructive); }
+.sessionStep { color: var(--muted-foreground); font: 600 12px var(--font-mono), monospace; letter-spacing: .09em; }
+.sessionStatus { color: var(--foreground); font-size: 14px; font-weight: 600; }
+.liveStage { display: flex; align-items: center; gap: 26px; min-height: 195px; padding: 25px 30px; background: var(--instrument); color: var(--instrument-foreground); }
+.blobFrame { position: relative; display: grid; place-items: center; width: 128px; height: 128px; flex: none; }
+.blobHalo { position: absolute; inset: 7px; border: 1px solid rgba(255, 247, 234, .35); border-radius: 48% 52% 60% 40% / 49% 53% 47% 51%; animation: haloMorph 5s ease-in-out infinite alternate; }
+.blob { display: grid; place-items: center; width: 87px; height: 87px; background: var(--authority-deck); color: var(--authority-deck-foreground); border-radius: 48% 52% 60% 40% / 45% 50% 50% 55%; scale: var(--voice-scale, 1); transition: scale .12s ease-out; animation: blobMorph 2.7s ease-in-out infinite alternate; }
+.liveCopy { min-width: 0; flex: 1; }
+.liveCopy strong { display: block; font-size: 27px; font-weight: 600; line-height: 1.15; }
+.liveCopy p { max-width: 370px; margin: 7px 0 13px; color: color-mix(in srgb, var(--instrument-foreground) 72%, transparent); font-size: 16px; line-height: 1.4; }
+.liveMeta { display: flex; align-items: center; gap: 9px; font: 600 13px var(--font-mono), monospace; font-variant-numeric: tabular-nums; }
+.liveDot { width: 8px; height: 8px; border-radius: 50%; background: #e57869; box-shadow: 0 0 0 4px rgba(229, 120, 105, .2); animation: iconPulse 1.8s ease-in-out infinite; }
+.stopButton { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 45px; padding: 9px 14px; border: 1px solid rgba(255, 247, 234, .58); border-radius: 5px; background: transparent; color: var(--instrument-foreground); font-size: 15px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.stopButton:hover { background: rgba(255, 247, 234, .12); }
+.processingStage { display: flex; align-items: center; gap: 20px; min-height: 135px; padding: 25px 30px; animation: reveal .22s ease-out both; }
+.processingStage > svg { flex: none; color: var(--authority-deck); }
+.processingStage strong { display: block; font-size: 24px; font-weight: 600; line-height: 1.2; }
+.processingStage p { margin: 5px 0 0; color: var(--muted-foreground); font-size: 15px; }
+.processingLines { display: grid; gap: 9px; width: 130px; margin-left: auto; }
+.processingLines span { height: 7px; background: var(--muted); background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--authority-deck) 20%, transparent), transparent); background-size: 200% 100%; animation: sweep 2s ease-in-out infinite; }
+.processingLines span:last-child { width: 67%; animation-delay: .25s; }
+.transcriptPanel { padding: 22px; animation: reveal .25s ease-out both; }
+.transcriptHeader { display: flex; justify-content: space-between; align-items: start; gap: 20px; }
+.transcriptHeader h3 { margin: 0; font-size: 26px; font-weight: 600; line-height: 1.1; }
+.transcriptHeader p { margin: 6px 0 14px; color: var(--muted-foreground); font-size: 15px; line-height: 1.4; }
+.transcriptHeader > span { margin-top: 4px; color: var(--muted-foreground); font: 600 11px var(--font-mono), monospace; letter-spacing: .08em; white-space: nowrap; }
+.transcriptInput { display: block; width: 100%; min-height: 116px; padding: 15px 17px; resize: vertical; border: 1px solid var(--input); border-left: 3px solid var(--authority-deck); border-radius: 4px; background: var(--card); color: var(--foreground); font: 400 18px/1.45 var(--font-crimson-text), Georgia, serif; }
+.transcriptInput:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.transcriptInput:disabled { opacity: .7; cursor: wait; }
+.extracting { display: flex; align-items: center; gap: 9px; margin-top: 13px; color: var(--muted-foreground); font-size: 15px; }
+.extracting svg { color: var(--authority-deck); }
+.ambiguity { display: flex; align-items: start; gap: 9px; margin: 14px 0 0; color: var(--stepup); font-size: 15px; line-height: 1.4; }
+.ambiguity svg { flex: none; margin-top: 3px; }
+.transcriptActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 17px; }
+.applyButton, .secondaryButton { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 45px; padding: 9px 16px; border: 1px solid var(--authority-deck); border-radius: 5px; font-size: 16px; font-weight: 700; cursor: pointer; }
+.applyButton { background: var(--authority-deck); color: var(--authority-deck-foreground); }
+.secondaryButton { border-color: var(--border); background: transparent; color: var(--foreground); }
+.applyButton:hover:not(:disabled) { filter: brightness(.9); }
+.secondaryButton:hover:not(:disabled) { background: var(--muted); }
+.applyButton:disabled, .secondaryButton:disabled { opacity: .5; cursor: wait; }
+.errorPanel { display: flex; align-items: start; gap: 10px; margin: 0 20px 20px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--destructive) 40%, var(--border)); border-radius: 5px; color: var(--destructive); }
+.errorPanel svg { flex: none; margin-top: 2px; }
+.errorPanel div { flex: 1; }
+.errorPanel strong { font-size: 16px; }
+.errorPanel p { margin: 2px 0 0; font-size: 15px; line-height: 1.4; }
+.errorPanel button { align-self: center; min-height: 40px; padding: 7px 12px; border: 1px solid var(--destructive); border-radius: 4px; background: transparent; color: var(--destructive); font-weight: 700; cursor: pointer; }
+.spin { animation: spin 1.1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes reveal { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes iconPulse { 50% { opacity: .45; transform: scale(1.13); } }
+@keyframes blobMorph { 50% { border-radius: 56% 44% 42% 58% / 55% 40% 60% 45%; transform: rotate(8deg); } 100% { border-radius: 43% 57% 54% 46% / 42% 56% 44% 58%; transform: rotate(-6deg); } }
+@keyframes haloMorph { 50% { border-radius: 40% 60% 48% 52% / 60% 45% 55% 40%; transform: rotate(-9deg); } 100% { border-radius: 53% 47% 43% 57% / 40% 59% 41% 60%; transform: rotate(12deg); } }
+@keyframes sweep { 50% { background-position: -100% 0; } 100% { background-position: 100% 0; } }
+@media (max-width: 900px) { .header { flex-direction: column; align-items: stretch; } .trigger { align-self: flex-start; } .liveStage { flex-wrap: wrap; gap: 12px 20px; } .stopButton { margin-left: 148px; } }
+@media (max-width: 640px) { .header { align-items: stretch; flex-direction: column; } .trigger { width: 100%; } .sessionHeading { flex-wrap: wrap; } .liveStage { padding: 23px 18px; } .blobFrame { width: 90px; height: 90px; } .blobHalo { inset: 2px; } .blob { width: 66px; height: 66px; } .liveCopy strong { font-size: 22px; } .liveCopy p { font-size: 15px; } .stopButton { width: 100%; margin-left: 0; } .processingStage { padding: 22px 18px; } .processingLines { display: none; } .transcriptPanel { padding: 18px; } .transcriptHeader > span { display: none; } .transcriptActions > button { flex: 1 1 auto; } .errorPanel { flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .trigger, .session, .processingStage, .transcriptPanel, .blob, .triggerIcon::after, .blobHalo, .liveDot, .spin, .processingLines span { animation: none !important; transition: none !important; } .blob { scale: 1 !important; } }

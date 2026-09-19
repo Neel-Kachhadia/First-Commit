@@ -156,13 +156,8 @@ export function AuthPage() {
     setIsSubmitting(true);
     try {
       await confirm(pendingEmail, code);
-      setBannerSuccess("Email verified! Signing you in…");
-      // Auto-navigate to login to let user sign in with verified account.
-      setTimeout(() => {
-        setStep("form");
-        setTab("login");
-        setBannerSuccess("Email verified. Please sign in.");
-      }, 1200);
+      // Onboarding continues through a visual preview; no card is linked or saved.
+      router.push("/card-preview");
     } catch (err) {
       setBannerError(
         err instanceof Error ? err.message : "Verification failed."
@@ -170,7 +165,7 @@ export function AuthPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [otp, pendingEmail, confirm]);
+  }, [otp, pendingEmail, confirm, router]);
 
   const handleResendCode = useCallback(async () => {
     setBannerError("");
@@ -198,29 +193,48 @@ export function AuthPage() {
 
   return (
     <div className={styles.root}>
-      <Link href="/" className={styles.backLink} aria-label="Back to landing page">
-        ← KAVACHPAY
-      </Link>
+      <section className={styles.story} aria-label="About KavachPay">
+        <div className={styles.storyTop}>
+          <Link href="/" className={styles.brand} aria-label="KavachPay home">KavachPay</Link>
+          <span className={styles.storyIndex}>FINANCIAL AUTHORITY / UNDER YOUR CONTROL</span>
+        </div>
+        <div className={styles.storyBody}>
+          <div className={styles.filmNote}>A BOUND CONTRACT FOR AGENT PAYMENTS</div>
+          <h2 className={styles.storyTitle}>KavachPay</h2>
+          <svg className={styles.actionStroke} viewBox="0 0 860 64" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M5 38 C 118 25, 224 42, 340 29 S 590 38, 855 19" />
+          </svg>
+          <div className={styles.thesis}>
+            <span>AUTHORITY IS NOT ACCESS.</span>
+            <span>IT IS A BOUND CONTRACT.</span>
+          </div>
+        </div>
+        <div className={styles.storyBottom}><span>CONTROL BEFORE PAYMENT</span><span>© KAVACHPAY</span></div>
+        <div className={styles.cropTopLeft} aria-hidden="true" />
+        <div className={styles.cropBottomRight} aria-hidden="true" />
+      </section>
 
-      <div className={styles.card} role="main">
-        <span className={styles.cornerMark}>KP{"\n"}AUTH</span>
+      <main className={styles.card}>
+        <div className={styles.cardTop}>
+          <Link href="/" className={styles.backLink}>← <span>Back to the experience</span></Link>
+        </div>
 
         {/* ── Header ── */}
         <div className={styles.header}>
-          <span className={styles.wordmark}>KavachPay</span>
+          <span className={styles.wordmark}>KAVACHPAY ACCOUNT</span>
           <h1 className={styles.title}>
             {step === "verify"
               ? "Verify your email"
               : tab === "login"
-              ? "Sign in to continue"
-              : "Create your account"}
+              ? "Sign in"
+              : "Create an account"}
           </h1>
           <p className={styles.subtitle}>
             {step === "verify"
-              ? "SEC-AUTH // EMAIL CONFIRM"
+              ? "Enter the code we sent to your inbox."
               : tab === "login"
-              ? "SEC-AUTH // SIGN-IN"
-              : "SEC-AUTH // REGISTER"}
+              ? "Manage mandates, approvals and every money decision in one place."
+              : "Set limits for your agents and review the decisions that matter."}
           </p>
         </div>
 
@@ -237,7 +251,7 @@ export function AuthPage() {
               className={`${styles.tab} ${tab === "login" ? styles.tabActive : ""}`}
               onClick={() => switchTab("login")}
             >
-              LOGIN
+              Sign in
             </button>
             <button
               role="tab"
@@ -247,7 +261,7 @@ export function AuthPage() {
               className={`${styles.tab} ${tab === "signup" ? styles.tabActive : ""}`}
               onClick={() => switchTab("signup")}
             >
-              SIGN UP
+              Create account
             </button>
           </div>
         )}
@@ -309,7 +323,7 @@ export function AuthPage() {
                 disabled={isBusy}
               >
                 {isBusy && <span className={styles.spinner} aria-hidden="true" />}
-                VERIFY EMAIL
+                Verify email <span aria-hidden="true">↗</span>
               </button>
 
               <div className={styles.footerLinks}>
@@ -386,7 +400,7 @@ export function AuthPage() {
               disabled={isBusy}
             >
               {isBusy && <span className={styles.spinner} aria-hidden="true" />}
-              SIGN IN
+              Sign in <span aria-hidden="true">↗</span>
             </button>
 
             <div className={styles.footerLinks}>
@@ -472,7 +486,7 @@ export function AuthPage() {
               disabled={isBusy}
             >
               {isBusy && <span className={styles.spinner} aria-hidden="true" />}
-              CREATE ACCOUNT
+              Create account <span aria-hidden="true">↗</span>
             </button>
 
             <div className={styles.footerLinks}>
@@ -486,7 +500,8 @@ export function AuthPage() {
             </div>
           </form>
         )}
-      </div>
+        <p className={styles.cardFootnote}>KAVACHPAY / AUTHORITY BEFORE ACCESS</p>
+      </main>
     </div>
   );
 }

@@ -10,7 +10,8 @@
     "start": "node dist/app.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "update-email-template": "node update-email-template.cjs"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-agentcore": "^3.1135.0",
