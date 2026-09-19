@@ -59,7 +59,43 @@ export interface SimulatePaymentPayload {
   idempotencyKey: string;
 }
 
-// ── Voice-to-Form-Fill types ─────────────────────────────────────────────────
+/**
+ * Payload for POST /v0/intents.
+ *
+ * NOTE: `userId` is intentionally absent — the backend derives it from
+ * `req.user.sub` (the verified Cognito ID token). Do not pass userId from
+ * the frontend.
+ *
+ * `amount` is in rupees (not paise). The backend stores it as-is.
+ */
+export interface CreateIntentPayload {
+  grantId: string;
+  amount: number;
+  merchant: {
+    name: string;
+    category: string;
+  };
+  description: string;
+  idempotencyKey: string;
+}
+
+export interface CreateIntentResult {
+  success: boolean;
+  replayed?: boolean;
+  intent: {
+    intentId: string;
+    status: string;
+    amount: number;
+    merchant: { name: string; category: string };
+    grantId: string;
+    createdAt: string;
+  };
+  decision: {
+    decision: "ALLOW" | "DENY" | "STEP_UP";
+    reason?: string;
+  };
+}
+
 
 /** Diff returned by the NLU extraction step. Mirrors MandateExtractionSchema on the backend. */
 export interface MandateExtraction {
@@ -139,7 +175,7 @@ export const apiClient = {
   denyIntent: async (intentId: string) => {
     const res = await fetch(`${API_BASE_URL}/v0/intents/${intentId}/deny`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await authHeaders({ "Content-Type": "application/json" }),
     });
     if (!res.ok) throw new Error("Failed to deny intent");
     return res.json();
@@ -179,6 +215,42 @@ export const apiClient = {
     });
     if (!res.ok) throw new Error("Failed to reset demo");
     return res.json();
+  },
+
+  /**
+   * Create a payment intent via POST /v0/intents.
+   *
+   * The backend derives `userId` from the verified Cognito ID token
+   * (req.user.sub) — do NOT pass userId here.
+   *
+   * Returns the full intent + decision from the authority engine.
+   * HTTP 200 → ALLOW, 202 → STEP_UP_REQUIRED, 403 → DENY.
+   */
+  createIntent: async (payload: CreateIntentPayload): Promise<CreateIntentResult> => {
+    const res = await fetch(`${API_BASE_URL}/v0/intents`, {
+      method: "POST",
+      headers: await authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        grantId: payload.grantId,
+        amount: payload.amount,
+        merchant: {
+          merchantId: payload.merchant.name.trim(),
+          name: payload.merchant.name.trim(),
+          category: payload.merchant.category,
+        },
+        description: payload.description,
+        idempotencyKey: payload.idempotencyKey,
+      }),
+    });
+    // 200 ALLOW / 202 STEP_UP / 403 DENY are all valid business responses
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok && res.status !== 403 && res.status !== 202) {
+      throw new Error(json?.error ?? `Request failed with status ${res.status}`);
+    }
+    if (res.status === 403 && !json?.decision) {
+      throw new Error(json?.error ?? "Forbidden: authorization error");
+    }
+    return json;
   },
 
   // ── Voice-to-Form-Fill ─────────────────────────────────────────────────────

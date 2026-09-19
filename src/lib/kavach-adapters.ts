@@ -24,24 +24,54 @@ export function grantToAgent(grant: any): Agent {
 }
 
 export function intentToLedgerEntry(intent: any): LedgerEntry {
+  let status: LedgerStatus = "PENDING";
+  const rawStatus = String(intent.status || "").toUpperCase();
+
+  if (
+    rawStatus === "RESERVED" ||
+    rawStatus === "APPROVED" ||
+    rawStatus === "EXECUTED" ||
+    rawStatus === "PAYMENT_CREATED" ||
+    rawStatus === "ALLOW" ||
+    rawStatus === "ALLOWED"
+  ) {
+    status = "APPROVED";
+  } else if (
+    rawStatus === "STEP_UP_REQUIRED" ||
+    rawStatus === "STEP_UP"
+  ) {
+    status = "STEP_UP_REQUIRED";
+  } else if (
+    rawStatus === "DENIED" ||
+    rawStatus === "DENY" ||
+    rawStatus === "REVOKED" ||
+    rawStatus === "FAILED"
+  ) {
+    status = "DENIED";
+  } else {
+    status = "PENDING";
+  }
+
   return {
     id: intent.intentId,
     agentId: intent.grantId,
     merchant: intent.merchant?.name || "Unknown Merchant",
     description: intent.description || "Transaction",
     amount: intent.amount || 0,
-    status: intent.status || "PENDING",
-    reason: intent.status === "STEP_UP_REQUIRED" 
-      ? "Above the per-transaction cap — step-up approval required."
-      : intent.status === "DENIED" 
-        ? "Denied by authority rules" 
-        : "Authorized",
+    status,
+    reason:
+      status === "STEP_UP_REQUIRED"
+        ? (intent.reason || "Above the per-transaction cap — step-up approval required.")
+        : status === "DENIED"
+          ? (intent.reason || "Denied by authority rules")
+          : (intent.reason || "Authorized"),
     at: intent.createdAt,
   };
 }
 
 export function intentToApproval(intent: any): ApprovalRequest | null {
-  if (intent.status !== "STEP_UP_REQUIRED") return null;
+  const rawStatus = String(intent.status || "").toUpperCase();
+  if (rawStatus !== "STEP_UP_REQUIRED" && rawStatus !== "STEP_UP") return null;
 
   return {
     id: intent.intentId,
@@ -50,7 +80,7 @@ export function intentToApproval(intent: any): ApprovalRequest | null {
     merchant: intent.merchant?.name || "Unknown Merchant",
     description: intent.description || "Transaction requires approval",
     amount: intent.amount || 0,
-    reason: "Step-up threshold exceeded",
+    reason: intent.reason || "Step-up threshold exceeded",
     requestedAt: intent.createdAt,
   };
 }

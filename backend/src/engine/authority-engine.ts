@@ -97,27 +97,9 @@ export class AuthorityEngine {
     }
 
     /*
-     * 5. Single transaction hard limit.
-     */
-    if (
-      targetGrant.hardMax !== undefined &&
-      intent.amount > targetGrant.hardMax
-    ) {
-      return this.deny(
-        decisionId,
-        intent,
-        "PER_TXN_LIMIT_EXCEEDED",
-        `Requested amount ₹${intent.amount} exceeds the per-transaction limit of ₹${targetGrant.hardMax}.`,
-        now,
-        capacity.effectiveCapacity,
-        capacity.residualByGrant[
-          targetGrant.grantId
-        ] ?? 0
-      );
-    }
-
-    /*
-     * 6. Scope validation.
+     * 5. Scope validation (Category and Merchant allow/deny lists).
+     *
+     * If the merchant is not approved, wrong category, or denied -> automatically DENIED.
      */
     const scopeResult =
       this.checkScope(
@@ -140,7 +122,9 @@ export class AuthorityEngine {
     }
 
     /*
-     * 7. Effective capacity check.
+     * 6. Capacity check: Balance left & Monthly authority limit.
+     *
+     * If the transaction exceeds available balance left or total monthly limit -> automatically DENIED.
      */
     if (
       intent.amount >
@@ -150,7 +134,24 @@ export class AuthorityEngine {
         decisionId,
         intent,
         "EFFECTIVE_CAPACITY_EXCEEDED",
-        `Requested amount ₹${intent.amount} exceeds effective authority capacity of ₹${capacity.effectiveCapacity}.`,
+        `Requested amount ₹${intent.amount} exceeds remaining authority balance of ₹${capacity.effectiveCapacity}.`,
+        now,
+        capacity.effectiveCapacity,
+        capacity.residualByGrant[
+          targetGrant.grantId
+        ] ?? 0
+      );
+    }
+
+    if (
+      targetGrant.limit !== undefined &&
+      intent.amount > targetGrant.limit
+    ) {
+      return this.deny(
+        decisionId,
+        intent,
+        "EFFECTIVE_CAPACITY_EXCEEDED",
+        `Requested amount ₹${intent.amount} exceeds the period authority limit of ₹${targetGrant.limit}.`,
         now,
         capacity.effectiveCapacity,
         capacity.residualByGrant[
@@ -160,18 +161,20 @@ export class AuthorityEngine {
     }
 
     /*
-     * 8. Step-up threshold.
+     * 7. Automatic threshold check (Step-up / Needs Approval).
      *
-     * We do NOT reserve here.
+     * - If amount is below or equal to the automatic threshold: directly ACCEPTED (ALLOW).
+     * - If amount is more than the automatic threshold, but within balance left & monthly limit:
+     *   transitions to "Needs approval" (STEP_UP_REQUIRED) so the user can review and approve or deny.
      *
-     * Reservation happens after the user/agent
-     * satisfies the step-up requirement.
+     * The automatic threshold is represented by stepUpAbove (or hardMax / perTransactionCap).
      */
+    const autoThreshold = targetGrant.stepUpAbove ?? targetGrant.hardMax;
+
     if (
       !options?.isApproval &&
-      targetGrant.stepUpAbove !== undefined &&
-      intent.amount >
-        targetGrant.stepUpAbove
+      autoThreshold !== undefined &&
+      intent.amount > autoThreshold
     ) {
       return {
         decisionId,
@@ -185,7 +188,7 @@ export class AuthorityEngine {
           "STEP_UP_REQUIRED",
 
         reason:
-          `Transaction amount ₹${intent.amount} exceeds the step-up threshold of ₹${targetGrant.stepUpAbove}.`,
+          `Transaction amount ₹${intent.amount} exceeds the automatic threshold of ₹${autoThreshold}; awaiting human approval.`,
 
         amount: intent.amount,
         currency: intent.currency,
@@ -272,12 +275,15 @@ export class AuthorityEngine {
         reason: string;
       } {
     /*
-     * Category restriction.
+     * Category restriction (resilient to case, spaces, underscores, slashes).
      */
+    const normalizeCategory = (cat?: string) =>
+      (cat ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
     if (
       grant.category &&
-      grant.category.toLowerCase() !==
-        intent.merchant.category.toLowerCase()
+      normalizeCategory(grant.category) !==
+        normalizeCategory(intent.merchant.category)
     ) {
       return {
         allowed: false,
@@ -288,18 +294,37 @@ export class AuthorityEngine {
     }
 
     /*
+     * Helper to match merchant against a list, comparing:
+     * - Exact string against merchantId or name
+     * - Case-insensitive and alphanumeric-normalized string against merchantId or name
+     */
+    const normalizeMerchant = (s?: string) =>
+      (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+    const matchesMerchantList = (list?: string[]) => {
+      if (!list || list.length === 0) return false;
+      const idNorm = normalizeMerchant(intent.merchant.merchantId);
+      const nameNorm = intent.merchant.name ? normalizeMerchant(intent.merchant.name) : idNorm;
+      return list.some((item) => {
+        const itemNorm = normalizeMerchant(item);
+        return (
+          item === intent.merchant.merchantId ||
+          item === intent.merchant.name ||
+          (idNorm && itemNorm === idNorm) ||
+          (nameNorm && itemNorm === nameNorm)
+        );
+      });
+    };
+
+    /*
      * Explicit merchant deny list.
      */
-    if (
-      grant.merchantDeny?.includes(
-        intent.merchant.merchantId
-      )
-    ) {
+    if (matchesMerchantList(grant.merchantDeny)) {
       return {
         allowed: false,
         reasonCode: "MERCHANT_DENIED",
         reason:
-          `Merchant ${intent.merchant.merchantId} is explicitly denied by the grant.`,
+          `Merchant "${intent.merchant.name || intent.merchant.merchantId}" is explicitly denied by the grant.`,
       };
     }
 
@@ -309,16 +334,14 @@ export class AuthorityEngine {
     if (
       grant.merchantAllow &&
       grant.merchantAllow.length > 0 &&
-      !grant.merchantAllow.includes(
-        intent.merchant.merchantId
-      )
+      !matchesMerchantList(grant.merchantAllow)
     ) {
       return {
         allowed: false,
         reasonCode:
           "MERCHANT_NOT_ALLOWED",
         reason:
-          `Merchant ${intent.merchant.merchantId} is not present in the grant allow-list.`,
+          `Merchant "${intent.merchant.name || intent.merchant.merchantId}" is not present in the grant allow-list.`,
       };
     }
 

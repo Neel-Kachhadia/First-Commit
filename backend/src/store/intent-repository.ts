@@ -3,6 +3,7 @@ import {
   PutCommand,
   UpdateCommand,
   ScanCommand,
+  type ScanCommandOutput,
 } from "@aws-sdk/lib-dynamodb";
 
 import { dynamo } from "./dynamodb.js";
@@ -160,24 +161,36 @@ export class IntentRepository {
 
   /**
    * List all intents for a user.
-   * Note: Uses a Scan operation (Temporary for demo/hackathon integration).
-   * In a production environment, use a GSI with PK = USER#<userId>
+   * Paginates through all DynamoDB pages using LastEvaluatedKey.
    */
   async listUserIntents(userId: string): Promise<Intent[]> {
-    const result = await dynamo.send(
-      new ScanCommand({
-        TableName: TABLE_NAME,
-        FilterExpression: "userId = :userId AND entityType = :entityType",
-        ExpressionAttributeValues: {
-          ":userId": userId,
-          ":entityType": "INTENT",
-        },
-      })
-    );
-    
+    const allItems: Intent[] = [];
+    let lastEvaluatedKey: Record<string, any> | undefined = undefined;
+
+    do {
+      const result: ScanCommandOutput = await dynamo.send(
+        new ScanCommand({
+          TableName: TABLE_NAME,
+          FilterExpression: "userId = :userId AND entityType = :entityType",
+          ExpressionAttributeValues: {
+            ":userId": userId,
+            ":entityType": "INTENT",
+          },
+          ExclusiveStartKey: lastEvaluatedKey,
+        })
+      );
+
+      if (result.Items && result.Items.length > 0) {
+        allItems.push(...(result.Items as Intent[]));
+      }
+
+      lastEvaluatedKey = result.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
     // Sort descending by createdAt
-    const items = (result.Items || []) as Intent[];
-    return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return allItems.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   }
 }
 
