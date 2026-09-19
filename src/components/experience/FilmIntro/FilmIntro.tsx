@@ -7,7 +7,20 @@ import { FilmLeader } from "./FilmLeader";
 import { DirectorSlate } from "./DirectorSlate";
 import styles from "./FilmIntro.module.css";
 
-const SESSION_KEY = "kp:intro-seen:v1";
+/**
+ * Intro lifecycle — three separate concepts, three separate pieces of state:
+ *  A. SHOULD the intro play for this navigation?   -> decideMode(), re-derived on every mount
+ *     (?intro=0/1, deep link, ?visualTest, reduced motion, and C below).
+ *  B. HAS this intro INSTANCE finished?             -> finishedRef / releasedRef / `done` (per mount).
+ *  C. Was the intro ALREADY PLAYED in this document? -> `introPlayedInThisDocument` below.
+ *
+ * C is a module variable on purpose. Its lifetime is the JS document: it survives client-side
+ * (SPA) navigation away from "/" and back — the remount must NOT replay — and it is destroyed by any
+ * real page load (new tab, refresh, hard refresh), which is a new navigation context and MUST play.
+ * A previous version persisted C in `sessionStorage`, which lives for the whole TAB, so every refresh
+ * after the first play skipped the intro.
+ */
+let introPlayedInThisDocument = false;
 
 type ResolvedMode = "skip" | "reduced" | "full";
 
@@ -18,23 +31,7 @@ type FilmIntroProps = {
   onRelease: () => void;
 };
 
-function readSessionSeen(): boolean {
-  try {
-    return sessionStorage.getItem(SESSION_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function markSessionSeen() {
-  try {
-    sessionStorage.setItem(SESSION_KEY, "1");
-  } catch {
-    // sessionStorage unavailable (private mode / blocked) — replay next load, harmless.
-  }
-}
-
-/** Decided once per mount from URL/hash/sessionStorage/matchMedia — none of which exist during SSR. */
+/** A: decided once per mount from URL/hash/document state/matchMedia — none of which exist during SSR. */
 function decideMode(): ResolvedMode {
   const params = new URLSearchParams(window.location.search);
   const forced = params.get("intro");
@@ -46,7 +43,7 @@ function decideMode(): ResolvedMode {
   const hasDeepLink = window.location.hash !== "" && window.location.hash !== "#scene-00";
   if (hasDeepLink) return "skip";
   if (params.has("visualTest")) return "skip";
-  if (readSessionSeen()) return "skip";
+  if (introPlayedInThisDocument) return "skip"; // SPA return to Scene 00: never replay automatically
 
   return reducedMotion ? "reduced" : "full";
 }
@@ -57,7 +54,7 @@ const getServerMode = (): ResolvedMode | "pending" => "pending";
 export function FilmIntro({ onLock, onRelease }: FilmIntroProps) {
   const setIntroComplete = useExperienceStore((state) => state.setIntroComplete);
   // SSR-safe: server/first-paint snapshot is "pending"; React swaps in the real,
-  // client-only decision (URL/hash/sessionStorage/matchMedia) before the browser paints,
+  // client-only decision (URL/hash/document state/matchMedia) before the browser paints,
   // the same technique KavachExperience already uses for isLegacy/migrationStep.
   const resolvedMode = useSyncExternalStore(noopSubscribe, decideMode, getServerMode);
   const [done, setDone] = useState(false);
@@ -84,7 +81,7 @@ export function FilmIntro({ onLock, onRelease }: FilmIntroProps) {
     if (finishedRef.current) return;
     finishedRef.current = true;
     release();
-    markSessionSeen();
+    introPlayedInThisDocument = true;
     setDone(true);
   }, [release]);
 
