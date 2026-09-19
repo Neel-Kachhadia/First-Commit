@@ -58,7 +58,7 @@ export async function deleteCategoryHandler(
 ): Promise<void> {
   try {
     const userId = req.user!.sub;
-    const slug = req.params.slug;
+    const slug = req.params.slug as string;
 
     if (!slug) {
       res.status(400).json({ success: false, error: "slug is required." });

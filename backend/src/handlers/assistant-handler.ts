@@ -172,10 +172,20 @@ export async function extractMandateVoiceHandler(
   } catch (error) {
     console.error("[extractMandateVoiceHandler] error:", error);
 
-    const message =
-      error instanceof Error ? error.message : "Mandate extraction failed.";
-    const status = message.includes("not configured") ? 503 : 500;
+    const raw = error instanceof Error ? error.message : "Mandate extraction failed.";
+    let message = raw;
+    if (raw.includes("503") || raw.includes("UNAVAILABLE") || raw.includes("high demand")) {
+      message = "AI service is currently experiencing high demand. Please try again in a few seconds.";
+    } else if (raw.includes("429") || raw.includes("RESOURCE_EXHAUSTED")) {
+      message = "Rate limit reached. Please wait a moment before trying again.";
+    } else if (raw.startsWith("{") && raw.includes('"message"')) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.error?.message) message = parsed.error.message;
+      } catch {}
+    }
 
+    const status = message.includes("not configured") ? 503 : 500;
     res.status(status).json({ success: false, error: message });
   }
 }

@@ -25,27 +25,52 @@ export interface MandateFormState {
  * rather than being guessed — wrong numbers on a finance form
  * are worse than empty fields.
  */
+const numberOrNull = z.preprocess((val) => {
+  if (val == null) return null;
+  if (typeof val === "number") return val;
+  if (typeof val === "string") {
+    const cleaned = val.replace(/[^0-9.]/g, "");
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+}, z.number().positive().nullable());
+
+const stringOrNull = z.preprocess((val) => {
+  if (val == null) return null;
+  if (Array.isArray(val)) return val.join("; ");
+  if (typeof val === "string") return val.trim() || null;
+  return String(val);
+}, z.string().nullable());
+
 export const MandateExtractionSchema = z.object({
   agentName: z.string().min(1).nullable(),
   category: z.string().nullable(),
   purpose: z.string().nullable(),
-  monthlyLimit: z.number().positive().nullable(),
-  perTransactionCap: z.number().positive().nullable(),
+  monthlyLimit: numberOrNull,
+  perTransactionCap: numberOrNull,
   approvedMerchants: z.array(z.string()).nullable(),
   unresolvedFields: z.array(z.string()),
-  ambiguities: z.string().nullable(),
+  ambiguities: stringOrNull,
 });
-
 
 export type MandateExtraction = z.infer<typeof MandateExtractionSchema>;
 
 // ─── API constants ────────────────────────────────────────────────────────────
 
-// Gemini model for audio transcription (supports inline audio natively)
-const TRANSCRIPTION_MODEL = "gemini-3.5-flash";
+// Multi-model pools for resilience against single-model traffic spikes (503 UNAVAILABLE)
+const TRANSCRIPTION_MODELS = [
+  "gemini-3.5-flash",
+  "gemini-3.8-flash",
+  "gemini-flash-latest",
+];
 
-// Gemini model for NLU extraction (fast, accurate, JSON mode)
-const NLU_MODEL = "gemini-3.5-flash";
+const NLU_MODELS = [
+  "gemini-3.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-3.8-flash",
+  "gemini-flash-latest",
+];
 
 // ─── Runtime prompt builders ──────────────────────────────────────────────────
 // All prompts are built at request-time from the dynamic category/brand lists
@@ -133,6 +158,21 @@ export class GroqService {
     }
   }
 
+  private isTransientError(err: unknown): boolean {
+    if (!err) return false;
+    const msg = err instanceof Error ? err.message : String(err);
+    return (
+      msg.includes("503") ||
+      msg.includes("UNAVAILABLE") ||
+      msg.includes("high demand") ||
+      msg.includes("429") ||
+      msg.includes("RESOURCE_EXHAUSTED") ||
+      msg.includes("Rate limit") ||
+      msg.includes("ETIMEDOUT") ||
+      msg.includes("ECONNRESET")
+    );
+  }
+
   /**
    * Transcribe an audio buffer (webm/wav/mp3/ogg) to text using Gemini.
    *
@@ -153,34 +193,57 @@ export class GroqService {
     // Encode buffer as base64 for inline data
     const base64Audio = audioBuffer.toString("base64");
 
-    const response = await this.client.models.generateContent({
-      model: TRANSCRIPTION_MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [
+    let lastError: unknown;
+    for (const model of TRANSCRIPTION_MODELS) {
+      try {
+        const response = await this.client.models.generateContent({
+          model,
+          contents: [
             {
-              text: `Transcribe the following audio accurately. This is Indian English audio about financial transactions and e-commerce. Use these correct spellings for brand names: ${buildTranscriptionHint(brandNames)}. Return ONLY the transcript text, nothing else.`,
-            },
-            {
-              inlineData: {
-                mimeType: normalizedMime,
-                data: base64Audio,
-              },
+              role: "user",
+              parts: [
+                {
+                  text: `Transcribe the following audio accurately. This is Indian English audio about financial transactions and e-commerce. Use these correct spellings for brand names: ${buildTranscriptionHint(brandNames)}. Return ONLY the transcript text, nothing else.`,
+                },
+                {
+                  inlineData: {
+                    mimeType: normalizedMime,
+                    data: base64Audio,
+                  },
+                },
+              ],
             },
           ],
-        },
-      ],
-    });
+        });
 
-    const rawText = response.text?.trim();
+        const rawText = response.text?.trim();
+        if (!rawText) {
+          console.warn(
+            `[Transcribe] Model ${model} returned empty transcript. Trying fallback model...`
+          );
+          continue;
+        }
 
-    if (!rawText) {
-      throw new Error("Gemini returned an empty transcript.");
+        // Layer 2: Post-transcription normalisation (alias map + Indian number expansion)
+        return this.normaliseTranscript(rawText);
+      } catch (err) {
+        lastError = err;
+        if (this.isTransientError(err)) {
+          console.warn(
+            `[Transcribe] Model ${model} returned transient error. Trying fallback model...`
+          );
+          continue;
+        }
+        throw err;
+      }
     }
 
-    // Layer 2: Post-transcription normalisation (alias map + Indian number expansion)
-    return this.normaliseTranscript(rawText);
+    throw (
+      lastError ??
+      new Error(
+        "No speech detected in the recording. Please speak clearly into your microphone and try again."
+      )
+    );
   }
 
   /**
@@ -201,53 +264,77 @@ export class GroqService {
     const userMessage = JSON.stringify({ transcript, currentFormState });
     const systemPrompt = buildExtractionPrompt(categories, brandNames);
 
-    const response = await this.client.models.generateContent({
-      model: NLU_MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: userMessage }],
-        },
-      ],
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0,
-        maxOutputTokens: 800,
-        responseMimeType: "application/json",
-      },
-    });
+    let lastError: unknown;
+    for (const model of NLU_MODELS) {
+      try {
+        const config: Record<string, unknown> = {
+          systemInstruction: systemPrompt,
+          temperature: 0,
+          maxOutputTokens: 4096,
+          responseMimeType: "application/json",
+        };
 
-    const rawContent = response.text?.trim();
+        if (!model.includes("lite")) {
+          config.thinkingConfig = { thinkingBudget: 0 };
+        }
 
-    console.log(`[NLU] Gemini response:`, rawContent?.slice(0, 400));
+        const response = await this.client.models.generateContent({
+          model,
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userMessage }],
+            },
+          ],
+          config,
+        });
 
-    if (!rawContent) {
-      throw new Error("Gemini returned empty content for mandate extraction.");
+        const rawContent = response.text?.trim();
+        console.log(`[NLU] Gemini (${model}) response:`, rawContent?.slice(0, 400));
+
+        if (!rawContent) {
+          throw new Error("Gemini returned empty content for mandate extraction.");
+        }
+
+        // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+        const jsonText = rawContent
+          .replace(/^```(?:json)?\r?\n?/i, "")
+          .replace(/\r?\n?```$/, "")
+          .trim();
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(jsonText);
+        } catch {
+          throw new Error(
+            `Gemini returned invalid JSON for mandate extraction. Content: ${jsonText.slice(0, 200)}`
+          );
+        }
+
+        const result = MandateExtractionSchema.safeParse(parsed);
+        if (!result.success) {
+          throw new Error(
+            `Gemini response failed schema validation: ${result.error.message}`
+          );
+        }
+
+        return result.data;
+      } catch (err) {
+        lastError = err;
+        if (this.isTransientError(err)) {
+          console.warn(
+            `[NLU] Model ${model} returned transient error. Trying fallback model...`
+          );
+          continue;
+        }
+        throw err;
+      }
     }
 
-    // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
-    const jsonText = rawContent
-      .replace(/^```(?:json)?\r?\n?/i, "")
-      .replace(/\r?\n?```$/, "")
-      .trim();
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch {
-      throw new Error(
-        `Gemini returned invalid JSON for mandate extraction. Content: ${jsonText.slice(0, 200)}`
-      );
-    }
-
-    const result = MandateExtractionSchema.safeParse(parsed);
-    if (!result.success) {
-      throw new Error(
-        `Gemini response failed schema validation: ${result.error.message}`
-      );
-    }
-
-    return result.data;
+    throw (
+      lastError ??
+      new Error("All Gemini models are currently experiencing high demand. Please try again.")
+    );
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
