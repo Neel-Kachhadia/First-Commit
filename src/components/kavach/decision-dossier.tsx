@@ -1,5 +1,5 @@
-import { Check, Copy, ExternalLink, FileText, ShieldCheck } from "lucide-react";
-import type { ReactNode } from "react";
+import { Check, Clock3, Copy, ExternalLink, FileText, ShieldCheck, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import {
   type Agent,
   type LedgerEntry,
 } from "@/lib/kavach-data";
+import { useKavach } from "@/lib/kavach-store";
 import { useUserProfile } from "@/lib/user-profile";
 
 function CopyId({ value }: { value: string }) {
@@ -70,7 +71,13 @@ export function DecisionDossier({
   onOpenChange: (open: boolean) => void;
 }) {
   const { profile } = useUserProfile();
+  const { approveRequest, denyRequest } = useKavach();
+  const [isActing, setIsActing] = useState(false);
+
   if (!entry) return null;
+
+  const isStepUp =
+    entry.status === "STEP_UP_REQUIRED" || entry.status === "PENDING";
 
   const previousSpend = agent
     ? ledger
@@ -165,8 +172,8 @@ export function DecisionDossier({
               <FileText className="h-4 w-4 text-muted-foreground" />
               {entry.status === "APPROVED"
                 ? "Provider request issued"
-                : entry.status === "PENDING"
-                  ? "Provider request held before execution"
+                : isStepUp
+                  ? "Provider request held for human approval"
                   : "Provider request blocked before execution"}
             </p>
           </TraceStep>
@@ -174,30 +181,88 @@ export function DecisionDossier({
             <p className="flex items-center gap-2">
               {entry.status === "APPROVED" ? (
                 <Check className="h-4 w-4 text-success" />
+              ) : isStepUp ? (
+                <Clock3 className="h-4 w-4 text-amber-500" />
               ) : (
                 <ShieldCheck className="h-4 w-4 text-destructive" />
               )}
               {entry.status === "APPROVED"
                 ? "Payment completed successfully"
-                : entry.status === "PENDING"
-                  ? "Awaiting a one-time human decision"
+                : isStepUp
+                  ? "Awaiting your human decision — approve or deny below"
                   : "No money moved"}
             </p>
           </TraceStep>
         </ol>
 
-        <div className="sticky bottom-0 flex gap-2 border-t border-border bg-background p-4">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={() => void navigator.clipboard.writeText(entry.id)}
-          >
-            <Copy className="h-4 w-4" /> Copy audit ID
-          </Button>
-          <Button className="flex-1" disabled>
-            Full audit record <ExternalLink className="h-4 w-4" />
-          </Button>
-        </div>
+        {isStepUp ? (
+          <div className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-background p-4">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 text-destructive hover:bg-destructive/10 hover:border-destructive/30"
+                disabled={isActing}
+                onClick={async () => {
+                  setIsActing(true);
+                  try {
+                    await denyRequest(entry.id);
+                    toast.success("Request denied", {
+                      description: `${entry.merchant} payment was declined.`,
+                    });
+                    onOpenChange(false);
+                  } catch {
+                    toast.error("Could not decline request. Please try again.");
+                  } finally {
+                    setIsActing(false);
+                  }
+                }}
+              >
+                <X className="mr-1 h-4 w-4" /> Deny Request
+              </Button>
+              <Button
+                className="flex-1 bg-foreground text-background hover:bg-foreground/90"
+                disabled={isActing}
+                onClick={async () => {
+                  setIsActing(true);
+                  try {
+                    await approveRequest(entry.id);
+                    toast.success("Payment approved", {
+                      description: `${formatINR(entry.amount)} authorized for ${entry.merchant}.`,
+                    });
+                    onOpenChange(false);
+                  } catch {
+                    toast.error("Could not approve request. Please try again.");
+                  } finally {
+                    setIsActing(false);
+                  }
+                }}
+              >
+                <Check className="mr-1 h-4 w-4" /> Approve {formatINR(entry.amount)}
+              </Button>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-xs text-muted-foreground"
+              onClick={() => void navigator.clipboard.writeText(entry.id)}
+            >
+              <Copy className="mr-1 h-3.5 w-3.5" /> Copy audit ID
+            </Button>
+          </div>
+        ) : (
+          <div className="sticky bottom-0 flex gap-2 border-t border-border bg-background p-4">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => void navigator.clipboard.writeText(entry.id)}
+            >
+              <Copy className="h-4 w-4" /> Copy audit ID
+            </Button>
+            <Button className="flex-1" disabled>
+              Full audit record <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );

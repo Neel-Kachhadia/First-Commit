@@ -25,6 +25,8 @@ import {
 import {
   apiClient,
   type CreateGrantPayload,
+  type CreateIntentPayload,
+  type CreateIntentResult,
   type SimulatePaymentPayload,
 } from "./api-client";
 import { grantToAgent, intentToLedgerEntry, intentToApproval } from "./kavach-adapters";
@@ -68,6 +70,8 @@ interface KavachContextValue {
   createAgent: (input: NewAgentInput) => Promise<string>;
   updateRule: (id: string, rule: SpendingRule) => Promise<void>;
   simulatePayment: (input: SimulationInput) => Promise<SimulationResult>;
+  /** Create a real payment intent against POST /v0/intents. userId comes from the Cognito session. */
+  createIntent: (payload: CreateIntentPayload) => Promise<CreateIntentResult>;
   setFrozen: (value: boolean) => void;
 }
 
@@ -209,6 +213,28 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
     },
   });
 
+  const createIntentMutation = useMutation({
+    mutationFn: apiClient.createIntent,
+    onSuccess: (data: any) => {
+      if (data?.intent) {
+        queryClient.setQueryData(["ledger"], (old: any) => {
+          if (!old || !Array.isArray(old.intents)) {
+            return { success: true, intents: [data.intent] };
+          }
+          const filtered = old.intents.filter((i: any) => i.intentId !== data.intent.intentId);
+          return {
+            ...old,
+            intents: [data.intent, ...filtered],
+          };
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["grants"] });
+      queryClient.invalidateQueries({ queryKey: ["exposure"] });
+      queryClient.refetchQueries({ queryKey: ["ledger"] });
+    },
+  });
+
   const markApprovalResolved = useCallback((id: string) => {
     setResolvedApprovalIds((current) => {
       const next = new Set(current);
@@ -262,6 +288,7 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
       limit: input.rule.monthlyLimit,
       currency: "INR",
       hardMax: input.rule.perTransactionCap,
+      stepUpAbove: input.rule.perTransactionCap,
       merchantAllow: input.rule.merchants,
       category: input.rule.category.toUpperCase().replace(/ & /g, "_").replace(/ /g, "_"),
       window: "MONTHLY",
@@ -333,6 +360,10 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
     };
   };
 
+  const createIntent = async (payload: CreateIntentPayload): Promise<CreateIntentResult> => {
+    return createIntentMutation.mutateAsync(payload);
+  };
+
   const setFrozen = (value: boolean) => {
     console.warn("Set frozen not implemented");
   };
@@ -356,6 +387,7 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
       createAgent,
       updateRule,
       simulatePayment,
+      createIntent,
       setFrozen,
     }),
     [

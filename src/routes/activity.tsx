@@ -1,9 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Clock3, Filter, Search, ShieldX } from "lucide-react";
+import { CheckCircle2, Clock3, Filter, Loader2, Plus, Search, ShieldX } from "lucide-react";
 import { DecisionGlyph } from "@/components/kavach/icons";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -30,12 +38,14 @@ import {
 } from "@/components/kavach/primitives";
 import { useKavach } from "@/lib/kavach-store";
 import {
+  MANDATE_CATEGORIES,
   formatDateTime,
   formatINR,
   type LedgerEntry,
   type LedgerStatus,
 } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const FILTERS: { key: LedgerStatus | "all"; label: string }[] = [
   { key: "all", label: "All decisions" },
@@ -45,7 +55,7 @@ const FILTERS: { key: LedgerStatus | "all"; label: string }[] = [
 ];
 
 export default function ActivityPage() {
-  const { ledger, agents, getAgent } = useKavach();
+  const { ledger, agents, getAgent, createIntent } = useKavach();
   const [filter, setFilter] = useState<LedgerStatus | "all">("all");
   const [query, setQuery] = useState("");
   const [agentFilter, setAgentFilter] = useState("all");
@@ -55,6 +65,85 @@ export default function ActivityPage() {
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
   const [selected, setSelected] = useState<LedgerEntry | null>(null);
+
+  // ── Create Intent dialog state ─────────────────────────────────────────
+  const [intentOpen, setIntentOpen] = useState(false);
+  const [intentAgent, setIntentAgent] = useState("");
+  const [intentMerchant, setIntentMerchant] = useState("");
+  const [intentCategory, setIntentCategory] = useState("");
+  const [intentAmount, setIntentAmount] = useState("");
+  const [intentDesc, setIntentDesc] = useState("");
+  const [intentSubmitting, setIntentSubmitting] = useState(false);
+
+  const activeAgents = agents.filter((a) => a.status === "active");
+  const selectedAgent = agents.find((a) => a.id === intentAgent);
+
+  const resetIntentForm = () => {
+    setIntentAgent("");
+    setIntentMerchant("");
+    setIntentCategory("");
+    setIntentAmount("");
+    setIntentDesc("");
+  };
+
+  const handleAgentChange = (agentId: string) => {
+    setIntentAgent(agentId);
+    const ag = agents.find((a) => a.id === agentId);
+    if (ag) {
+      const match = MANDATE_CATEGORIES.find(
+        (c) =>
+          c.toLowerCase().replace(/[^a-z0-9]/g, "") ===
+          (ag.rule.category || "").toLowerCase().replace(/[^a-z0-9]/g, "")
+      );
+      setIntentCategory(match || ag.rule.category || "");
+    }
+  };
+
+  const handleCreateIntent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!intentAgent) { toast.error("Select an agent / mandate."); return; }
+    if (!intentMerchant.trim()) { toast.error("Enter a merchant name."); return; }
+    const amount = Number(intentAmount);
+    if (!Number.isFinite(amount) || amount <= 0) { toast.error("Enter a valid amount."); return; }
+
+    const category = intentCategory || selectedAgent?.rule?.category || "General";
+
+    setIntentSubmitting(true);
+    try {
+      const res = await createIntent({
+        grantId: intentAgent,
+        amount,
+        merchant: {
+          name: intentMerchant.trim(),
+          category,
+        },
+        description: intentDesc.trim() || `${intentMerchant.trim()} payment`,
+        idempotencyKey: crypto.randomUUID(),
+      });
+
+      const decisionObj = res?.decision as any;
+      const decisionStr: string =
+        typeof res?.decision === "string"
+          ? res.decision
+          : decisionObj?.decision ?? "DENY";
+      const reason: string | undefined = decisionObj?.reason;
+
+      if (decisionStr === "ALLOW") {
+        toast.success("Approved — authorized by policy");
+      } else if (decisionStr === "STEP_UP") {
+        toast.info(reason || "Step-up required — awaiting user approval");
+      } else {
+        toast.error(reason ? `Denied: ${reason}` : "Denied — blocked by policy");
+      }
+
+      setIntentOpen(false);
+      resetIntentForm();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create intent");
+    } finally {
+      setIntentSubmitting(false);
+    }
+  };
 
   const rows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -71,8 +160,14 @@ export default function ActivityPage() {
         : latestTimestamp - windowDays * 24 * 60 * 60 * 1000;
     return ledger.filter((entry) => {
       const agent = getAgent(entry.agentId);
+      const statusMatches =
+        filter === "all" ||
+        entry.status === filter ||
+        (filter === "PENDING" && entry.status === "STEP_UP_REQUIRED") ||
+        (filter === "STEP_UP_REQUIRED" && entry.status === "PENDING");
+
       return (
-        (filter === "all" || entry.status === filter) &&
+        statusMatches &&
         (agentFilter === "all" || entry.agentId === agentFilter) &&
         (merchantFilter === "all" || entry.merchant === merchantFilter) &&
         new Date(entry.at).getTime() >= cutoff &&
@@ -102,7 +197,10 @@ export default function ActivityPage() {
     },
     {
       label: "Needs approval",
-      entries: ledger.filter((entry) => entry.status === "PENDING"),
+      entries: ledger.filter(
+        (entry) =>
+          entry.status === "PENDING" || entry.status === "STEP_UP_REQUIRED",
+      ),
       icon: Clock3,
       tone: "text-stepup",
     },
@@ -135,6 +233,128 @@ export default function ActivityPage() {
       <PageHeader
         title="Decision Feed"
         description="Every payment intent, its live authority state, and the causal policy record behind the outcome."
+        actions={
+          <Dialog open={intentOpen} onOpenChange={(open) => { setIntentOpen(open); if (!open) resetIntentForm(); }}>
+            <DialogTrigger asChild>
+              <Button id="create-intent-btn">
+                <Plus className="h-4 w-4" />
+                Create Intent
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create payment intent</DialogTitle>
+                <DialogDescription>
+                  The authority engine will decide: Approved, Step-up required, or Denied.
+                  No payment is invoked for denied or step-up intents.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateIntent} noValidate className="mt-2 grid gap-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ci-agent">Agent / Mandate</Label>
+                  <Select value={intentAgent} onValueChange={handleAgentChange}>
+                    <SelectTrigger id="ci-agent" className="h-11">
+                      <SelectValue placeholder="Select an active mandate…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeAgents.length === 0 ? (
+                        <SelectItem value="__none" disabled>
+                          No active mandates
+                        </SelectItem>
+                      ) : (
+                        activeAgents.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ci-merchant">Merchant</Label>
+                  <Input
+                    id="ci-merchant"
+                    value={intentMerchant}
+                    onChange={(e) => setIntentMerchant(e.target.value)}
+                    placeholder="e.g. PharmEasy"
+                    autoComplete="off"
+                  />
+                  {selectedAgent && selectedAgent.rule.merchants.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                      <span className="text-[11px] text-muted-foreground mr-0.5">Approved:</span>
+                      {selectedAgent.rule.merchants.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setIntentMerchant(m)}
+                          className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors ${
+                            intentMerchant.trim().toLowerCase() === m.toLowerCase()
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-muted/40 text-muted-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ci-category">Category</Label>
+                  <Select value={intentCategory} onValueChange={setIntentCategory}>
+                    <SelectTrigger id="ci-category" className="h-11">
+                      <SelectValue placeholder="Select a category…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MANDATE_CATEGORIES.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ci-amount">Amount (₹)</Label>
+                  <Input
+                    id="ci-amount"
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={intentAmount}
+                    onChange={(e) => setIntentAmount(e.target.value)}
+                    placeholder="e.g. 500"
+                  />
+                  {selectedAgent && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Cap: {formatINR(selectedAgent.rule.perTransactionCap)} &bull; Monthly limit: {formatINR(selectedAgent.rule.monthlyLimit)}
+                    </p>
+                  )}
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="ci-desc">Purpose / Description</Label>
+                  <Input
+                    id="ci-desc"
+                    value={intentDesc}
+                    onChange={(e) => setIntentDesc(e.target.value)}
+                    placeholder="e.g. Weekly groceries"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  disabled={intentSubmitting}
+                  className="mt-1 w-full"
+                >
+                  {intentSubmitting ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Evaluating…</>
+                  ) : (
+                    "Create Intent"
+                  )}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        }
       />
 
       <section className="decision-ribbon metric-cluster grid overflow-hidden border-y border-border sm:grid-cols-3">
@@ -364,10 +584,24 @@ export default function ActivityPage() {
           <div className="grid min-h-64 place-items-center p-10 text-center">
             <div>
               <DecisionGlyph className="mx-auto h-6 w-6 text-muted-foreground" />
-              <p className="mt-3 text-sm font-medium">No matching decisions</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Change the filter or search query.
+              <p className="mt-3 text-sm font-medium">
+                {ledger.length === 0 ? "No decisions yet" : "No matching decisions"}
               </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {ledger.length === 0
+                  ? "Create a payment intent to test an agent\u2019s authority."
+                  : "Change the filter or search query."}
+              </p>
+              {ledger.length === 0 && (
+                <Button
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => setIntentOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Create Intent
+                </Button>
+              )}
             </div>
           </div>
         ) : (
