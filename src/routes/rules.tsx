@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -255,8 +255,11 @@ function evaluateDraft(
 }
 
 export default function RulesPage() {
-  const { createAgent } = useKavach();
+  const { createAgent, getAgent, remainingFor } = useKavach();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const parentGrantId = searchParams.get("parentGrantId") ?? undefined;
+  const parentAgent = parentGrantId ? getAgent(parentGrantId) : undefined;
   const [step, setStep] = useState(1);
   const [draft, setDraft] = useState<Draft>(initialDraft);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -409,6 +412,9 @@ export default function RulesPage() {
     if (merchantList.length === 0)
       next["merchants"] = "Add at least one approved merchant.";
     if (!draft.expiresOn) next["expiresOn"] = "Choose an expiry date.";
+    if (parentAgent && limit > remainingFor(parentAgent)) {
+      next["limit"] = `Child authority cannot exceed the parent's available authority of ${formatINR(remainingFor(parentAgent))}.`;
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -444,6 +450,7 @@ export default function RulesPage() {
       const id = await createAgent({
         name: draft.name.trim(),
         purpose: draft.purpose.trim(),
+        parentGrantId,
         rule: {
           monthlyLimit: Number(draft.limit),
           perTransactionCap: Number(draft.cap),
@@ -473,17 +480,27 @@ export default function RulesPage() {
 
   return (
     <div className="mandates-page space-y-7">
-      <PageHeader
-        title="Mandate Studio"
-        description="Define financial intent, prove the boundaries against the current draft, then review the exact policy artifact before activation."
-        actions={
-          <Button variant="outline" asChild>
-            <Link href="/agents">
-              View active mandates <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        }
-      />
+      {parentAgent ? (
+        <div className="surface-card p-5 border-l-4 border-l-primary">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">CREATE CHILD MANDATE</h3>
+          <p className="text-xs text-muted-foreground mt-3 mb-1">Derived from</p>
+          <p className="text-lg font-medium">{parentAgent.name}</p>
+          <p className="text-sm mt-1">Available authority: {formatINR(remainingFor(parentAgent))}</p>
+          <p className="text-xs text-muted-foreground mt-3">This mandate must derive its authority from the parent mandate.</p>
+        </div>
+      ) : (
+        <PageHeader
+          title="Mandate Studio"
+          description="Define financial intent, prove the boundaries against the current draft, then review the exact policy artifact before activation."
+          actions={
+            <Button variant="outline" asChild>
+              <Link href="/agents">
+                View active mandates <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          }
+        />
+      )}
 
       <ol className="mandate-rail mandate-stepper grid overflow-hidden border-y border-border sm:grid-cols-3 sm:gap-px">
         {[
@@ -957,11 +974,40 @@ export default function RulesPage() {
                 approve any payment.
               </p>
             </div>
+            
+            {parentAgent && (
+              <div className="mt-5 rounded-md border border-border bg-muted/20 p-4">
+                <p className="label-caps mb-3">Authority Derivation</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Parent remaining ({parentAgent.name})</span>
+                    <span>{formatINR(remainingFor(parentAgent))}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Child requested</span>
+                    <span>{formatINR(Number(draft.limit))}</span>
+                  </div>
+                  <div className="my-2 border-t border-border border-dashed"></div>
+                  <div className="flex justify-between font-medium">
+                    <span>Effective authority</span>
+                    <span className={Number(draft.limit) > remainingFor(parentAgent) ? "text-destructive" : ""}>
+                      {formatINR(Math.min(Number(draft.limit), remainingFor(parentAgent)))}
+                    </span>
+                  </div>
+                  {Number(draft.limit) > remainingFor(parentAgent) && (
+                    <p className="text-xs text-destructive mt-1">
+                      ✕ Child authority exceeds parent authority. Please reduce the limit before activating.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-border pt-5">
               <Button variant="outline" onClick={() => setStep(2)}>
                 <ArrowLeft className="h-4 w-4" /> Back to test
               </Button>
-              <Button onClick={activate} disabled={activating}>
+              <Button onClick={activate} disabled={activating || (!!parentAgent && Number(draft.limit) > remainingFor(parentAgent))}>
                 {activating ? "Activating…" : "Activate mandate"} <ApprovalGlyph className="h-4 w-4" />
               </Button>
             </div>

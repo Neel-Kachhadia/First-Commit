@@ -33,7 +33,13 @@ export async function runExpirySweep(): Promise<void> {
         metrics.logEvent("GRANT_EXPIRED", { grantId: grant.grantId });
         count++;
       } catch (err: any) {
-        console.error(`[ExpiryWorker] Failed to expire grant ${grant.grantId}:`, err);
+        if (err.name === "ConditionalCheckFailedException") {
+          // The grant was already updated (e.g. revoked or expired by another worker)
+          // between the Scan and this Update. We can safely ignore this.
+          console.log(`[ExpiryWorker] Grant ${grant.grantId} already modified. Skipping.`);
+        } else {
+          console.error(`[ExpiryWorker] Failed to expire grant ${grant.grantId}:`, err);
+        }
       }
     }
 

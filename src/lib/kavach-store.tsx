@@ -33,6 +33,7 @@ interface NewAgentInput {
   name: string;
   purpose: string;
   rule: SpendingRule;
+  parentGrantId?: string;
 }
 
 interface SimulationInput {
@@ -266,7 +267,8 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
       category: input.rule.category.toUpperCase().replace(/ & /g, "_").replace(/ /g, "_"),
       window: "MONTHLY",
       windowStart: new Date().toISOString(),
-      delegationEnabled: false,
+      delegationEnabled: input.rule.allowDelegation ?? false,
+      parentGrantId: input.parentGrantId,
     };
     const res = await createGrantMutation.mutateAsync(payload);
     return res.grant?.grantId || res.grantId || "unknown"; // Assuming backend returns { grant: { grantId } }

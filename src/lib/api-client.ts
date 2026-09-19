@@ -44,6 +44,7 @@ export interface CreateGrantPayload {
   window: string;
   windowStart: string;
   delegationEnabled: boolean;
+  parentGrantId?: string;
 }
 
 export interface SimulatePaymentPayload {
