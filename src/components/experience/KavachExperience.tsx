@@ -25,8 +25,8 @@ import {
   type RegisteredSceneKey,
 } from "@/lib/experience/scene-registry";
 import { TRANSITION_REGISTRY } from "@/lib/experience/transition-registry";
+import { enforceSemanticOwner, observeSemanticOwner, resolveOwnerKey } from "@/lib/experience/scene-ownership";
 import { gsap, ScrollTrigger } from "@/lib/motion/gsap";
-import type { ExperienceScene } from "@/lib/experience/demo-state";
 import styles from "./KavachExperience.module.css";
 
 const ExperienceCanvas = dynamic(
@@ -34,7 +34,6 @@ const ExperienceCanvas = dynamic(
   { ssr: false },
 );
 
-type SceneEvent = CustomEvent<{ id: ExperienceScene; progress?: number }>;
 
 declare global {
   interface Window {
@@ -140,34 +139,29 @@ export function KavachExperience() {
     const visualTest = new URLSearchParams(window.location.search).has("visualTest");
     experienceStore.getState().setReducedMotion(motionQuery.matches);
 
-    const syncSemanticOwner = (id: RegisteredSceneKey) => {
-      const activeSlug = SCENE_BY_KEY[id].slug;
-      document.querySelectorAll<HTMLElement>("[data-scene]").forEach((root) => {
-        const owned = root.dataset.scene === activeSlug;
-        root.setAttribute("aria-hidden", owned ? "false" : "true");
-        root.inert = !owned;
-        if (motionQuery.matches) {
-          root.style.visibility = owned ? "visible" : "hidden";
-          root.style.opacity = owned ? "1" : "0";
-          root.style.pointerEvents = owned ? "auto" : "none";
-        }
-      });
-    };
+    // ONE global semantic owner (see lib/experience/scene-ownership.ts). Scenes may be
+    // visually present together during a film blend, but aria/inert/pointer-events, the
+    // navbar chapter and reduced-motion visibility all follow this single value.
+    let ownerKey: RegisteredSceneKey | null = null;
+    const stopObservingOwner = observeSemanticOwner(() => ({
+      slug: ownerKey ? SCENE_BY_KEY[ownerKey].slug : "",
+      reducedMotion: motionQuery.matches,
+    }));
 
     const setActiveScene = (id: RegisteredSceneKey) => {
+      ownerKey = id;
       experienceStore.getState().setScene(id);
       progressBus.setActiveScene(id);
-      syncSemanticOwner(id);
+      enforceSemanticOwner(SCENE_BY_KEY[id].slug, motionQuery.matches);
       const stage = document.querySelector<HTMLElement>("[data-cinematic-stage]");
       if (stage) stage.dataset.activeScene = id;
     };
 
-    const handleScene = (event: Event) => {
-      const { id } = (event as SceneEvent).detail;
-      if (id !== "none") setActiveScene(id);
+    /** The single writer: derive the owner from scroll, only touch state when it changes. */
+    const reconcileOwner = (force = false) => {
+      const next = resolveOwnerKey(motionQuery.matches);
+      if (force || next !== ownerKey) setActiveScene(next);
     };
-
-    window.addEventListener("kp:scene", handleScene);
 
     let tick: ((time: number) => void) | null = null;
     const ownershipTriggers: ScrollTrigger[] = [];
@@ -205,40 +199,30 @@ export function KavachExperience() {
       if (motionQuery.matches) stopSmoothScroll();
       else startSmoothScroll();
       ScrollTrigger.refresh();
+      reconcileOwner(true);
     };
 
     motionQuery.addEventListener("change", handleMotionPreference);
     startSmoothScroll();
 
-    SCENE_REGISTRY.forEach((scene) => {
-      ownershipTriggers.push(
-        ScrollTrigger.create({
-          trigger: `[data-track='${scene.slug}']`,
-          start: "top center",
-          end: "bottom center",
-          onEnter: () => setActiveScene(scene.key),
-          onEnterBack: () => setActiveScene(scene.key),
-        }),
-      );
-    });
-
-    const reconcileOwner = () => {
-      const center = window.scrollY + window.innerHeight * 0.5;
-      const scene = SCENE_REGISTRY.find((candidate) => {
-        const track = document.querySelector<HTMLElement>(`[data-track='${candidate.slug}']`);
-        return track && center >= track.offsetTop && center < track.offsetTop + track.offsetHeight;
-      }) ?? SCENE_REGISTRY[SCENE_REGISTRY.length - 1];
-      setActiveScene(scene.key);
-    };
+    // One trigger for the whole page drives the owner (no per-scene owner triggers).
+    ownershipTriggers.push(
+      ScrollTrigger.create({
+        start: 0,
+        end: "max",
+        onUpdate: () => reconcileOwner(),
+        onRefresh: () => reconcileOwner(),
+      }),
+    );
 
     const refresh = () => {
       ScrollTrigger.refresh();
-      reconcileOwner();
+      reconcileOwner(true);
     };
     const restoreHashScene = () => {
       const scene = sceneFromHash(window.location.hash);
       if (!scene) {
-        reconcileOwner();
+        reconcileOwner(true);
         return;
       }
       const track = document.querySelector<HTMLElement>(`[data-track='${scene.slug}']`);
@@ -291,19 +275,20 @@ export function KavachExperience() {
       restoreHashScene();
     });
     window.addEventListener("load", refresh, { once: true });
-    window.addEventListener("pageshow", reconcileOwner);
+    const onPageShow = () => reconcileOwner(true);
+    window.addEventListener("pageshow", onPageShow);
     window.addEventListener("hashchange", restoreHashScene);
-    requestAnimationFrame(reconcileOwner);
+    requestAnimationFrame(() => reconcileOwner(true));
 
     return () => {
       window.removeEventListener("resize", handleResize);
       window.clearTimeout(resizeTimer);
-      window.removeEventListener("kp:scene", handleScene);
       window.removeEventListener("load", refresh);
-      window.removeEventListener("pageshow", reconcileOwner);
+      window.removeEventListener("pageshow", onPageShow);
       window.removeEventListener("hashchange", restoreHashScene);
       motionQuery.removeEventListener("change", handleMotionPreference);
       ownershipTriggers.forEach((trigger) => trigger.kill());
+      stopObservingOwner();
       document.documentElement.style.overflow = previousOverflowRef.current.html;
       document.body.style.overflow = previousOverflowRef.current.body;
       stopSmoothScroll();

@@ -5,6 +5,7 @@ import {
   poseAtViewport,
   seamOpacity,
   seamPoseAt,
+  seamVideoProgress,
   smootherstep,
 } from "../../src/lib/experience/transition-seam";
 import { TRANSITION_REGISTRY, TRANSITION_OVERLAP_PX } from "../../src/lib/experience/transition-registry";
@@ -79,10 +80,14 @@ test.describe("Seam model (pure)", () => {
         expect(Math.abs(cur.scale - prev.scale)).toBeLessThan(0.004);
         prev = cur;
       }
-      // beyond the widest sample the layout law keeps scale * width constant
+      // beyond the widest sample: layout-law sides keep scale * width constant, every other side holds its last pose
       const last = samples[samples.length - 1];
-      const wide = poseAtViewport(samples, "end", { width: 2560, height: 1440 });
-      expect(wide.scale * 2560).toBeCloseTo(Math.min(1.6, Math.max(0.5, last.end.scale * last.width * (2560 / 2560))), 0);
+      for (const key of ["start", "end"] as const) {
+        const law = !!TRANSITION_SEAMS[b.id].layoutLaw?.[key];
+        const wide = poseAtViewport(samples, key, { width: 2560, height: 1440 }, law);
+        if (law) expect(wide.scale * 2560).toBeCloseTo(Math.min(1.6 * 2560, Math.max(0.5 * 2560, last[key].scale * last.width)), 0);
+        else expect(wide.scale).toBeCloseTo(last[key].scale, 9);
+      }
     }
   });
 
@@ -102,7 +107,7 @@ test.describe("Seam model (pure)", () => {
         expect(maxStep, `${b.id} @${vp.width}`).toBeLessThan(0.006); // per 0.025% progress
         // zero velocity where the film hands over to / takes over from the live DOM
         const d = 1e-4;
-        for (const p of [1 - ov, 1 - ov * 1.5, ov, ov * 1.5]) {
+        for (const p of [1 - ov, Math.min(seam.converge[1], 1 - ov), ov]) {
           const a = seamPoseAt(seam, p - d, vp, ov);
           const c = seamPoseAt(seam, p + d, vp, ov);
           expect(Math.abs(c.scale - a.scale) / (2 * d), `${b.id} @${vp.width} p=${p}`).toBeLessThan(0.02);
@@ -147,6 +152,38 @@ test.describe("Seam model (pure)", () => {
     }
   });
 
+  test("video-time settle: identity outside the window, monotone, reaches the last frame AT REST and holds", () => {
+    for (const b of TRANSITION_REGISTRY) {
+      const seam = TRANSITION_SEAMS[b.id];
+      for (const vp of VIEWPORTS) {
+        const ov = overlapFor(vp.height, b.trackVh);
+        let prev = -1;
+        let ok = true;
+        for (let i = 0; i <= 400; i += 1) {
+          const v = seamVideoProgress(seam, i / 400, ov);
+          if (v < prev - 1e-12 || v < 0 || v > 1) ok = false;
+          prev = v;
+        }
+        expect(ok, `${b.id} @${vp.width} monotone within [0,1]`).toBe(true);
+        expect(seamVideoProgress(seam, 0, ov)).toBe(0);
+        expect(seamVideoProgress(seam, 1, ov)).toBe(1);
+        if (!seam.settle) {
+          for (const p of [0.1, 0.5, 0.97]) expect(seamVideoProgress(seam, p, ov)).toBeCloseTo(p, 12);
+          continue;
+        }
+        const [a] = seam.settle;
+        const end = Math.min(seam.settle[1], 1 - ov);
+        expect(seamVideoProgress(seam, a - 0.01, ov)).toBeCloseTo(a - 0.01, 12); // untouched before the window
+        expect(seamVideoProgress(seam, a, ov)).toBeCloseTo(a, 9); // continuous at the start
+        expect(seamVideoProgress(seam, end, ov)).toBeCloseTo(1, 9); // last frame reached...
+        expect(seamVideoProgress(seam, end + 0.01, ov)).toBe(1); // ...and held
+        const d = 1e-5;
+        expect((seamVideoProgress(seam, end, ov) - seamVideoProgress(seam, end - d, ov)) / d).toBeLessThan(1e-3); // zero speed on arrival
+        expect((seamVideoProgress(seam, a + d, ov) - seamVideoProgress(seam, a, ov)) / d).toBeCloseTo(1, 1); // speed continuous at the start
+      }
+    }
+  });
+
   test("clip-path helper", () => {
     expect(insetToClipPath(null)).toBe("none");
     expect(insetToClipPath({ top: 11, right: 0, bottom: 7, left: 0 })).toBe("inset(11.000% 0.000% 7.000% 0.000%)");
@@ -175,7 +212,7 @@ async function go(page: Page, id: string, p: number) {
   );
 }
 const overlapFrac = (page: Page, id: string) => page.evaluate((id) => 64 / (document.querySelector<HTMLElement>(`[data-transition-track='${id}']`)!.offsetHeight + 128), id);
-const rects = (page: Page, id: string) => page.evaluate((id) => (window as unknown as { __kpTransitionQuality: { videoRects: (id: string) => { native: { width: number; height: number }; presented: { x: number; y: number; width: number; height: number } } | null } }).__kpTransitionQuality.videoRects(id), id);
+const rects = (page: Page, id: string) => page.evaluate((id) => (window as unknown as { __kpTransitionQuality: { videoRects: (id: string) => { layer: { x: number; y: number; width: number; height: number } | null; native: { width: number; height: number }; presented: { x: number; y: number; width: number; height: number } } | null } }).__kpTransitionQuality.videoRects(id), id);
 const opacityOf = (page: Page, id: string) => page.evaluate((id) => parseFloat(getComputedStyle(document.querySelector(`[data-transition-video='${id}']`)!).opacity), id);
 
 test.describe("Applied geometry in the real layer", () => {
@@ -193,12 +230,14 @@ test.describe("Applied geometry in the real layer", () => {
       await page.waitForTimeout(150);
       const pose = await page.evaluate(({ id, p }) => (window as unknown as { __kpTransitionQuality: { seamPose: (id: string, p: number) => { scale: number; x: number; y: number } } }).__kpTransitionQuality.seamPose(id, p), { id, p: 1 - ov * 1.5 });
       const r = await rects(page, id);
-      const vw = page.viewportSize()!.width;
-      const vh = page.viewportSize()!.height;
-      expect(r!.presented.width).toBeCloseTo(vw * pose.scale, 0);
-      expect(r!.presented.height).toBeCloseTo(vh * pose.scale, 0);
-      expect(r!.presented.x + r!.presented.width / 2).toBeCloseTo(vw / 2 + pose.x, 0);
-      expect(r!.presented.y + r!.presented.height / 2).toBeCloseTo(vh / 2 + pose.y, 0);
+      // The pose is relative to the film element's own centre (the stage rect), not the window.
+      const cx = r!.layer!.x + r!.layer!.width / 2;
+      const cy = r!.layer!.y + r!.layer!.height / 2;
+      const within = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1.5); // px (offset sizes are integers)
+      within(r!.presented.width, r!.native.width * pose.scale);
+      within(r!.presented.height, r!.native.height * pose.scale);
+      within(r!.presented.x + r!.presented.width / 2, cx + pose.x);
+      within(r!.presented.y + r!.presented.height / 2, cy + pose.y);
       expect(await opacityOf(page, id)).toBeGreaterThan(0.99); // opaque until the incoming DOM is under it
     });
 
@@ -231,7 +270,8 @@ test.describe("Applied geometry in the real layer", () => {
     await go(page, "06-07", 1 - ov * 1.5);
     await page.waitForTimeout(120);
     const r = await rects(page, "06-07");
-    expect(r!.presented.width).toBeCloseTo(page.viewportSize()!.width, 0);
+    expect(r!.presented.width).toBeCloseTo(r!.native.width, 0);
+    expect(r!.presented.height).toBeCloseTo(r!.native.height, 0);
   });
 
   test("the film's pose is identical for FALLBACK, STANDARD and HIGH (the source resolution never changes the landing geometry)", async ({ page }) => {

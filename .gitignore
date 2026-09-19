@@ -2,6 +2,10 @@
 node_modules/
 .pnp
 .pnp.*
+graphify-out/
+codex-skills/
+.remember/
+.playwright-mcp/
 
 # Next.js build output
 .next/
