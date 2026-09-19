@@ -47,6 +47,16 @@ export interface CreateGrantPayload {
   parentGrantId?: string;
 }
 
+export type Category = {
+  id: string;
+  slug: string;
+  name: string;
+  purpose: string;
+  merchants: string[];
+  source: "system" | "user";
+  createdAt: string;
+};
+
 export interface SimulatePaymentPayload {
   amount: number;
   currency: string;
@@ -119,6 +129,18 @@ export interface MandateFormState {
 }
 
 export const apiClient = {
+  getCategories: async (): Promise<Category[]> => {
+    const res = await fetch(`${API_BASE_URL}/v0/categories`, {
+      headers: await authHeaders(),
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to fetch categories: ${res.status}`);
+    }
+    const json = await res.json();
+    // The backend uses 'slug' as the primary identifier, but frontend expects 'id'
+    return json.categories.map((c: any) => ({ ...c, id: c.slug }));
+  },
+
   getExposure: async () => {
     const res = await fetch(`${API_BASE_URL}/v0/exposure`, {
       headers: await authHeaders(),
