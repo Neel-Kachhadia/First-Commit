@@ -55,8 +55,10 @@ export default function AuthorityPage() {
         title="Authority universe"
         description="A live map of who can spend, how much remains, and every event that changed your financial blast radius."
         actions={
-          <Button variant="outline" asChild>
-            <Link href="/rules">Create child mandate</Link>
+          <Button variant="outline" asChild disabled={!selectedAgentId}>
+            <Link href={selectedAgentId ? `/rules?parentGrantId=${selectedAgentId}` : "/rules"}>
+              Create child mandate
+            </Link>
           </Button>
         }
       />
