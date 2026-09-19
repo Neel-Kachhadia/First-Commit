@@ -41,6 +41,24 @@ interface UseVoiceFillReturn {
   reset: () => void;
 }
 
+function cleanErrorMessage(err: unknown, fallback: string): string {
+  const raw = err instanceof Error ? err.message : fallback;
+  if (raw.includes("503") || raw.includes("UNAVAILABLE") || raw.includes("high demand")) {
+    return "AI service is currently experiencing high demand. Please try again in a few seconds.";
+  }
+  if (raw.includes("429") || raw.includes("RESOURCE_EXHAUSTED") || raw.includes("quota")) {
+    return "AI service quota or rate limit reached. Please wait a moment before trying again.";
+  }
+  if (raw.startsWith("{") && raw.includes('"message"')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.error?.message) return parsed.error.message;
+      if (parsed?.message) return parsed.message;
+    } catch {}
+  }
+  return raw;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useVoiceFill({
@@ -95,9 +113,7 @@ export function useVoiceFill({
 
         setState("done");
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Voice extraction failed.";
-        setError(message);
+        setError(cleanErrorMessage(err, "Voice extraction failed."));
         setState("error");
       }
     },
@@ -123,9 +139,7 @@ export function useVoiceFill({
         // Pause here — user can review/edit before extraction fires
         setState("pending_review");
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Voice transcription failed.";
-        setError(message);
+        setError(cleanErrorMessage(err, "Voice transcription failed."));
         setState("error");
       }
     },

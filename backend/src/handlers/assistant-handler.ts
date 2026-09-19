@@ -52,11 +52,42 @@ function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) : s;
 }
 
+function formatAiErrorMessage(
+  error: unknown,
+  defaultMessage: string
+): { message: string; status: number } {
+  const raw = error instanceof Error ? error.message : defaultMessage;
+  let message = raw;
+
+  if (raw.includes("503") || raw.includes("UNAVAILABLE") || raw.includes("high demand")) {
+    message = "AI service is currently experiencing high demand. Please try again in a few seconds.";
+  } else if (
+    raw.includes("429") ||
+    raw.includes("RESOURCE_EXHAUSTED") ||
+    raw.includes("Quota exceeded") ||
+    raw.includes("quota")
+  ) {
+    message = "AI service rate limit reached. Please wait a moment before trying again.";
+  } else if (raw.startsWith("{") && raw.includes('"message"')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.error?.message) {
+        message = parsed.error.message;
+      } else if (parsed?.message) {
+        message = parsed.message;
+      }
+    } catch {}
+  }
+
+  const status = message.includes("not configured") ? 503 : 500;
+  return { message, status };
+}
+
 // ─── POST /api/assistant/transcribe ──────────────────────────────────────────
 
 /**
  * Receives a multipart audio upload (field name: "audio") and returns
- * the Whisper transcript.
+ * the transcript.
  *
  * Requires multer middleware to run first — see app.ts registration.
  */
@@ -86,11 +117,7 @@ export async function transcribeHandler(
   } catch (error) {
     console.error("[transcribeHandler] error:", error);
 
-    // Distinguish 503 (no API key) from generic 500
-    const message =
-      error instanceof Error ? error.message : "Transcription failed.";
-    const status = message.includes("not configured") ? 503 : 500;
-
+    const { message, status } = formatAiErrorMessage(error, "Transcription failed.");
     res.status(status).json({ success: false, error: message });
   }
 }
@@ -172,20 +199,7 @@ export async function extractMandateVoiceHandler(
   } catch (error) {
     console.error("[extractMandateVoiceHandler] error:", error);
 
-    const raw = error instanceof Error ? error.message : "Mandate extraction failed.";
-    let message = raw;
-    if (raw.includes("503") || raw.includes("UNAVAILABLE") || raw.includes("high demand")) {
-      message = "AI service is currently experiencing high demand. Please try again in a few seconds.";
-    } else if (raw.includes("429") || raw.includes("RESOURCE_EXHAUSTED")) {
-      message = "Rate limit reached. Please wait a moment before trying again.";
-    } else if (raw.startsWith("{") && raw.includes('"message"')) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed?.error?.message) message = parsed.error.message;
-      } catch {}
-    }
-
-    const status = message.includes("not configured") ? 503 : 500;
+    const { message, status } = formatAiErrorMessage(error, "Mandate extraction failed.");
     res.status(status).json({ success: false, error: message });
   }
 }
