@@ -36,6 +36,14 @@ vi.mock("./razorpay-adapter.js", () => ({
   getRazorpayAdapter: vi.fn(),
 }));
 
+vi.mock("../services/payment-profile-resolution-service.js", () => ({
+  paymentProfileResolutionService: {
+    resolvePaymentProfileForGrant: vi.fn().mockResolvedValue({
+      paymentProfileId: "pp_1", provider: "RAZORPAY", environment: "TEST", connectionMode: "SIMULATED"
+    })
+  },
+}));
+
 // ---------------------------------------------------------------------------
 // Imports after mocks
 // ---------------------------------------------------------------------------

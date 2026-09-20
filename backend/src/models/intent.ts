@@ -66,6 +66,22 @@ export const IntentSchema = z.object({
     })
     .optional(),
 
+  /**
+   * Server-derived provenance. Never accepted from an agent payload.
+   * The backend sets this based on the authenticated calling context:
+   *   AGENT_RUNTIME → IAM-gated AgentCore route
+   *   USER_VOICE    → Cognito-authenticated voice workflow
+   *   USER_UI       → Web checkout / frontend
+   */
+  origin: z
+    .object({
+      type: z.enum(["AGENT_RUNTIME", "USER_VOICE", "USER_UI"]),
+      agentId: z.string().optional(),
+      taskId: z.string().optional(),
+      commandId: z.string().optional(),
+    })
+    .optional(),
+
   status: IntentStatusSchema.default("PENDING"),
 
   reason: z.string().optional(),

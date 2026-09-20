@@ -27,6 +27,8 @@ export const ContractSchema = z.object({
    */
   parentGrantId: z.string().optional(),
 
+  paymentProfileId: z.string().optional(),
+
   label: z.string().min(1),
 
   budget: z.object({

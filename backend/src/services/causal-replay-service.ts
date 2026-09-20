@@ -16,7 +16,10 @@ export type CausalReplayNodeType =
   | "AGENT"
   | "DELEGATION"
   | "MANDATE"
-  | "HUMAN_INTENT";
+  | "HUMAN_INTENT"
+  | "COMMAND"
+  | "TASK"
+  | "PAYMENT_PROFILE";
 
 export type CausalReplayEdgeType =
   | "CAUSED_BY"
@@ -28,7 +31,10 @@ export type CausalReplayEdgeType =
   | "RESERVED_AGAINST"
   | "EXECUTED_BY"
   | "CONFIRMED_BY"
-  | "ORIGINATED_FROM";
+  | "ORIGINATED_FROM"
+  | "COMMANDED_BY"
+  | "ASSIGNED_TO"
+  | "FUNDED_BY";
 
 export interface CausalReplayNode {
   id: string;
@@ -77,6 +83,9 @@ export interface CausalReplay {
     delegation?: string[];
     mandate?: string;
     humanIntent?: string;
+    command?: string;
+    task?: string;
+    paymentProfile?: string;
   };
 
   reconstructedAt: string;
@@ -450,6 +459,11 @@ export class CausalReplayService {
         description:
           intent.description ?? null,
         status: intent.status,
+        /*
+         * Persisted provenance — set server-side by the route handler,
+         * never supplied by the agent itself.
+         */
+        origin: (intent as any).origin ?? null,
       },
     });
 
@@ -458,6 +472,63 @@ export class CausalReplayService {
       to: intentNodeId,
       type: "INITIATED_BY",
     });
+
+    /*
+     * 11.1. Provenance chain — COMMAND and TASK nodes.
+     *
+     * Only constructed when the persisted origin contains the
+     * relevant identifiers. No synthetic nodes are inserted.
+     */
+    const origin = (intent as any).origin as {
+      type: string;
+      agentId?: string;
+      taskId?: string;
+      commandId?: string;
+    } | null | undefined;
+
+    let commandNodeId: string | undefined;
+    let taskNodeId: string | undefined;
+
+    if (origin?.commandId) {
+      commandNodeId = `command:${origin.commandId}`;
+      nodes.push({
+        id: commandNodeId,
+        type: "COMMAND",
+        label: origin.commandId,
+        data: {
+          commandId: origin.commandId,
+          originType: origin.type,
+        },
+      });
+    }
+
+    if (origin?.taskId) {
+      taskNodeId = `task:${origin.taskId}`;
+      nodes.push({
+        id: taskNodeId,
+        type: "TASK",
+        label: origin.taskId,
+        data: {
+          taskId: origin.taskId,
+          agentId: origin.agentId ?? null,
+        },
+      });
+    }
+
+    /*
+     * Connect the provenance chain:
+     *   COMMAND → TASK → AGENT
+     *   COMMAND → AGENT  (no task)
+     * Only the nodes that actually exist are connected.
+     */
+    if (commandNodeId && taskNodeId) {
+      edges.push({ from: taskNodeId, to: commandNodeId, type: "COMMANDED_BY" });
+      edges.push({ from: intentNodeId, to: taskNodeId, type: "ASSIGNED_TO" });
+    } else if (commandNodeId) {
+      edges.push({ from: intentNodeId, to: commandNodeId, type: "COMMANDED_BY" });
+    } else if (taskNodeId) {
+      edges.push({ from: intentNodeId, to: taskNodeId, type: "ASSIGNED_TO" });
+    }
 
     /*
      * 12. Provider / execution evidence.
@@ -566,7 +637,48 @@ export class CausalReplayService {
     }
 
     /*
-     * 13. Reservation evidence.
+     * 13. Payment Profile side branch — P0.12.
+     *
+     * The profile is execution context, not an authority node.
+     * It is attached to the root mandate via a FUNDED_BY edge,
+     * forming a side branch that does not interrupt the authority chain.
+     */
+    let paymentProfileNodeId: string | undefined;
+
+    if (rootGrant?.paymentProfileId) {
+      const { paymentProfileRepository } = await import("../store/payment-profile-repository.js");
+      const profile = await paymentProfileRepository.getProfile(
+        userId,
+        rootGrant.paymentProfileId
+      );
+
+      if (profile) {
+        paymentProfileNodeId = `payment-profile:${profile.paymentProfileId}`;
+        nodes.push({
+          id: paymentProfileNodeId,
+          type: "PAYMENT_PROFILE",
+          label: profile.displayName,
+          status: profile.status,
+          data: {
+            paymentProfileId: profile.paymentProfileId,
+            provider: profile.provider,
+            environment: profile.environment,
+            connectionMode: profile.connectionMode,
+            status: profile.status,
+            displayName: profile.displayName,
+          },
+        });
+
+        edges.push({
+          from: `mandate:${rootGrant.grantId}`,
+          to: paymentProfileNodeId,
+          type: "FUNDED_BY",
+        });
+      }
+    }
+
+    /*
+     * 14. Reservation evidence.
      */
     if (decision.reserved) {
       edges.push({
@@ -650,6 +762,9 @@ export class CausalReplayService {
           ? `mandate:${rootGrant.grantId}`
           : undefined,
         humanIntent: humanIntentId,
+        command: commandNodeId,
+        task: taskNodeId,
+        paymentProfile: paymentProfileNodeId,
       },
 
       reconstructedAt:

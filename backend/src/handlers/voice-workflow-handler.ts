@@ -156,7 +156,8 @@ async function executeStartAgent(
 async function executeCreateOrder(
   action: Extract<VoiceAction, { type: "CREATE_ORDER" }>,
   userId: string,
-  outputs: OutputMap
+  outputs: OutputMap,
+  workflow: VoiceWorkflow
 ): Promise<Record<string, unknown>> {
   const { merchant, category, items, estimatedAmount, agentActionId } = action.params;
 
@@ -209,6 +210,10 @@ async function executeCreateOrder(
     items: structuredItems,
     idempotencyKey: `voice-order-${randomUUID().slice(0, 8)}`,
     evidence: { sourceProtocol: "VOICE_COMMAND" },
+    origin: {
+      type: "USER_VOICE",
+      commandId: workflow.commandId,
+    },
   });
 
   return {
@@ -291,7 +296,7 @@ export async function executeVoiceWorkflowHandler(
         case "CREATE_MANDATE":   output = await executeCreateMandate(action, userId); break;
         case "CREATE_DELEGATION": output = await executeCreateDelegation(action, userId, outputs); break;
         case "START_AGENT":      output = await executeStartAgent(action, outputs); break;
-        case "CREATE_ORDER":     output = await executeCreateOrder(action, userId, outputs); break;
+        case "CREATE_ORDER":     output = await executeCreateOrder(action, userId, outputs, workflow); break;
         default: throw new Error(`Unknown action type: ${(action as VoiceAction).type}`);
       }
 

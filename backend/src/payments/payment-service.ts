@@ -33,6 +33,7 @@ import { TABLE_NAME } from "../store/table.js";
 import { intentRepository } from "../store/intent-repository.js";
 import { reservationRepository } from "../store/reservation-repository.js";
 import { getRazorpayAdapter } from "./razorpay-adapter.js";
+import { paymentProfileResolutionService } from "../services/payment-profile-resolution-service.js";
 import type {
   IPaymentService,
   PaymentRecord,
@@ -129,6 +130,20 @@ export class PaymentService implements IPaymentService {
     let razorpayOrderId: string;
 
     try {
+      // 4.1 Resolve the Payment Profile securely
+      const profile = await paymentProfileResolutionService.resolvePaymentProfileForGrant(
+        intent.grantId,
+        intent.userId
+      );
+
+      console.log(
+        `[PaymentService] Executing intent ${intentId} with context: ` +
+          `paymentProfileId=${profile.paymentProfileId}, ` +
+          `provider=${profile.provider}, ` +
+          `environment=${profile.environment}, ` +
+          `connectionMode=${profile.connectionMode}`
+      );
+
       const order = await adapter.createPayment({
         intentId,
         amount: intent.amount,

@@ -7,6 +7,7 @@ import { paymentService } from "./payments/payment-service.js";
 import { WebhookService } from "./payments/webhook-service.js";
 import { grantRepository } from "./store/grant-repository.js";
 import { intentRepository } from "./store/intent-repository.js";
+import { paymentProfileRepository } from "./store/payment-profile-repository.js";
 
 // Load env vars
 import { config } from "dotenv";
@@ -20,6 +21,21 @@ describe("End-to-End Production Lifecycle", () => {
     
     console.log("--------------------------------------------------");
     console.log("1. Creating AP2 Mandate");
+    
+    const paymentProfileId = `pp_${randomUUID()}`;
+    await paymentProfileRepository.createProfile({
+      paymentProfileId,
+      userId,
+      provider: "RAZORPAY",
+      environment: "TEST",
+      methodType: "CARD",
+      displayName: "Visa •••• 1111",
+      connectionMode: "SIMULATED",
+      status: "ACTIVE",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
     const mandate = {
       mandate_id: `ap2_${randomUUID()}`,
       agent_id: "test-agent",
@@ -41,6 +57,7 @@ describe("End-to-End Production Lifecycle", () => {
     console.log("AP2 mandate response:", JSON.stringify(mandate, null, 2));
 
     const grantInput = ap2Adapter.normalizeMandate(mandate, "E2E Test Mandate");
+    grantInput.paymentProfileId = paymentProfileId;
     const grant = await grantService.createGrant(grantInput);
     
     console.log("Grant ID:", grant.grantId);

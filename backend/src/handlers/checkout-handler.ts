@@ -306,6 +306,7 @@ export async function createOrderHandler(
       },
       ...(description ? { description } : {}),
       idempotencyKey: checkoutIdempotencyKey,
+      origin: { type: "USER_UI" as const },
     };
 
     console.log(
@@ -414,6 +415,16 @@ export async function createOrderHandler(
     const payment = await paymentService.execute(
       intentResult.intent.intentId
     );
+
+    if (!payment.success) {
+      console.error(`[CheckoutHandler] Execution failed for intent ${intentResult.intent.intentId}:`, payment.error);
+      const isBusinessError = payment.error?.includes("Payment profile") || payment.error?.includes("disabled");
+      res.status(isBusinessError ? 400 : 500).json({
+        success: false,
+        error: payment.error || "Payment execution failed",
+      });
+      return;
+    }
 
     // ------------------------------------------------------------
     // 12. Return a FLAT response
@@ -566,6 +577,13 @@ export function getCheckoutConfigHandler(
       }
     
     const payment = await paymentService.execute(intentId);
+    
+    if (!payment.success) {
+      const isBusinessError = payment.error?.includes("Payment profile") || payment.error?.includes("disabled");
+      res.status(isBusinessError ? 400 : 500).json({ success: false, error: payment.error || "Payment execution failed" });
+      return;
+    }
+
     res.status(200).json({ success: true, order_id: payment.razorpayOrderId });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
