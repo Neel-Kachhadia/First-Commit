@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { ScanCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import { ScanCommand, BatchWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { dynamo } from "../store/dynamodb.js";
 import { TABLE_NAME } from "../store/table.js";
 import { paymentProfileRepository } from "../store/payment-profile-repository.js";
@@ -12,11 +12,28 @@ import { reservationRepository } from "../store/reservation-repository.js";
 import { receiptService } from "../services/receipt-service.js";
 import { applyTransition } from "../engine/intent-state-machine.js";
 
-// Real Cognito sub for bhandariarnav06@gmail.com
-const DEMO_USER = "a1f3edba-9001-7015-b00f-64cd2f3f49e5";
+// Real Cognito sub for bhandariarnav06@gmail.com (or override via DEMO_USER_ID env)
+const DEMO_USER = process.env.DEMO_USER_ID || process.env.DEMO_USER || "a1f3edba-9001-7015-b00f-64cd2f3f49e5";
 
-async function clearDemoState() {
-  console.log(`\nClearing existing state for ${DEMO_USER}...`);
+async function batchDeleteWithRetry(tableName: string, deleteRequests: any[]) {
+  let toDelete = deleteRequests;
+  while (toDelete.length > 0) {
+    const res = await dynamo.send(
+      new BatchWriteCommand({
+        RequestItems: {
+          [tableName]: toDelete,
+        },
+      })
+    );
+    const unprocessed = res.UnprocessedItems?.[tableName] || [];
+    if (unprocessed.length === 0) break;
+    toDelete = unprocessed;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+async function clearAllState() {
+  console.log(`\nClearing all records in table ${TABLE_NAME}...`);
   let lastEvaluatedKey: any = undefined;
   let deletedCount = 0;
 
@@ -24,36 +41,36 @@ async function clearDemoState() {
     const scanResult = await dynamo.send(
       new ScanCommand({
         TableName: TABLE_NAME,
+        ProjectionExpression: "PK, SK",
         ExclusiveStartKey: lastEvaluatedKey,
       })
     );
 
     const items = scanResult.Items || [];
-    for (const item of items) {
-      // Find items belonging to the demo user. They either have userId set,
-      // or the PK/SK contains the user ID (e.g., USER#u_frontend_demo).
-      if (
-        item.userId === DEMO_USER ||
-        (item.PK && item.PK.includes(DEMO_USER)) ||
-        (item.SK && item.SK.includes(DEMO_USER))
-      ) {
-        await dynamo.send(
-          new DeleteCommand({
-            TableName: TABLE_NAME,
+    for (let i = 0; i < items.length; i += 25) {
+      const chunk = items.slice(i, i + 25);
+      const deleteRequests = chunk
+        .filter((item) => item.PK && item.SK)
+        .map((item) => ({
+          DeleteRequest: {
             Key: {
               PK: item.PK,
               SK: item.SK,
             },
-          })
-        );
-        deletedCount++;
+          },
+        }));
+
+      if (deleteRequests.length > 0) {
+        await batchDeleteWithRetry(TABLE_NAME, deleteRequests);
+        deletedCount += deleteRequests.length;
+        process.stdout.write(`Deleted ${deletedCount} records...\r`);
       }
     }
 
     lastEvaluatedKey = scanResult.LastEvaluatedKey;
   } while (lastEvaluatedKey);
 
-  console.log(`✓ Deleted ${deletedCount} records for ${DEMO_USER}.`);
+  console.log(`\n✓ Successfully deleted ${deletedCount} records from ${TABLE_NAME}.`);
 }
 
 async function seedDemoData() {
@@ -226,7 +243,16 @@ async function seedDemoData() {
 
 async function main() {
   try {
-    await clearDemoState();
+    const args = process.argv.slice(2);
+    const cleanOnly = args.includes("--clean-only") || args.includes("--clear-only");
+
+    await clearAllState();
+
+    if (cleanOnly) {
+      console.log("\n✓ Table cleared completely. Exiting without seeding demo data (--clean-only).");
+      process.exit(0);
+    }
+
     await seedDemoData();
     process.exit(0);
   } catch (err) {
