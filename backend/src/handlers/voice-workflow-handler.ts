@@ -51,6 +51,9 @@ async function executeCreateMandate(
   userId: string
 ): Promise<Record<string, unknown>> {
   const { label, category, monthlyLimit, perTransactionCap, merchants, purpose, window, blockedCategories, blockedItems } = action.params;
+  if (monthlyLimit == null || perTransactionCap == null) {
+    throw new Error("Cannot execute CREATE_MANDATE: monthlyLimit and perTransactionCap are required.");
+  }
   const categoryCode = category.toUpperCase().replace(/ & /g, "_").replace(/ \/ /g, "_").replace(/ /g, "_");
   const now = new Date().toISOString();
 
@@ -83,6 +86,9 @@ async function executeCreateDelegation(
   outputs: OutputMap
 ): Promise<Record<string, unknown>> {
   const { label, capacity, parentActionId } = action.params;
+  if (capacity == null) {
+    throw new Error("Cannot execute CREATE_DELEGATION: capacity is required.");
+  }
   let parentGrantId = outputs.get(parentActionId)?.grantId as string | undefined;
 
   // Fallback: look for any grantId produced so far
@@ -160,6 +166,9 @@ async function executeCreateOrder(
   workflow: VoiceWorkflow
 ): Promise<Record<string, unknown>> {
   const { merchant, category, items, estimatedAmount, agentActionId } = action.params;
+  if (estimatedAmount == null || estimatedAmount <= 0) {
+    throw new Error("Cannot execute CREATE_ORDER: estimatedAmount is required.");
+  }
 
   // Resolve grantId: check direct output first
   let grantId: string | undefined;

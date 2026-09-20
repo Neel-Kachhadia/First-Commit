@@ -16,8 +16,8 @@ export interface StructuredOrderItem {
 export interface CreateMandateParams {
   label: string;
   category: string;
-  monthlyLimit: number;
-  perTransactionCap: number;
+  monthlyLimit: number | null;
+  perTransactionCap: number | null;
   merchants: string[];
   purpose: string;
   window?: "MONTHLY" | "WEEKLY" | "DAILY";
@@ -27,7 +27,7 @@ export interface CreateMandateParams {
 
 export interface CreateDelegationParams {
   label: string;
-  capacity: number;
+  capacity: number | null;
   parentActionId: string;
 }
 
@@ -39,7 +39,7 @@ export interface CreateOrderParams {
   merchant: string;
   category: string;
   items: Array<string | StructuredOrderItem>;
-  estimatedAmount: number;
+  estimatedAmount: number | null;
   agentActionId: string;
 }
 

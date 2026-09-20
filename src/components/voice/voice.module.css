@@ -6,7 +6,7 @@
   width: 100vw;
   height: 100vh;
   height: 100dvh;
-  z-index: 99999;
+  z-index: 10000;
   display: flex;
   flex-direction: column;
   background: var(--background);
@@ -529,6 +529,137 @@
   color: var(--destructive);
   margin-bottom: 20px;
   line-height: 1.5;
+}
+
+/* ─── Missing fields card & inline inputs ─────────────────────────────────── */
+
+.missingCard {
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--stepup, #d97706) 40%, var(--border));
+  border-left: 4px solid var(--stepup, #d97706);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--stepup, #d97706) 6%, var(--card));
+  margin-bottom: 20px;
+}
+
+.missingCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.missingTitleGroup {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.missingIcon {
+  color: var(--stepup, #d97706);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.missingTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.missingSub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  line-height: 1.4;
+}
+
+.missingTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.missingPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--stepup, #d97706) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--stepup, #d97706) 30%, transparent);
+  font: 600 11px var(--font-mono), monospace;
+  color: var(--stepup, #d97706);
+}
+
+.cardMissingInputs {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--background) 70%, var(--card));
+  border: 1px dashed color-mix(in srgb, var(--stepup, #d97706) 50%, var(--border));
+}
+
+.missingInputsNotice {
+  font: 600 11px var(--font-mono), monospace;
+  color: var(--stepup, #d97706);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.inputsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.inputField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inputLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currencyPrefix {
+  position: absolute;
+  left: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.numberInput {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px 0 24px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  font-family: var(--font-mono), monospace;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.numberInput:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
 }
 
 /* ─── Review footer ──────────────────────────────────────────────────────── */

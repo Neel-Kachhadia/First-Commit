@@ -281,7 +281,11 @@ export function VoiceCaptureSheet({ onClose }: VoiceCaptureSheetProps) {
           <WorkflowReview
             workflow={workflow}
             transcript={transcript}
-            onAuthorize={authorize}
+            onAuthorize={(confirmedIds, updatedWf) => authorize(confirmedIds, updatedWf)}
+            onRecordAgain={() => {
+              reset();
+              startRecording();
+            }}
             onCancel={() => { reset(); }}
           />
         )}

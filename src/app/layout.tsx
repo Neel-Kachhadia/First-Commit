@@ -50,8 +50,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
         />
         <AuthProvider>
-          <CustomCursor />
           {children}
+          <CustomCursor />
         </AuthProvider>
       </body>
     </html>

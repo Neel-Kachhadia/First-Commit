@@ -156,8 +156,9 @@ export function AuthPage() {
     setIsSubmitting(true);
     try {
       await confirm(pendingEmail, code);
-      // Onboarding continues through a visual preview; no card is linked or saved.
-      router.push("/card-preview");
+      setBannerSuccess("Email verified! Please sign in.");
+      setStep("form");
+      setTab("login");
     } catch (err) {
       setBannerError(
         err instanceof Error ? err.message : "Verification failed."
@@ -165,7 +166,7 @@ export function AuthPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [otp, pendingEmail, confirm, router]);
+  }, [otp, pendingEmail, confirm]);
 
   const handleResendCode = useCallback(async () => {
     setBannerError("");

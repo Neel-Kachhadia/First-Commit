@@ -61,6 +61,7 @@ async function seedDemoData() {
 
   // 1. Payment Profile
   const profileId = "PAYPROF-DEMO";
+  const now = new Date().toISOString();
   await paymentProfileRepository.createProfile({
     userId: DEMO_USER,
     paymentProfileId: profileId,
@@ -69,6 +70,9 @@ async function seedDemoData() {
     methodType: "CARD",
     displayName: "Visa •••• 1111",
     status: "ACTIVE",
+    connectionMode: "SIMULATED",
+    createdAt: now,
+    updatedAt: now,
   });
   console.log(`✓ Created Payment Profile: ${profileId}`);
 
