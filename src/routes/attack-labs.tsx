@@ -123,7 +123,20 @@ export default function AttackLabsPage() {
         </section>
       </div>
 
-      <footer className={styles.footer}><strong>Coverage note</strong><p>One-time step-up and concurrent reservation are described in the security brief but have no dedicated scenario endpoint yet. This page does not claim they were tested.</p></footer>
+      <footer className={styles.footer}>
+        <div className={styles.disclosure}>
+          <strong>AUTHORIZED SECURITY TEST</strong>
+          <p>
+            These scenarios operate only against KavachPay-controlled, synthetic state and
+            provider-authorized sandbox systems. Each run is isolated to a temporary namespace
+            (attack_lab_&lt;runId&gt;) that is created and deleted within a single request.
+            No real customer account, merchant system, banking system, or production payment
+            rail is being accessed or attacked. The Command Center reflects real demo state
+            only; scenario grants and intents are never stored under the dashboard user.
+          </p>
+        </div>
+        <p className={styles.coverageNote}>One-time step-up and concurrent reservation are described in the security brief but have no dedicated scenario endpoint yet. This page does not claim they were tested.</p>
+      </footer>
     </div>
   );
 }

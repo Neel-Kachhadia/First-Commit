@@ -66,11 +66,16 @@
 .raw { min-width: 0; max-width: 100%; margin-top: 23px; border-top: 1px solid var(--border); padding-top: 16px; }
 .raw summary { color: var(--primary); font-size: 14px; font-weight: 600; cursor: pointer; }
 .raw pre { box-sizing: border-box; width: 100%; max-width: 100%; max-height: 270px; overflow: auto; margin: 12px 0 0; padding: 14px; background: var(--muted); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
-.footer { display: flex; gap: 14px; margin-top: 29px; padding: 18px 0; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 14px; line-height: 1.45; }
+.footer { display: flex; flex-direction: column; gap: 14px; margin-top: 29px; padding: 18px 0; border-top: 1px solid var(--border); color: var(--muted-foreground); font-size: 14px; line-height: 1.45; }
 .footer strong { flex: none; color: var(--foreground); }
 .footer p { margin: 0; }
+.disclosure { padding: 16px 20px; border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--primary) 5%, transparent); }
+.disclosure strong { display: block; margin-bottom: 7px; font: 700 11px var(--font-mono), monospace; letter-spacing: .1em; color: var(--primary); }
+.disclosure p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--muted-foreground); }
+.coverageNote { margin: 0; font-size: 13px; }
 .spinner { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 1050px) { .workspace { grid-template-columns: 1fr; } .dossier { position: static; } }
 @media (max-width: 650px) { .header { display: block; padding-top: 0; } .header h1 { font-size: 40px; } .runAll { width: 100%; margin-top: 22px; } .summary { gap: 15px; flex-wrap: wrap; } .summaryNote { flex-basis: 100%; margin: 0; text-align: left; } .indexHeader { padding: 16px; } .selectScenario { gap: 9px; padding-left: 14px; } .rowStatus { font-size: 10px; } .rowArrow { display: none; } .runOne { margin-right: 10px; } .dossier { padding: 18px; } .footer { display: block; } .footer p { margin-top: 5px; } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } .runAll, .scenarioRow { transition: none; } }
+

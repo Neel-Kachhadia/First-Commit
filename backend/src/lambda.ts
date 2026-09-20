@@ -9,7 +9,9 @@ export const handler = async (event: any, context: any) => {
   
   if (!appHandler) {
     const app = createApp();
-    appHandler = serverless(app);
+    appHandler = serverless(app, {
+      binary: ["*/*"],
+    });
   }
   
   return appHandler(event, context);
