@@ -70,6 +70,17 @@ export class GrantService {
     input: CreateGrantInput
   ): Promise<Grant> {
     /*
+     * 0. P0 Guard: Child grant cannot set or replace payment profile.
+     */
+    if (input.parentGrantId && input.paymentProfileId) {
+      throw new Error(
+        "Child grants inherit the payment profile from their root mandate. " +
+        "paymentProfileId cannot be set on delegated grants. " +
+        "A child grant cannot establish or change a payment profile."
+      );
+    }
+
+    /*
      * 1. Validate the parent if this is a delegated grant.
      */
     let parentGrant: Grant | null = null;

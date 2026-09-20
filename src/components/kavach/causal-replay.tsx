@@ -15,7 +15,8 @@ export type CausalReplayNodeType =
   | "AGENT"
   | "DELEGATION"
   | "MANDATE"
-  | "HUMAN_INTENT";
+  | "HUMAN_INTENT"
+  | "PAYMENT_PROFILE";
 
 export type CausalReplayEdgeType =
   | "CAUSED_BY"
@@ -27,7 +28,8 @@ export type CausalReplayEdgeType =
   | "RESERVED_AGAINST"
   | "EXECUTED_BY"
   | "CONFIRMED_BY"
-  | "ORIGINATED_FROM";
+  | "ORIGINATED_FROM"
+  | "FUNDED_BY";
 
 export interface CausalReplayNode {
   id: string;
@@ -72,6 +74,7 @@ export interface CausalReplay {
     delegation?: string[];
     mandate?: string;
     humanIntent?: string;
+    paymentProfile?: string;
   };
   reconstructedAt: string;
 }
@@ -91,6 +94,7 @@ export function CausalReplayPanel({ replay, loading }: { replay: CausalReplay | 
       [...c.delegation].reverse().forEach(d => ids.push(d));
     }
     if (c.mandate) ids.push(c.mandate);
+    if (c.paymentProfile) ids.push(c.paymentProfile);
     if (c.humanIntent) ids.push(c.humanIntent);
     
     return ids;
@@ -319,6 +323,22 @@ function NodeRenderer({ node }: { node: CausalReplayNode }) {
       <div className="border-l-2 border-muted pl-4 py-1">
         <div className="font-bold">ROOT MANDATE</div>
         <div className="text-muted-foreground mt-1">{node.label}</div>
+      </div>
+    );
+  }
+
+  if (node.type === "PAYMENT_PROFILE") {
+    return (
+      <div className="border-l-2 border-primary pl-4 py-1">
+        <div className="font-bold flex items-center gap-2">
+          <span>PAYMENT EXECUTION CONTEXT</span>
+          <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono border border-border">
+            {String(node.data?.environment ?? "TEST")} MODE
+          </span>
+        </div>
+        <div className="text-foreground font-medium mt-1">{node.label}</div>
+        <div className="text-muted-foreground text-xs font-mono mt-0.5">{String(node.data?.paymentProfileId ?? "")}</div>
+        <div className="text-[10px] text-muted-foreground mt-1 font-mono uppercase">SIMULATED · ₹0 REAL FUNDS</div>
       </div>
     );
   }

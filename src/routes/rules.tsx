@@ -16,6 +16,7 @@ import {
   AudioLines,
   LoaderCircle,
   RotateCcw,
+  CreditCard,
   CircleAlert,
 } from "lucide-react";
 import { ApprovalGlyph, MandateGlyph } from "@/components/kavach/icons";
@@ -31,6 +32,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { PageHeader } from "@/components/kavach/primitives";
 import { useKavach } from "@/lib/kavach-store";
 import { CATEGORIES, formatINR, type LedgerStatus } from "@/lib/kavach-data";
@@ -38,6 +46,10 @@ import { cn } from "@/lib/utils";
 import { useVoiceFill } from "@/hooks/use-voice-fill";
 import type { MandateExtraction } from "@/lib/api-client";
 import voiceStyles from "./rules-voice.module.css";
+import {
+  useActivePaymentProfiles,
+} from "@/lib/payment-profiles";
+import type { PaymentProfile } from "@/lib/api-client";
 
 // ─── AI-filled field highlight classes ───────────────────────────────────────
 
@@ -467,13 +479,39 @@ export default function RulesPage() {
     setTested(true);
   };
   const [activating, setActivating] = useState(false);
+
+  // ── Payment Profile (root mandate only) ────────────────────────────────────
+  // Only root mandates bind a payment profile. Child mandates NEVER set this.
+  const { profiles: activeProfiles, isLoading: profilesLoading } = useActivePaymentProfiles();
+  const isRoot = !parentGrantId;
+
+  // Auto-select when exactly one ACTIVE profile exists
+  const [selectedProfileId, setSelectedProfileId] = useState<string | undefined>(undefined);
+  const [profileSelectorOpen, setProfileSelectorOpen] = useState(false);
+  const selectedProfile: PaymentProfile | undefined = (
+    selectedProfileId
+      ? activeProfiles.find((p) => p.paymentProfileId === selectedProfileId)
+      : activeProfiles.length === 1
+        ? activeProfiles[0]
+        : undefined
+  );
+
   const activate = async () => {
+    if (isRoot && !selectedProfile) {
+      toast.error("Payment source required", {
+        description: "Root mandates require an active test payment profile to configure execution context.",
+      });
+      return;
+    }
     setActivating(true);
     try {
       const id = await createAgent({
         name: draft.name.trim(),
         purpose: draft.purpose.trim(),
         parentGrantId,
+        // Only root mandates bind a payment profile.
+        // Child mandates inherit through the authority chain — the backend enforces this.
+        paymentProfileId: isRoot ? selectedProfile?.paymentProfileId : undefined,
         rule: {
           monthlyLimit: Number(draft.limit),
           perTransactionCap: Number(draft.cap),
@@ -504,6 +542,7 @@ export default function RulesPage() {
       setActivating(false);
     }
   };
+
 
   return (
     <div className="mandates-page space-y-7">
@@ -1086,6 +1125,80 @@ export default function RulesPage() {
               </p>
             </div>
             
+            {/* Payment Source — Root mandates only. Child mandates inherit via authority path. */}
+            {isRoot && (
+              <div className="mt-5 rounded-md border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-primary" />
+                    <p className="label-caps">Payment Source</p>
+                  </div>
+                  {activeProfiles.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProfileSelectorOpen(true)}
+                    >
+                      Change
+                    </Button>
+                  )}
+                </div>
+
+                {selectedProfile ? (
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm">{selectedProfile.displayName}</span>
+                      <span className="rounded-full border border-success/30 bg-success/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-success uppercase">
+                        ● ACTIVE
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold tracking-wider uppercase text-foreground">
+                        {selectedProfile.provider} · {selectedProfile.environment} MODE
+                      </span>
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                        {selectedProfile.paymentProfileId}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        SIMULATED · ₹0 REAL FUNDS
+                      </span>
+                    </div>
+                  </div>
+                ) : profilesLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading test payment profiles…</p>
+                ) : activeProfiles.length === 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-destructive">
+                      No active test payment profile found. A payment source is required for provider-executable root mandates.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push("/payment-methods")}
+                    >
+                      Set up test payment method
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Multiple active test profiles available. Select which execution context to bind.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setProfileSelectorOpen(true)}
+                    >
+                      Select payment method
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            
             {parentAgent && (
               <div className="mt-5 rounded-md border border-border bg-muted/20 p-4">
                 <p className="label-caps mb-3">Authority Derivation</p>
@@ -1110,6 +1223,9 @@ export default function RulesPage() {
                       ✕ Child authority exceeds parent authority. Please reduce the limit before activating.
                     </p>
                   )}
+                  <p className="text-xs text-muted-foreground pt-1 border-t border-border">
+                    ℹ Child mandates inherit payment execution context from root. No payment source selection is permitted.
+                  </p>
                 </div>
               </div>
             )}
@@ -1118,13 +1234,58 @@ export default function RulesPage() {
               <Button variant="outline" onClick={() => setStep(2)}>
                 <ArrowLeft className="h-4 w-4" /> Back to test
               </Button>
-              <Button onClick={activate} disabled={activating || (!!parentAgent && Number(draft.limit) > remainingFor(parentAgent))}>
+              <Button
+                onClick={activate}
+                disabled={
+                  activating ||
+                  (!!parentAgent && Number(draft.limit) > remainingFor(parentAgent)) ||
+                  (isRoot && !selectedProfile)
+                }
+              >
                 {activating ? "Activating…" : "Activate mandate"} <ApprovalGlyph className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </section>
       ) : null}
+
+      {/* Profile Selector Modal when multiple profiles exist */}
+      <Dialog open={profileSelectorOpen} onOpenChange={setProfileSelectorOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Test Payment Method</DialogTitle>
+            <DialogDescription>
+              Choose which test execution context this root mandate binds to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-3">
+            {activeProfiles.map((p) => (
+              <button
+                key={p.paymentProfileId}
+                type="button"
+                onClick={() => {
+                  setSelectedProfileId(p.paymentProfileId);
+                  setProfileSelectorOpen(false);
+                }}
+                className={cn(
+                  "w-full text-left rounded-md border p-3 text-xs transition-colors flex items-center justify-between cursor-pointer",
+                  selectedProfile?.paymentProfileId === p.paymentProfileId
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-border hover:bg-muted/50"
+                )}
+              >
+                <div>
+                  <p className="font-semibold text-sm">{p.displayName}</p>
+                  <p className="font-mono text-[10px] text-muted-foreground">{p.paymentProfileId}</p>
+                </div>
+                <span className="rounded-full border border-success/30 bg-success/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-success uppercase">
+                  ACTIVE
+                </span>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

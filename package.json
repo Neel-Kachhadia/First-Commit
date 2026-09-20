@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:visual": "playwright test",
+    "demo:reset": "npm run demo:reset --prefix backend",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev --prefix backend\""
   },
   "dependencies": {

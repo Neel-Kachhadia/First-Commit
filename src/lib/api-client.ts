@@ -47,6 +47,32 @@ export interface CreateGrantPayload {
   parentGrantId?: string;
   blockedCategories?: string[];
   blockedItems?: string[];
+  /**
+   * Only set on ROOT mandate creation. Child grants must NOT include this field.
+   * The backend enforces this invariant server-side.
+   */
+  paymentProfileId?: string;
+}
+
+/** Mirrors backend PaymentProfile model exactly. */
+export interface PaymentProfile {
+  paymentProfileId: string;
+  userId: string;
+  provider: "RAZORPAY";
+  environment: "TEST";
+  methodType: "CARD";
+  displayName: string;
+  status: "ACTIVE" | "DISABLED";
+  connectionMode: "SIMULATED" | "PROVIDER_CONNECTED";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePaymentProfilePayload {
+  provider: "RAZORPAY";
+  environment: "TEST";
+  methodType: "CARD";
+  displayName: string;
 }
 
 export interface Category {
@@ -396,6 +422,65 @@ export const apiClient = {
       throw new Error(json?.error ?? "Workflow execution failed");
     }
     return json;
+  },
+
+  // ── Payment Profiles ──────────────────────────────────────────────────────
+
+  /**
+   * POST /v0/payment-profiles
+   * Creates a simulated Razorpay TEST payment profile.
+   * No real card credentials are collected or stored.
+   */
+  createPaymentProfile: async (payload: CreatePaymentProfilePayload): Promise<PaymentProfile> => {
+    const res = await fetch(`${API_BASE_URL}/v0/payment-profiles`, {
+      method: "POST",
+      headers: await authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Failed to create payment profile" }));
+      throw new Error(err.error ?? `Failed to create payment profile (${res.status})`);
+    }
+    return res.json();
+  },
+
+  /**
+   * GET /v0/payment-profiles
+   * Returns all payment profiles for the authenticated user.
+   */
+  getPaymentProfiles: async (): Promise<PaymentProfile[]> => {
+    const res = await fetch(`${API_BASE_URL}/v0/payment-profiles`, {
+      headers: await authHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to fetch payment profiles");
+    const data = await res.json();
+    // Backend returns an array directly
+    return Array.isArray(data) ? data : (data.profiles ?? []);
+  },
+
+  /**
+   * GET /v0/payment-profiles/:id
+   * Returns a single payment profile by ID.
+   */
+  getPaymentProfile: async (id: string): Promise<PaymentProfile> => {
+    const res = await fetch(`${API_BASE_URL}/v0/payment-profiles/${encodeURIComponent(id)}`, {
+      headers: await authHeaders(),
+    });
+    if (!res.ok) throw new Error(`Failed to fetch payment profile ${id}`);
+    return res.json();
+  },
+
+  /**
+   * POST /v0/payment-profiles/:id/disable
+   * Disables a payment profile. Disabled profiles cannot be used for new root mandates.
+   */
+  disablePaymentProfile: async (id: string): Promise<PaymentProfile> => {
+    const res = await fetch(`${API_BASE_URL}/v0/payment-profiles/${encodeURIComponent(id)}/disable`, {
+      method: "POST",
+      headers: await authHeaders({ "Content-Type": "application/json" }),
+    });
+    if (!res.ok) throw new Error(`Failed to disable payment profile ${id}`);
+    return res.json();
   },
 
   getCausalReplay: async (intentId: string) => {
