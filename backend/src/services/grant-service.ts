@@ -14,6 +14,7 @@ import {
 import {
   auditRepository,
 } from "../store/audit-repository.js";
+import { stopAllRepository } from "../store/stop-all-repository.js";
 
 export interface CreateGrantInput {
   userId: string;
@@ -526,6 +527,72 @@ export class GrantService {
     }
 
     return revokedGrant;
+  }
+
+  async restoreGrant(
+    userId: string,
+    grantId: string
+  ): Promise<Grant> {
+    const grant = await grantRepository.getGrant(userId, grantId);
+    if (!grant) throw new Error(`Grant ${grantId} was not found.`);
+    if (grant.status !== "REVOKED") {
+      throw new Error(`Grant ${grantId} is not revoked.`);
+    }
+    if (grant.expiresAt && Date.now() >= new Date(grant.expiresAt).getTime()) {
+      throw new Error("An expired grant cannot be restored.");
+    }
+
+    const seen = new Set<string>([grantId]);
+    let parentId = grant.parentGrantId;
+    while (parentId) {
+      if (seen.has(parentId)) throw new Error("Grant lineage contains a cycle.");
+      seen.add(parentId);
+      const parent = await grantRepository.getGrant(userId, parentId);
+      if (!parent || parent.status !== "ACTIVE" ||
+          (parent.expiresAt && Date.now() >= new Date(parent.expiresAt).getTime())) {
+        throw new Error("Restore the active parent mandate first.");
+      }
+      parentId = parent.parentGrantId;
+    }
+
+    await grantRepository.restoreGrant(userId, grantId);
+    try {
+      await auditRepository.logEvent(userId, "GRANT_RESTORED", { grantId }, userId);
+    } catch (error) {
+      console.error("Failed to record grant restoration audit event:", error);
+    }
+    const restored = await grantRepository.getGrant(userId, grantId);
+    if (!restored) throw new Error(`Grant ${grantId} could not be loaded after restoration.`);
+    return restored;
+  }
+
+  async getStopAllStatus(userId: string): Promise<{ stopped: boolean; count: number }> {
+    const state = await stopAllRepository.getState(userId);
+    return { stopped: Boolean(state), count: state?.grantIds.length ?? 0 };
+  }
+
+  async stopAllGrants(userId: string): Promise<number> {
+    const count = await stopAllRepository.stop(userId);
+    if (count) {
+      try {
+        await auditRepository.logEvent(userId, "AUTHORITY_STOPPED", { count }, userId);
+      } catch (error) {
+        console.error("Failed to record stop-all audit event:", error);
+      }
+    }
+    return count;
+  }
+
+  async restoreAllGrants(userId: string): Promise<{ restored: number; skipped: number }> {
+    const result = await stopAllRepository.restore(userId);
+    if (result.restored || result.skipped) {
+      try {
+        await auditRepository.logEvent(userId, "AUTHORITY_RESTORED", result, userId);
+      } catch (error) {
+        console.error("Failed to record restore-all audit event:", error);
+      }
+    }
+    return result;
   }
 
   async listUserGrants(userId: string): Promise<Grant[]> {

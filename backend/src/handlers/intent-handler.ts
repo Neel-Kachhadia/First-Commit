@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { IntentService } from "../services/intent-service.js";
+import { intentRepository } from "../store/intent-repository.js";
 
 const intentService = new IntentService();
 
@@ -52,6 +53,14 @@ export async function approveIntentHandler(
       return;
     }
 
+    // Ownership check — only the intent owner may approve.
+    const userId = req.user!.sub;
+    const existingIntent = await intentRepository.getIntent(intentId);
+    if (!existingIntent || existingIntent.userId !== userId) {
+      res.status(404).json({ success: false, error: "Intent not found." });
+      return;
+    }
+
     const result = await intentService.approveIntent(intentId);
 
     const statusCode =
@@ -101,6 +110,14 @@ export async function denyIntentHandler(
         success: false,
         error: "Intent ID is required.",
       });
+      return;
+    }
+
+    // Ownership check — only the intent owner may deny.
+    const userId = req.user!.sub;
+    const existingIntent = await intentRepository.getIntent(intentId);
+    if (!existingIntent || existingIntent.userId !== userId) {
+      res.status(404).json({ success: false, error: "Intent not found." });
       return;
     }
 

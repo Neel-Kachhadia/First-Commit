@@ -57,6 +57,10 @@ export async function cognitoAuthMiddleware(
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  if (req.method === "OPTIONS") {
+    return next();
+  }
+
   const authConfig = getAuthConfig();
   if (!authConfig) {
     res.status(401).json({

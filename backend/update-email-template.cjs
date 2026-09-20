@@ -38,7 +38,7 @@ async function run() {
 
   console.log(`📦 Found pool "${pool.Name}". Updating email verification template...`);
 
-  const subject = "🛡️ KavachPay — Your verification code is {####}";
+  const subject = "KavachPay - Your verification code is {####}";
 
   await client.send(
     new UpdateUserPoolCommand({

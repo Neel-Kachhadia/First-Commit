@@ -7,7 +7,9 @@ import { toast } from "sonner";
 import {
   ArrowLeft,
   ArrowRight,
+  CalendarIcon,
   Check,
+  ChevronDown,
   FileCheck2,
   FlaskConical,
   Mic,
@@ -19,6 +21,7 @@ import {
   CreditCard,
   CircleAlert,
 } from "lucide-react";
+import { format, parseISO, isValid } from "date-fns";
 import { ApprovalGlyph, MandateGlyph } from "@/components/kavach/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,12 +35,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/kavach/primitives";
 import { useKavach } from "@/lib/kavach-store";
@@ -58,13 +63,83 @@ const AI_RING =
 const UNRESOLVED_RING =
   "ring-2 ring-amber-400/60 ring-offset-1 transition-shadow";
 
+const MONTH_MAP: Record<string, string> = {
+  jan: "01", january: "01",
+  feb: "02", february: "02",
+  mar: "03", march: "03",
+  apr: "04", april: "04",
+  may: "05",
+  jun: "06", june: "06",
+  jul: "07", july: "07",
+  aug: "08", august: "08",
+  sep: "09", sept: "09", september: "09",
+  oct: "10", october: "10",
+  nov: "11", november: "11",
+  dec: "12", december: "12",
+};
+
+function normalizeDateToIso(raw: string): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  // Check YYYY-MM-DD
+  const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const yyyy = isoMatch[1];
+    const mm = isoMatch[2].padStart(2, "0");
+    const dd = isoMatch[3].padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  // Check DD-MM-YYYY or DD/MM/YYYY
+  const dmyMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (dmyMatch) {
+    const dd = dmyMatch[1].padStart(2, "0");
+    const mm = dmyMatch[2].padStart(2, "0");
+    const yyyy = dmyMatch[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  // Check "21 September 2028" or "21st Sep 2028"
+  const wordMatch1 = trimmed.match(/^(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})/);
+  if (wordMatch1) {
+    const dd = wordMatch1[1].padStart(2, "0");
+    const mm = MONTH_MAP[wordMatch1[2].toLowerCase()];
+    const yyyy = wordMatch1[3];
+    if (mm) return `${yyyy}-${mm}-${dd}`;
+  }
+  // Check "September 21, 2028" or "Sep 21 2028"
+  const wordMatch2 = trimmed.match(/^([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/);
+  if (wordMatch2) {
+    const mm = MONTH_MAP[wordMatch2[1].toLowerCase()];
+    const dd = wordMatch2[2].padStart(2, "0");
+    const yyyy = wordMatch2[3];
+    if (mm) return `${yyyy}-${mm}-${dd}`;
+  }
+  // Fallback: parse date string
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    try {
+      return format(d, "yyyy-MM-dd");
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 function aiClass(
   fieldKey: string,
   aiFilled: Record<string, boolean>,
   unresolvedFields: string[]
 ): string {
   if (aiFilled[fieldKey]) return AI_RING;
-  if (unresolvedFields.includes(fieldKey)) return UNRESOLVED_RING;
+  if (
+    unresolvedFields.includes(fieldKey) ||
+    (fieldKey === "expiresOn" && (unresolvedFields.includes("expiresAt") || unresolvedFields.includes("expiresOn"))) ||
+    (fieldKey === "cap" && unresolvedFields.includes("perTransactionCap")) ||
+    (fieldKey === "limit" && unresolvedFields.includes("monthlyLimit")) ||
+    (fieldKey === "merchants" && unresolvedFields.includes("approvedMerchants"))
+  ) {
+    return UNRESOLVED_RING;
+  }
   return "";
 }
 
@@ -279,6 +354,18 @@ export default function RulesPage() {
   // ── AI-filled tracking ─────────────────────────────────────────────────────
   const [aiFilled, setAiFilled] = useState<Record<string, boolean>>({});
 
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
+    return draft.expiresOn && isValid(parseISO(draft.expiresOn))
+      ? parseISO(draft.expiresOn)
+      : new Date();
+  });
+
+  useEffect(() => {
+    if (draft.expiresOn && isValid(parseISO(draft.expiresOn))) {
+      setCalendarMonth(parseISO(draft.expiresOn));
+    }
+  }, [draft.expiresOn]);
+
   const markAiFilled = useCallback((field: string) => {
     setAiFilled((prev) => ({ ...prev, [field]: true }));
   }, []);
@@ -368,6 +455,16 @@ export default function RulesPage() {
           next.blockedItems = Array.from(new Set(combined)).join(", ");
           markAiFilled("blockedItems");
         }
+        // Apply voice-extracted expiry date to the date picker field.
+        // The NLU returns an ISO string like "2028-09-21". We normalize and
+        // store as "yyyy-MM-dd" which parseISO / format in the picker expect.
+        if (diff.expiresAt) {
+          const normalized = normalizeDateToIso(diff.expiresAt);
+          if (normalized) {
+            next.expiresOn = normalized;
+            markAiFilled("expiresOn");
+          }
+        }
         return next;
       });
 
@@ -380,6 +477,7 @@ export default function RulesPage() {
         diff.approvedMerchants?.length,
         diff.blockedCategories?.length,
         diff.blockedItems?.length,
+        diff.expiresAt,
       ].filter(Boolean).length;
 
       if (filledCount > 0) {
@@ -413,6 +511,7 @@ export default function RulesPage() {
       ...(draft.blockedItems && {
         blockedItems: draft.blockedItems.split(",").map((s) => s.trim()).filter(Boolean),
       }),
+      ...(draft.expiresOn && { expiresAt: draft.expiresOn }),
     },
     onExtracted: handleExtracted,
   });
@@ -707,24 +806,43 @@ export default function RulesPage() {
               )}
             </Field>
             <div className="grid gap-1.5">
-              <Label>Category</Label>
-              <div
-                className={cn(
-                  "flex min-h-[2.25rem] items-center rounded-md border border-border bg-muted/30 px-3 py-1.5",
-                  aiClass("category", aiFilled, voice.unresolvedFields)
-                )}
+              <Label htmlFor="category">Category</Label>
+              <Select
+                value={draft.category}
+                onValueChange={(value) => {
+                  const preset = CATEGORY_PRESETS[value];
+                  setDraft((prev) => ({
+                    ...prev,
+                    category: value,
+                    ...(preset && !aiFilled["purpose"] && !prev.purpose
+                      ? { purpose: preset.purpose }
+                      : {}),
+                    ...(preset && !aiFilled["merchants"] && !prev.merchants
+                      ? { merchants: preset.merchants.join(", ") }
+                      : {}),
+                  }));
+                  clearAiFilled("category");
+                  setTested(false);
+                  setTests([]);
+                }}
               >
-                {draft.category ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-0.5 text-sm font-medium text-primary-foreground">
-                    <Check className="h-3 w-3 shrink-0" />
-                    {draft.category}
-                  </span>
-                ) : (
-                  <span className="text-sm text-muted-foreground/60 italic">
-                    Speak mandate to detect category
-                  </span>
-                )}
-              </div>
+                <SelectTrigger
+                  id="category"
+                  className={cn(
+                    "w-full",
+                    aiClass("category", aiFilled, voice.unresolvedFields)
+                  )}
+                >
+                  <SelectValue placeholder="Select a category…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {aiFilled["category"] && <AiFilledBadge />}
               {voice.unresolvedFields.includes("category") && (
                 <p className="text-xs text-amber-500">
@@ -802,12 +920,50 @@ export default function RulesPage() {
               )}
             </Field>
             <Field label="Expiry" id="expiry" error={errors["expiresOn"]}>
-              <Input
-                id="expiry"
-                type="date"
-                value={draft.expiresOn}
-                onChange={(e) => update("expiresOn", e.target.value)}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    id="expiry"
+                    type="button"
+                    className={cn(
+                      "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs ring-offset-background transition-colors",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      "hover:border-ring/60",
+                      !draft.expiresOn && "text-muted-foreground",
+                      aiClass("expiresOn", aiFilled, voice.unresolvedFields)
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      {draft.expiresOn && isValid(parseISO(draft.expiresOn))
+                        ? format(parseISO(draft.expiresOn), "dd MMM yyyy")
+                        : "Pick a date"}
+                    </span>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    captionLayout="dropdown"
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    selected={draft.expiresOn && isValid(parseISO(draft.expiresOn)) ? parseISO(draft.expiresOn) : undefined}
+                    onSelect={(day: Date | undefined) => {
+                      update("expiresOn", day ? format(day, "yyyy-MM-dd") : "");
+                    }}
+                    disabled={(day: Date) => day < new Date(new Date().setHours(0, 0, 0, 0))}
+                    fromYear={new Date().getFullYear()}
+                    toYear={new Date().getFullYear() + 10}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              {aiFilled["expiresOn"] && <AiFilledBadge />}
+              {(voice.unresolvedFields.includes("expiresAt") ||
+                voice.unresolvedFields.includes("expiresOn")) && (
+                <UnresolvedBadge fieldLabel="expiry date" />
+              )}
             </Field>
             <Field
               label="Approved merchants"

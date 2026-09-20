@@ -672,9 +672,6 @@ function ActivityPageContent({ initialQuery }: { initialQuery: string }) {
                         <p className="mt-0.5 max-w-56 truncate text-xs text-muted-foreground">
                           {entry.description}
                         </p>
-                        <p className="mt-1 font-mono text-[10px] text-muted-foreground">
-                          {entry.id.toUpperCase()}
-                        </p>
                         {entry.execution && (
                           <div className="mt-3 text-[10px] leading-snug">
                             {entry.execution.status === "NOT_INVOKED" ? (

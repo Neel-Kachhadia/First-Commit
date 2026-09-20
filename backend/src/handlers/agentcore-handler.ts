@@ -71,6 +71,7 @@ export async function agentcoreCreatePaymentHandler(
       items,
       description,
       idempotencyKey,
+      category,
     } = req.body;
 
     if (!grantId || !amount || !merchant) {
@@ -102,7 +103,11 @@ export async function agentcoreCreatePaymentHandler(
     );
 
     // ── 4. Create KavachPay Intent with server-derived provenance ──────────
-    const userId = (req as any).user?.sub ?? "u_frontend_demo";
+    const userId =
+      (req as any).user?.sub ??
+      (typeof req.body.userId === "string" && req.body.userId.trim()
+        ? req.body.userId.trim()
+        : "u_frontend_demo");
 
     const intentResult = await intentService.createIntent({
       intentId,
@@ -111,9 +116,11 @@ export async function agentcoreCreatePaymentHandler(
       grantId,
       userId,
       merchant: {
-        merchantId: (merchant.name ?? merchant).toLowerCase().replace(/\s+/g, "_"),
-        name: merchant.name ?? merchant,
-        category: merchant.category ?? "GENERAL",
+        merchantId: (typeof merchant === "object" ? merchant.merchantId ?? merchant.name : merchant)
+          ?.toLowerCase()
+          .replace(/\s+/g, "_") ?? "merchant",
+        name: typeof merchant === "object" ? merchant.name : merchant,
+        category: (typeof merchant === "object" ? merchant.category : category) ?? "GENERAL",
       },
       items,
       description: description ?? "Agent-initiated payment",

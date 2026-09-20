@@ -151,6 +151,8 @@ export interface MandateExtraction {
   approvedMerchants: string[] | null;
   blockedCategories?: string[] | null;
   blockedItems?: string[] | null;
+  /** ISO date string YYYY-MM-DD extracted from voice, e.g. "2028-09-21". Null if not mentioned. */
+  expiresAt?: string | null;
   unresolvedFields: string[];
   ambiguities: string | null;
 }
@@ -164,6 +166,7 @@ export interface MandateFormState {
   approvedMerchants?: string[];
   blockedCategories?: string[];
   blockedItems?: string[];
+  expiresAt?: string;
 }
 
 export interface AuditEvent {
@@ -237,6 +240,34 @@ export const apiClient = {
     return res.json();
   },
 
+  restoreGrant: async (grantId: string) => {
+    const res = await fetch(`${API_BASE_URL}/v0/grants/${grantId}/restore`, {
+      method: "POST",
+      headers: await authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed to restore grant");
+    return res.json();
+  },
+
+  getStopAllStatus: async (): Promise<{ stopped: boolean; count: number }> => {
+    const res = await fetch(`${API_BASE_URL}/v0/grants/stop-all`, { headers: await authHeaders() });
+    if (!res.ok) throw new Error("Failed to load stop status");
+    return res.json();
+  },
+
+  stopAllGrants: async (): Promise<{ stopped: boolean; count: number }> => {
+    const res = await fetch(`${API_BASE_URL}/v0/grants/stop-all`, { method: "POST", headers: await authHeaders() });
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed to stop agents");
+    return res.json();
+  },
+
+  restoreAllGrants: async (): Promise<{ stopped: boolean; restored: number; skipped: number }> => {
+    const res = await fetch(`${API_BASE_URL}/v0/grants/restore-all`, { method: "POST", headers: await authHeaders() });
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed to restore agents");
+    return res.json();
+  },
+
   approveIntent: async (intentId: string) => {
     const res = await fetch(`${API_BASE_URL}/v0/intents/${intentId}/approve`, {
       method: "POST",
@@ -285,7 +316,8 @@ export const apiClient = {
     const res = await fetch(`${API_BASE_URL}/v0/demo/reset`, {
       method: "POST",
       headers: await authHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ userId: DEMO_USER_ID }),
+      // No userId — the backend derives it from req.user.sub (Cognito Bearer token).
+      body: JSON.stringify({}),
     });
     if (!res.ok) throw new Error("Failed to reset demo");
     return res.json();

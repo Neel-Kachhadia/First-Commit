@@ -139,7 +139,6 @@ export async function createOrderHandler(
       amount,
       currency = "INR",
       grantId,
-      userId = "u_demo",
       merchant,
       description,
       idempotencyKey,
@@ -147,12 +146,8 @@ export async function createOrderHandler(
       receipt,
     } = req.body || {};
 
-    // ------------------------------------------------------------
-    // 1. Validate amount
-    //
-    // Checkout API receives paise.
-    // KavachPay IntentService expects rupees.
-    // ------------------------------------------------------------
+    // Derive userId from the verified Cognito JWT — never trust the body.
+    const userId = req.user!.sub;
 
     if (typeof amount !== "number" || !Number.isFinite(amount)) {
       console.log("[createOrderHandler] 400 Bad Request - Invalid amount. Body:", req.body);
@@ -205,20 +200,7 @@ export async function createOrderHandler(
     }
 
     // ------------------------------------------------------------
-    // 3. Validate userId
-    // ------------------------------------------------------------
-
-    if (typeof userId !== "string" || !userId.trim()) {
-      console.log("[createOrderHandler] 400 Bad Request - Invalid userId. Body:", req.body);
-      res.status(400).json({
-        success: false,
-        error: "Invalid userId",
-      });
-      return;
-    }
-
-    // ------------------------------------------------------------
-    // 4. Validate merchant
+    // 3. Validate merchant
     // ------------------------------------------------------------
 
     if (!merchant || typeof merchant !== "object") {
@@ -562,7 +544,10 @@ export function getCheckoutConfigHandler(
 
   export async function executeOrderHandler(req: Request, res: Response): Promise<void> {
     try {
-      const { intentId, userId = "u_demo" } = req.body;
+      const { intentId } = req.body;
+      // Derive userId from the verified Cognito JWT — never trust the body.
+      const userId = req.user!.sub;
+
       if (!intentId) { res.status(400).json({ success: false, error: 'intentId required' }); return; }
       
       const { intentRepository } = await import("../store/intent-repository.js");

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 import {
   AgentGlyph,
@@ -62,6 +63,7 @@ export default function AgentDetail() {
   const agent = getAgent(agentId);
 
   const [confirmRevoke, setConfirmRevoke] = useState(false);
+  const [authorityBusy, setAuthorityBusy] = useState(false);
   const [monthly, setMonthly] = useState("");
   const [perTxn, setPerTxn] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -148,9 +150,9 @@ export default function AgentDetail() {
         </Link>
         <div className="mt-4 grid gap-5 border-b border-border pb-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <div className="min-w-0">
-            <div className="mb-3 flex items-center gap-2 text-[11px] font-medium text-success">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" /> Live
-              mandate
+            <div className={cn("mb-3 flex items-center gap-2 text-[11px] font-medium", agent.status === "revoked" ? "text-destructive" : "text-success")}>
+              <span className={cn("h-1.5 w-1.5 rounded-full", agent.status === "revoked" ? "bg-destructive" : "bg-success")} />
+              {agent.status === "revoked" ? "Revoked mandate" : "Live mandate"}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-md border border-border bg-muted/50 text-primary">
@@ -171,14 +173,20 @@ export default function AgentDetail() {
           <div className="flex flex-wrap gap-2">
             {agent.status === "revoked" ? (
               <Button
-                onClick={() => {
-                  restoreAgent(agent.id);
-                  toast.success("Mandate reinstated", {
-                    description: `${agent.name} can transact again within its rule.`,
-                  });
+                disabled={authorityBusy}
+                onClick={async () => {
+                  setAuthorityBusy(true);
+                  try {
+                    await restoreAgent(agent.id);
+                    toast.success("Authority restored", { description: `${agent.name} can transact within its rule again.` });
+                  } catch (error) {
+                    toast.error("Could not restore authority", { description: error instanceof Error ? error.message : "Please try again." });
+                  } finally {
+                    setAuthorityBusy(false);
+                  }
                 }}
               >
-                Restore authority
+                {authorityBusy ? "Restoring…" : "Restore authority"}
               </Button>
             ) : (
               <Button
@@ -424,24 +432,30 @@ export default function AgentDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke {agent.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              {formatINR(remainingFor(agent))} of remaining authority is
-              withdrawn immediately and any pending approval for this agent is
-              cancelled. You can restore the mandate later.
+              {formatINR(remainingFor(agent))} of remaining authority will be
+              withdrawn. This stops future spending on the mandate; you can
+              restore it later if it has not expired.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                revokeAgent(agent.id);
-                setConfirmRevoke(false);
-                toast.success("Authority revoked", {
-                  description: `${agent.name} can no longer spend.`,
-                });
+              disabled={authorityBusy}
+              onClick={async () => {
+                setAuthorityBusy(true);
+                try {
+                  await revokeAgent(agent.id);
+                  setConfirmRevoke(false);
+                  toast.success("Authority revoked", { description: `${agent.name} can no longer spend.` });
+                } catch (error) {
+                  toast.error("Could not revoke authority", { description: error instanceof Error ? error.message : "Please try again." });
+                } finally {
+                  setAuthorityBusy(false);
+                }
               }}
             >
-              Revoke authority
+              {authorityBusy ? "Revoking…" : "Revoke authority"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

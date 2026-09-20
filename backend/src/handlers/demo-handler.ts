@@ -3,13 +3,8 @@ import { resetDemo } from "../demo-reset.js";
 
 export async function resetDemoHandler(req: Request, res: Response): Promise<void> {
   try {
-    const { userId } = req.body;
-    
-    // Only allow for demo users
-    if (userId !== "u_frontend_demo" && userId !== "u_demo") {
-      res.status(403).json({ success: false, error: "Not authorized for demo reset" });
-      return;
-    }
+    // Derive userId from the verified Cognito JWT — never trust the body.
+    const userId = req.user!.sub;
 
     const result = await resetDemo(userId);
 

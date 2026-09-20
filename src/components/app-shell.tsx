@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -137,37 +137,71 @@ function NavList({
 }
 
 function EmergencyStop() {
-  const { agents, revokeAgent } = useKavach();
-  const [stopping, setStopping] = useState(false);
+  const { agents } = useKavach();
+  const queryClient = useQueryClient();
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["stop-all"],
+    queryFn: apiClient.getStopAllStatus,
+    refetchInterval: 3000,
+  });
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const stopped = data?.stopped ?? false;
+  const activeCount = agents.filter((agent) => agent.status === "active").length;
 
-  const handleStop = async () => {
-    setStopping(true);
+  const handleToggle = async () => {
+    setBusy(true);
+    setError("");
     try {
-      const activeAgents = agents.filter(a => a.status === "active");
-      for (const agent of activeAgents) {
-        await revokeAgent(agent.id);
-      }
-      toast.success("All active agents have been stopped.");
+      const result = stopped ? await apiClient.restoreAllGrants() : await apiClient.stopAllGrants();
+      await Promise.all(["stop-all", "grants", "exposure", "audit"].map((key) =>
+        queryClient.invalidateQueries({ queryKey: [key] }),
+      ));
+      setOpen(false);
+      const count = stopped ? ("restored" in result ? result.restored : 0) : ("count" in result ? result.count : 0);
+      toast.success(`${count} agent ${count === 1 ? "mandate" : "mandates"} ${stopped ? "restored" : "stopped"}.`);
     } catch (error) {
-      toast.error("Failed to stop some agents.");
+      setError(error instanceof Error ? error.message : "Could not update agent authority.");
     } finally {
-      setStopping(false);
+      setBusy(false);
     }
   };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleStop}
-      disabled={stopping}
-      className="text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-      aria-label="Stop all agents"
-    >
-      <OctagonPause className="h-4 w-4" aria-hidden="true" />
-      <span className="hidden sm:inline">{stopping ? "Stopping..." : "Stop all"}</span>
-      <span className="sm:hidden">Stop</span>
-    </Button>
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => { setError(""); setOpen(true); }}
+        disabled={busy || isLoading || isError || (!stopped && activeCount === 0)}
+        className={stopped ? "text-success" : "text-destructive hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive"}
+        aria-label={stopped ? "Restore stopped agents" : "Stop all agents"}
+        title={isError ? "Could not load agent status" : undefined}
+      >
+        {stopped ? <RotateCcw className="h-4 w-4" aria-hidden="true" /> : <OctagonPause className="h-4 w-4" aria-hidden="true" />}
+        <span className="hidden sm:inline">{stopped ? "Restore all" : "Stop all"}</span>
+      </Button>
+      <AlertDialog open={open} onOpenChange={(next: boolean) => { if (!busy) setOpen(next); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{stopped ? "Restore agent authority?" : "Stop all agents?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {stopped
+                ? `Restore the mandates stopped by this control. Expired mandates and those revoked separately stay inactive.`
+                : `Revoke authority for ${activeCount} active ${activeCount === 1 ? "agent" : "agents"}. New payments from them will be denied until you restore them.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <Button onClick={handleToggle} disabled={busy} variant={stopped ? "default" : "destructive"}>
+              {busy ? "Updating…" : stopped ? "Restore all" : "Stop all agents"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -409,7 +443,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
                 <div className="border-t border-border p-4">
                   <div className="mb-3 flex items-center justify-between gap-2 border-b border-border pb-3">
-                    <span className="text-sm text-muted-foreground">Appearance & demo</span>
+                    <span className="text-sm text-muted-foreground">Appearance</span>
                     <div className="flex items-center gap-2"><ThemeToggle /></div>
                   </div>
                   <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex w-full items-center gap-3 rounded-md p-1.5 text-left hover:bg-muted">
@@ -433,11 +467,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="order-3 w-full min-w-0 lg:order-none lg:flex-1">
               <GlobalSearch />
             </div>
-            <div className="shrink-0"><GlobalVoiceTrigger /></div>
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
               <span className="hidden items-center gap-1.5 rounded-md border border-success/20 bg-success/8 px-2 py-1 text-xs font-medium text-success xl:inline-flex" title="Sandbox environment">
                 <span className="h-1.5 w-1.5 rounded-full bg-success" /> Sandbox
               </span>
+              <GlobalVoiceTrigger />
               <Notifications />
               <div className="hidden md:block"><ThemeToggle /></div>
               <EmergencyStop />

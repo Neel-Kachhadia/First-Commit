@@ -215,6 +215,29 @@ export class GrantRepository {
     );
   }
 
+  async restoreGrant(
+    userId: string,
+    grantId: string
+  ): Promise<void> {
+    await dynamo.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: grantKey(userId, grantId),
+        UpdateExpression:
+          "SET #status = :active, updatedAt = :updatedAt",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":active": "ACTIVE",
+          ":revoked": "REVOKED",
+          ":updatedAt": new Date().toISOString(),
+        },
+        ConditionExpression: "#status = :revoked",
+      })
+    );
+  }
+
   async consumeBudget(
     userId: string,
     grantId: string,

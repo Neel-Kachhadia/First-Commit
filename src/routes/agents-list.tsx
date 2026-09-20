@@ -90,7 +90,8 @@ export default function AgentsPage() {
           </span>
         </div>
 
-        <AnimatedList>
+        <div className="data-scroll-region" role="region" aria-label="Mandate registry list" tabIndex={0}>
+          <AnimatedList>
           {agents.map((agent) => {
             const tone = agentTone(agent.status);
             const remaining = remainingFor(agent);
@@ -157,7 +158,8 @@ export default function AgentsPage() {
               </Link>
             );
           })}
-        </AnimatedList>
+          </AnimatedList>
+        </div>
       </section>
     </div>
   );

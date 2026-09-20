@@ -32,7 +32,7 @@ export function MandateDocument() {
 
       <div className={styles.typeRow} data-mandate-header>
         <span>SPENDING MANDATE</span>
-        <span>01—BOUND</span>
+        <span>01-BOUND</span>
       </div>
 
       <h3 className={styles.category} data-mandate-category>{mandateDemo.category}</h3>

@@ -6,6 +6,7 @@ import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as kms from "aws-cdk-lib/aws-kms";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as path from "path";
+import * as fs from "fs";
 import { Construct } from "constructs";
 
 export class KavachPayStack extends cdk.Stack {
@@ -223,6 +224,18 @@ export class KavachPayStack extends cdk.Stack {
 
             COGNITO_CLIENT_ID:
               this.userPoolClient.userPoolClientId,
+
+            GEMINI_API_KEY: (() => {
+              let key = process.env.GEMINI_API_KEY || "";
+              try {
+                const envContent = fs.readFileSync(path.join(__dirname, "../../backend/.env"), "utf-8");
+                const match = envContent.match(/^GEMINI_API_KEY=(.*)$/m);
+                if (match) key = match[1].trim();
+              } catch (e) {
+                // Ignore if .env doesn't exist
+              }
+              return key;
+            })(),
           },
         }
       );
@@ -283,6 +296,8 @@ export class KavachPayStack extends cdk.Stack {
         description:
           "KavachPay Agentic Money Control Plane API",
 
+        binaryMediaTypes: ["*/*"],
+
         deployOptions: {
           stageName: "dev",
 
@@ -292,20 +307,6 @@ export class KavachPayStack extends cdk.Stack {
 
           loggingLevel:
             apigateway.MethodLoggingLevel.INFO,
-        },
-
-        defaultCorsPreflightOptions: {
-          allowOrigins:
-            apigateway.Cors.ALL_ORIGINS,
-
-          allowMethods:
-            apigateway.Cors.ALL_METHODS,
-
-          allowHeaders: [
-            "Content-Type",
-            "Authorization",
-            "X-Requested-With",
-          ],
         },
       }
     );

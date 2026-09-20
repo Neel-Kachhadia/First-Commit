@@ -5,11 +5,16 @@ import { loadSecrets } from "./utils/secrets.js";
 let appHandler: any;
 
 export const handler = async (event: any, context: any) => {
-  await loadSecrets();
+  const method = event.httpMethod || event.requestContext?.http?.method;
+  if (method !== "OPTIONS") {
+    await loadSecrets();
+  }
   
   if (!appHandler) {
     const app = createApp();
-    appHandler = serverless(app);
+    appHandler = serverless(app, {
+      binary: ["*/*"],
+    });
   }
   
   return appHandler(event, context);

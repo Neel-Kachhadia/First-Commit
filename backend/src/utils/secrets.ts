@@ -12,11 +12,20 @@ const client = new SecretsManagerClient({
 export async function loadSecrets(): Promise<void> {
   if (cachedSecrets) return;
 
-  const secretArn = process.env.RAZORPAY_SECRET_ARN;
-
-  if (!secretArn) {
-    throw new Error("RAZORPAY_SECRET_ARN is not configured");
+  if (
+    process.env.RAZORPAY_KEY_ID &&
+    process.env.RAZORPAY_KEY_SECRET &&
+    process.env.RAZORPAY_WEBHOOK_SECRET
+  ) {
+    cachedSecrets = {
+      RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
+      RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
+      RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET,
+    };
+    return;
   }
+
+  const secretArn = process.env.RAZORPAY_SECRET_ARN || "kavachpay/razorpay";
 
   try {
     console.log("[Secrets] Fetching Razorpay secret from Secrets Manager");
