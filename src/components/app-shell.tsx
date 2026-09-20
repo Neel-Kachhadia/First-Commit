@@ -34,6 +34,7 @@ import {
   UserRound,
   LogOut,
   FlaskConical,
+  CreditCard,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -80,6 +81,7 @@ const NAV = [
     exact: false,
   },
   { to: "/attack-labs", label: "Attack Labs", icon: FlaskConical, exact: false },
+  { to: "/payment-methods", label: "Payment Methods", icon: CreditCard, exact: false },
 ] as const;
 
 function NavList({

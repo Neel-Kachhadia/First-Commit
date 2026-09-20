@@ -74,6 +74,17 @@ export interface CreateIntentInput {
     signedBy?: string;
   };
 
+  /**
+   * Server-derived provenance. Must be set by the calling handler,
+   * not accepted from an untrusted agent payload.
+   */
+  origin?: {
+    type: "AGENT_RUNTIME" | "USER_VOICE" | "USER_UI";
+    agentId?: string;
+    taskId?: string;
+    commandId?: string;
+  };
+
   expiresAt?: string;
 }
 
@@ -118,6 +129,21 @@ export class IntentService {
     }
 
     /*
+     * 1.5. Validate origin provenance.
+     *
+     * AGENT_RUNTIME intents must have a trusted agentId — the route
+     * handler is responsible for supplying it from verified context.
+     * If it is absent, the intent is rejected.
+     */
+    if (input.origin?.type === "AGENT_RUNTIME" && !input.origin.agentId) {
+      const err = new Error(
+        "Agent identity could not be verified. AGENT_RUNTIME intents require an agentId derived from a trusted context."
+      );
+      (err as any).code = "AGENT_IDENTITY_UNVERIFIED";
+      throw err;
+    }
+
+    /*
      * 2. Create the canonical intent object.
      */
     const now = new Date().toISOString();
@@ -147,6 +173,8 @@ export class IntentService {
           input.idempotencyKey,
 
         evidence: input.evidence,
+
+        origin: input.origin,
 
         status: "PENDING",
 

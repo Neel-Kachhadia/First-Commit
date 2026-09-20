@@ -165,7 +165,7 @@ export function DelegationScene({ trackRef }: DelegationSceneProps) {
         scrollTrigger: {
           trigger: triggerEl,
           start: "top top",
-          end: isPersistent ? "bottom top" : "+=340%",
+          end: isPersistent ? "bottom top" : "+=284%",
           pin: !isPersistent,
           scrub: true,
           invalidateOnRefresh: true,

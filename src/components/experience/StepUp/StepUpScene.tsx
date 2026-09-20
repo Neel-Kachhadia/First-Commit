@@ -75,7 +75,7 @@ export function StepUpScene({ trackRef }: StepUpSceneProps) {
         scrollTrigger: {
           trigger: triggerEl,
           start: "top top",
-          end: isPersistent ? "bottom top" : "+=320%",
+          end: isPersistent ? "bottom top" : "+=268%",
           pin: !isPersistent,
           scrub: true,
           invalidateOnRefresh: true,

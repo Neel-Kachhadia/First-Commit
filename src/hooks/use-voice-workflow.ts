@@ -24,7 +24,7 @@ export interface UseVoiceWorkflowReturn {
   startRecording: () => Promise<void>;
   stopRecording: () => void;
   /** Called by the user from the review screen to begin execution */
-  authorize: (confirmedActionIds?: string[]) => Promise<void>;
+  authorize: (confirmedActionIds?: string[], updatedWorkflow?: VoiceWorkflow) => Promise<void>;
   cancel: () => void;
   reset: () => void;
 }
@@ -137,17 +137,19 @@ export function useVoiceWorkflow(): UseVoiceWorkflowReturn {
 
   // ── Step 3: Execute authorized workflow ──────────────────────────────────
 
-  const authorize = useCallback(async (confirmedActionIds?: string[]) => {
-    if (!workflow) return;
-    const ids = confirmedActionIds ?? workflow.actions.map((a) => a.id);
+  const authorize = useCallback(async (confirmedActionIds?: string[], updatedWorkflow?: VoiceWorkflow) => {
+    const wf = updatedWorkflow ?? workflow;
+    if (!wf) return;
+    const ids = confirmedActionIds ?? wf.actions.map((a) => a.id);
     if (ids.length === 0) return;
 
+    setWorkflow(wf);
     setState("executing");
     setLiveResults([]);
     setError(null);
 
     try {
-      const result = await apiClient.executeVoiceWorkflow(workflow, ids);
+      const result = await apiClient.executeVoiceWorkflow(wf, ids);
       if (!mountedRef.current) return;
       setExecutionResult(result);
       setLiveResults(result.results);

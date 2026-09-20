@@ -93,7 +93,7 @@ export function SplitDefenseScene({ trackRef }: SplitDefenseSceneProps) {
         scrollTrigger: {
           trigger: triggerEl,
           start: "top top",
-          end: isPersistent ? "bottom top" : "+=340%",
+          end: isPersistent ? "bottom top" : "+=294%",
           pin: false,
           scrub: true,
           invalidateOnRefresh: true,

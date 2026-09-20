@@ -66,10 +66,10 @@ export type MandateExtraction = z.infer<typeof MandateExtractionSchema>;
 // ─── Voice Workflow schema ────────────────────────────────────────────────────
 
 export const VoiceCreateMandateParamsSchema = z.object({
-  label: z.string().min(1),
-  category: z.string().min(1),
-  monthlyLimit: z.number().positive(),
-  perTransactionCap: z.number().positive(),
+  label: z.string().default("Voice Mandate"),
+  category: z.string().default("Groceries"),
+  monthlyLimit: numberOrNull,
+  perTransactionCap: numberOrNull,
   merchants: z.array(z.string()).default([]),
   purpose: z.string().default(""),
   window: z.enum(["TRANSACTION", "DAILY", "WEEKLY", "MONTHLY"]).default("MONTHLY"),
@@ -78,9 +78,9 @@ export const VoiceCreateMandateParamsSchema = z.object({
 });
 
 export const VoiceCreateDelegationParamsSchema = z.object({
-  label: z.string().min(1),
-  capacity: z.number().positive(),
-  parentActionId: z.string().min(1),
+  label: z.string().default("Delegated Agent"),
+  capacity: numberOrNull,
+  parentActionId: z.string().default("A1"),
 });
 
 export const VoiceStartAgentParamsSchema = z.object({
@@ -98,11 +98,11 @@ export const VoiceOrderItemSchema = z.union([
 ]);
 
 export const VoiceCreateOrderParamsSchema = z.object({
-  merchant: z.string().min(1),
-  category: z.string().min(1),
-  items: z.array(VoiceOrderItemSchema).min(1),
-  estimatedAmount: z.number().positive(),
-  agentActionId: z.string().min(1),
+  merchant: z.string().default(""),
+  category: z.string().default(""),
+  items: z.array(VoiceOrderItemSchema).default([]),
+  estimatedAmount: numberOrNull,
+  agentActionId: z.string().default(""),
 });
 
 export const VoiceActionSchema = z.discriminatedUnion("type", [
@@ -115,19 +115,19 @@ export const VoiceActionSchema = z.discriminatedUnion("type", [
   z.object({
     id: z.string().min(1),
     type: z.literal("CREATE_DELEGATION"),
-    dependsOn: z.array(z.string()),
+    dependsOn: z.array(z.string()).default([]),
     params: VoiceCreateDelegationParamsSchema,
   }),
   z.object({
     id: z.string().min(1),
     type: z.literal("START_AGENT"),
-    dependsOn: z.array(z.string()),
+    dependsOn: z.array(z.string()).default([]),
     params: VoiceStartAgentParamsSchema,
   }),
   z.object({
     id: z.string().min(1),
     type: z.literal("CREATE_ORDER"),
-    dependsOn: z.array(z.string()),
+    dependsOn: z.array(z.string()).default([]),
     params: VoiceCreateOrderParamsSchema,
   }),
 ]);
@@ -658,7 +658,22 @@ export class GroqService {
           );
         }
 
-        return result.data;
+        const data = result.data;
+        const missing = new Set(data.missingFields ?? []);
+        for (const action of data.actions) {
+          if (action.type === "CREATE_MANDATE") {
+            if (action.params.monthlyLimit == null) missing.add("monthlyLimit");
+            if (action.params.perTransactionCap == null) missing.add("perTransactionCap");
+          } else if (action.type === "CREATE_DELEGATION") {
+            if (action.params.capacity == null) missing.add("capacity");
+          } else if (action.type === "CREATE_ORDER") {
+            if (action.params.estimatedAmount == null) missing.add("estimatedAmount");
+            if (!action.params.items || action.params.items.length === 0) missing.add("items");
+          }
+        }
+        data.missingFields = Array.from(missing);
+
+        return data;
       } catch (err) {
         lastError = err;
         if (this.isTransientError(err)) {

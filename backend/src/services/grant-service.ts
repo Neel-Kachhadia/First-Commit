@@ -23,6 +23,8 @@ export interface CreateGrantInput {
 
   parentGrantId?: string;
 
+  paymentProfileId?: string;
+
   currency?: string;
 
   limit: number;
@@ -68,6 +70,17 @@ export class GrantService {
   async createGrant(
     input: CreateGrantInput
   ): Promise<Grant> {
+    /*
+     * 0. P0 Guard: Child grant cannot set or replace payment profile.
+     */
+    if (input.parentGrantId && input.paymentProfileId) {
+      throw new Error(
+        "Child grants inherit the payment profile from their root mandate. " +
+        "paymentProfileId cannot be set on delegated grants. " +
+        "A child grant cannot establish or change a payment profile."
+      );
+    }
+
     /*
      * 1. Validate the parent if this is a delegated grant.
      */
@@ -159,6 +172,35 @@ export class GrantService {
       }
     }
 
+    /*
+     * 1.5. Validate the Payment Profile if one is supplied.
+     */
+    if (input.paymentProfileId) {
+      if (parentGrant) {
+        throw new Error(
+          "A child grant cannot establish or change a payment profile. It inherits the profile from the root mandate."
+        );
+      }
+
+      const { paymentProfileRepository } = await import("../store/payment-profile-repository.js");
+      const profile = await paymentProfileRepository.getProfile(input.userId, input.paymentProfileId);
+
+      if (!profile) {
+        const error = new Error(`Payment profile ${input.paymentProfileId} was not found.`);
+        (error as any).code = "PAYMENT_PROFILE_NOT_FOUND";
+        throw error;
+      }
+
+      if (profile.status === "DISABLED") {
+        const error = new Error(`Payment profile ${input.paymentProfileId} is disabled.`);
+        (error as any).code = "PAYMENT_PROFILE_DISABLED";
+        throw error;
+      }
+
+      if (profile.provider !== "RAZORPAY" || profile.environment !== "TEST") {
+        throw new Error("Only RAZORPAY TEST payment profiles are currently supported.");
+      }
+    }
 
     /*
      * 2. Generate the grant ID.
@@ -181,6 +223,9 @@ export class GrantService {
 
       parentGrantId:
         input.parentGrantId,
+
+      paymentProfileId:
+        input.paymentProfileId,
 
       currency:
         input.currency ?? "INR",
@@ -318,6 +363,9 @@ export class GrantService {
 
         parentGrantId:
           input.parentGrantId,
+
+        paymentProfileId:
+          input.paymentProfileId,
 
         label:
           grant.label,

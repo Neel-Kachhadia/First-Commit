@@ -177,6 +177,12 @@ export function DecisionDossier({
                       <dd className="text-foreground">{entry.matchedPolicy}</dd>
                     </div>
                   )}
+                  <div>
+                    <dt className="text-muted-foreground">PSP Execution</dt>
+                    <dd className="font-semibold text-emerald-500">
+                      {entry.providerStatus ?? "NOT_INVOKED"} (Razorpay bypassed)
+                    </dd>
+                  </div>
                 </dl>
                 <p className="text-[10px] text-muted-foreground pt-1 border-t border-destructive/20 mt-2">
                   Evidence: KMS-backed, tamper-evident signed decision evidence recorded in audit log.

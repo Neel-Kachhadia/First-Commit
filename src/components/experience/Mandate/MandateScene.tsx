@@ -69,7 +69,7 @@ export function MandateScene({ trackRef }: MandateSceneProps) {
         scrollTrigger: {
           trigger: triggerEl,
           start: "top top",
-          end: isPersistent ? "bottom top" : "+=240%",
+          end: isPersistent ? "bottom top" : "+=200%",
           pin: !isPersistent,
           scrub: true,
           invalidateOnRefresh: true,

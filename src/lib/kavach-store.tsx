@@ -36,6 +36,11 @@ interface NewAgentInput {
   purpose: string;
   rule: SpendingRule;
   parentGrantId?: string;
+  /**
+   * Bound payment profile ID. Only applicable for root grants (parentGrantId undefined).
+   * Child mandates inherit through authority chain.
+   */
+  paymentProfileId?: string;
 }
 
 interface SimulationInput {
@@ -309,6 +314,8 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
       windowStart: new Date().toISOString(),
       delegationEnabled: input.rule.allowDelegation ?? false,
       parentGrantId: input.parentGrantId,
+      // P0 Guard: Only root grants bind a payment profile. Child grants inherit via authority path.
+      paymentProfileId: !input.parentGrantId ? input.paymentProfileId : undefined,
       blockedCategories: input.rule.blockedCategories,
       blockedItems: input.rule.blockedItems,
     };

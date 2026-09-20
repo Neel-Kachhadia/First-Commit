@@ -83,10 +83,11 @@ export interface LedgerEntry {
   reason: string;
   reasonCode?: string;
   at: string;
-  execution?: ProviderExecution;
   blockedItem?: string;
   blockedCategory?: string;
   matchedPolicy?: string;
+  providerStatus?: "NOT_INVOKED" | "INVOKED" | "SKIPPED";
+  execution?: ProviderExecution;
 }
 
 export interface ApprovalRequest {

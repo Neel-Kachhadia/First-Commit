@@ -10,6 +10,13 @@ import {
   listIntentsHandler,
 } from "./handlers/intent-handler.js";
 
+import {
+  createPaymentProfileHandler,
+  getPaymentProfilesHandler,
+  getPaymentProfileHandler,
+  disablePaymentProfileHandler,
+} from "./handlers/payment-profile-handler.js";
+
 import { causalReplayService } from "./services/causal-replay-service.js";
 
 import {
@@ -287,6 +294,15 @@ export function createApp() {
   app.get("/v0/grants/stop-all", stopAllStatusHandler);
   app.post("/v0/grants/stop-all", stopAllGrantsHandler);
   app.post("/v0/grants/restore-all", restoreAllGrantsHandler);
+
+  /*
+   * ── Payment Profiles ────────────────────────────────────────────────────────
+   */
+
+  app.post("/v0/payment-profiles", createPaymentProfileHandler);
+  app.get("/v0/payment-profiles", getPaymentProfilesHandler);
+  app.get("/v0/payment-profiles/:id", getPaymentProfileHandler);
+  app.post("/v0/payment-profiles/:id/disable", disablePaymentProfileHandler);
 
   /*
    * ── Categories ──────────────────────────────────────────────────────────────

@@ -16,9 +16,27 @@ export async function createGrantHandler(
         userId,
       });
 
+    let safeProfile;
+    if (grant.paymentProfileId) {
+      const { paymentProfileRepository } = await import("../store/payment-profile-repository.js");
+      const profile = await paymentProfileRepository.getProfile(userId, grant.paymentProfileId);
+      if (profile) {
+        safeProfile = {
+          provider: profile.provider,
+          environment: profile.environment,
+          displayName: profile.displayName,
+          connectionMode: profile.connectionMode,
+          status: profile.status,
+        };
+      }
+    }
+
     res.status(201).json({
       success: true,
+      grantId: grant.grantId,
+      paymentProfileId: grant.paymentProfileId,
       grant,
+      ...(safeProfile ? { paymentProfile: safeProfile } : {}),
     });
   } catch (error) {
     console.error(

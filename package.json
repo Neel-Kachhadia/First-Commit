@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:visual": "playwright test",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev --prefix backend\""
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev --prefix backend\"",
+    "demo:reset": "npm run demo:reset --prefix backend"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

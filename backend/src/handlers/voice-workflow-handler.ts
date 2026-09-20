@@ -51,6 +51,9 @@ async function executeCreateMandate(
   userId: string
 ): Promise<Record<string, unknown>> {
   const { label, category, monthlyLimit, perTransactionCap, merchants, purpose, window, blockedCategories, blockedItems } = action.params;
+  if (monthlyLimit == null || perTransactionCap == null) {
+    throw new Error("Cannot execute CREATE_MANDATE: monthlyLimit and perTransactionCap are required.");
+  }
   const categoryCode = category.toUpperCase().replace(/ & /g, "_").replace(/ \/ /g, "_").replace(/ /g, "_");
   const now = new Date().toISOString();
 
@@ -83,6 +86,9 @@ async function executeCreateDelegation(
   outputs: OutputMap
 ): Promise<Record<string, unknown>> {
   const { label, capacity, parentActionId } = action.params;
+  if (capacity == null) {
+    throw new Error("Cannot execute CREATE_DELEGATION: capacity is required.");
+  }
   let parentGrantId = outputs.get(parentActionId)?.grantId as string | undefined;
 
   // Fallback: look for any grantId produced so far
@@ -156,9 +162,13 @@ async function executeStartAgent(
 async function executeCreateOrder(
   action: Extract<VoiceAction, { type: "CREATE_ORDER" }>,
   userId: string,
-  outputs: OutputMap
+  outputs: OutputMap,
+  workflow: VoiceWorkflow
 ): Promise<Record<string, unknown>> {
   const { merchant, category, items, estimatedAmount, agentActionId } = action.params;
+  if (estimatedAmount == null || estimatedAmount <= 0) {
+    throw new Error("Cannot execute CREATE_ORDER: estimatedAmount is required.");
+  }
 
   // Resolve grantId: check direct output first
   let grantId: string | undefined;
@@ -209,6 +219,10 @@ async function executeCreateOrder(
     items: structuredItems,
     idempotencyKey: `voice-order-${randomUUID().slice(0, 8)}`,
     evidence: { sourceProtocol: "VOICE_COMMAND" },
+    origin: {
+      type: "USER_VOICE",
+      commandId: workflow.commandId,
+    },
   });
 
   return {
@@ -291,7 +305,7 @@ export async function executeVoiceWorkflowHandler(
         case "CREATE_MANDATE":   output = await executeCreateMandate(action, userId); break;
         case "CREATE_DELEGATION": output = await executeCreateDelegation(action, userId, outputs); break;
         case "START_AGENT":      output = await executeStartAgent(action, outputs); break;
-        case "CREATE_ORDER":     output = await executeCreateOrder(action, userId, outputs); break;
+        case "CREATE_ORDER":     output = await executeCreateOrder(action, userId, outputs, workflow); break;
         default: throw new Error(`Unknown action type: ${(action as VoiceAction).type}`);
       }
 

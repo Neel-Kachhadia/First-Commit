@@ -18,6 +18,8 @@ export interface Grant {
 
   parentGrantId?: string;
 
+  paymentProfileId?: string;
+
   currency: string;
   limit: number;
   consumed: number;

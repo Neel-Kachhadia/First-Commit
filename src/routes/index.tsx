@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Check,
   CircleAlert,
+  CreditCard,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,8 +26,120 @@ import {
 import { useKavach } from "@/lib/kavach-store";
 import { formatDateTime, formatINR } from "@/lib/kavach-data";
 import { cn } from "@/lib/utils";
+import {
+  usePaymentProfiles,
+  countMandatesBoundToProfile,
+} from "@/lib/payment-profiles";
+import { apiClient } from "@/lib/api-client";
+import { useQuery } from "@tanstack/react-query";
 
-const currency = (value: number) => formatINR(value);
+// ── PaymentSetupCard ──────────────────────────────────────────────────────────
+
+function PaymentSetupCard({
+  ordersCreated,
+  ordersCaptured,
+  ordersFailed,
+  ordersPending,
+}: {
+  ordersCreated: number;
+  ordersCaptured: number;
+  ordersFailed: number;
+  ordersPending: number;
+}) {
+  const { data: profiles, isLoading } = usePaymentProfiles();
+  const { data: grantsData } = useQuery({
+    queryKey: ["grants"],
+    queryFn: () => apiClient.getGrants(),
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const activeProfiles = (profiles ?? []).filter((p) => p.status === "ACTIVE");
+  const primaryProfile = activeProfiles[0] ?? profiles?.[0];
+
+  const mandateCount = primaryProfile && grantsData?.grants
+    ? countMandatesBoundToProfile(
+        grantsData.grants as Array<{ paymentProfileId?: string; parentGrantId?: string }>,
+        primaryProfile.paymentProfileId
+      )
+    : 0;
+
+  return (
+    <div className="border-t border-border bg-muted/20 p-5 sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border bg-card">
+            <CreditCard className="h-3.5 w-3.5 text-primary" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground label-caps">
+              Payment Setup
+            </p>
+            {isLoading ? (
+              <p className="mt-1 h-4 w-40 animate-pulse rounded bg-muted" />
+            ) : primaryProfile ? (
+              <>
+                <p className="mt-1 text-sm font-medium flex items-center gap-2">
+                  {primaryProfile.displayName}
+                  <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border">
+                    TEST MODE
+                  </span>
+                </p>
+                <p className="mt-0.5 text-[10px] font-mono text-muted-foreground">
+                  {primaryProfile.paymentProfileId}
+                </p>
+                <div className="mt-2 flex items-center gap-3">
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider",
+                      primaryProfile.status === "ACTIVE"
+                        ? "border border-success/30 bg-success/10 text-success"
+                        : "border border-border bg-muted/30 text-muted-foreground"
+                    )}
+                  >
+                    {primaryProfile.status === "ACTIVE" ? "● ACTIVE" : "DISABLED"}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    SIMULATED TEST PROFILE
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {mandateCount} {mandateCount === 1 ? "mandate" : "mandates"}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">
+                No payment profile configured.{" "}
+                <Link href="/payment-methods" className="text-primary underline-offset-2 hover:underline">
+                  Set up now
+                </Link>
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-x-8 gap-y-2 text-sm">
+          {([
+            ["Orders created", ordersCreated],
+            ["Captured", ordersCaptured],
+            ["Failed", ordersFailed],
+            ["Pending", ordersPending],
+          ] as [string, number][]).map(([label, val]) => (
+            <div key={label}>
+              <span className="text-muted-foreground">{label}</span>
+              <span className="font-medium ml-2">{val}</span>
+            </div>
+          ))}
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/payment-methods">Manage payment methods</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 
 function MetricCard({
   label,
@@ -47,7 +160,7 @@ function MetricCard({
           <p className="mt-1 text-[11px] text-muted-foreground">{helper}</p>
         </div>
         <p className={cn("amount text-xl font-medium tracking-tight", tone === "success" && "text-success", tone === "stepup" && "text-stepup")}>
-          <CountUpValue value={value} format={currency} />
+          <CountUpValue value={value} format={formatINR} />
         </p>
       </div>
     </div>
@@ -107,7 +220,7 @@ export default function Overview() {
                 <p className="text-sm font-medium">Reachable exposure</p>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Maximum that active agents can spend without another decision</p>
                 <p className="amount mt-5 text-4xl font-medium tracking-[-0.05em] sm:text-5xl">
-                  <CountUpValue value={maxPossibleSpend} format={currency} />
+                  <CountUpValue value={maxPossibleSpend} format={formatINR} />
                 </p>
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   of <span className="amount text-foreground">{formatINR(totalAuthority)}</span> granted authority
@@ -181,32 +294,7 @@ export default function Overview() {
           />
         </div>
         
-        <div className="border-t border-border bg-muted/20 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-          <div>
-            <p className="text-xs font-semibold tracking-wider text-muted-foreground label-caps">Payment Provider</p>
-            <p className="text-sm font-medium mt-1 flex items-center gap-2">
-              Razorpay <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border">TEST MODE</span>
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-            <div>
-              <span className="text-muted-foreground">Orders created</span>
-              <span className="font-medium ml-2">{ordersCreated}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Captured</span>
-              <span className="font-medium ml-2">{ordersCaptured}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Failed</span>
-              <span className="font-medium ml-2">{ordersFailed}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Pending</span>
-              <span className="font-medium ml-2">{ordersPending}</span>
-            </div>
-          </div>
-        </div>
+        <PaymentSetupCard ordersCreated={ordersCreated} ordersCaptured={ordersCaptured} ordersFailed={ordersFailed} ordersPending={ordersPending} />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(330px,0.85fr)]">
@@ -365,6 +453,12 @@ export default function Overview() {
         </div>
       </section>
 
+      <PaymentSetupCard
+        ordersCreated={ordersCreated}
+        ordersCaptured={ordersCaptured}
+        ordersFailed={ordersFailed}
+        ordersPending={ordersPending}
+      />
     </div>
   );
 }

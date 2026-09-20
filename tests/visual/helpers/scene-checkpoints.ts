@@ -110,17 +110,40 @@ export async function seekSceneProgress(
           );
         }
       } else {
-        const rect = scene.getBoundingClientRect();
-        const sectionTop = rect.top + window.scrollY;
-        const sectionRange = Math.max(rect.height - window.innerHeight, 0);
-        const maxScroll = Math.max(
-          document.documentElement.scrollHeight - window.innerHeight,
-          0,
-        );
-        targetScroll = Math.min(
-          Math.max(sectionTop + sectionRange * sceneProgress, 0),
-          maxScroll,
-        );
+        const sceneId = scene.getAttribute("data-scene");
+        const track = sceneId
+          ? document.querySelector<HTMLElement>(`[data-track='${sceneId}']`)
+          : null;
+        if (track) {
+          const trackTop = track.getBoundingClientRect().top + window.scrollY;
+          const trackHeight = track.offsetHeight;
+          const maxScroll = Math.max(
+            document.documentElement.scrollHeight - window.innerHeight,
+            0,
+          );
+          if (sceneProgress === 1) {
+            targetScroll = Math.min(trackTop + trackHeight - 1, maxScroll);
+          } else if (sceneProgress === 0 && sceneSelector !== "[data-scene='prologue']") {
+            targetScroll = Math.ceil(trackTop + 1);
+          } else {
+            targetScroll = Math.min(
+              Math.max(trackTop + trackHeight * sceneProgress, 0),
+              maxScroll,
+            );
+          }
+        } else {
+          const rect = scene.getBoundingClientRect();
+          const sectionTop = rect.top + window.scrollY;
+          const sectionRange = Math.max(rect.height - window.innerHeight, 0);
+          const maxScroll = Math.max(
+            document.documentElement.scrollHeight - window.innerHeight,
+            0,
+          );
+          targetScroll = Math.min(
+            Math.max(sectionTop + sectionRange * sceneProgress, 0),
+            maxScroll,
+          );
+        }
       }
 
       window.scrollTo(0, targetScroll);
