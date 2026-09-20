@@ -16,6 +16,9 @@ export interface MandateFormState {
   monthlyLimit?: number;
   perTransactionCap?: number;
   approvedMerchants?: string[];
+  blockedCategories?: string[];
+  blockedItems?: string[];
+  expiresAt?: string;
 }
 
 /**
@@ -53,6 +56,7 @@ export const MandateExtractionSchema = z.object({
   approvedMerchants: z.array(z.string()).nullable(),
   blockedCategories: z.array(z.string()).default([]),
   blockedItems: z.array(z.string()).default([]),
+  expiresAt: stringOrNull, // ISO date string YYYY-MM-DD or null
   unresolvedFields: z.array(z.string()),
   ambiguities: stringOrNull,
 });
@@ -187,6 +191,7 @@ FIELD DEFINITIONS
 - approvedMerchants: JSON array of merchant name strings the agent may spend at
 - blockedCategories: JSON array of uppercase prohibited category codes if explicitly blocked by the user (e.g. ["ALCOHOL", "TOBACCO", "GAMBLING"]). If none mentioned, return []
 - blockedItems: JSON array of specific item/SKU names explicitly forbidden by the user (e.g. ["alcohol", "beer", "wine", "gift cards"]). If none mentioned, return []
+- expiresAt: ISO date string (YYYY-MM-DD) for the mandate expiry date. Extract whenever the user mentions an expiry date, valid until date, or end date (e.g. "expiry date 21 September 2028" → "2028-09-21", "valid until 21st Sep 2028" → "2028-09-21", "valid until March 2026" → "2026-03-31", "1 year from now" → calculate from today). Today's date is ${new Date().toISOString().slice(0, 10)}. Return null if no expiry or duration was mentioned.
 - unresolvedFields: JSON array of field name strings the user mentioned but whose value was unclear
 - ambiguities: string or null — explanation of any unclear values
 
@@ -217,9 +222,14 @@ INDIAN NUMBER FORMATS
 CURRENT FORM STATE
 The user message includes a currentFormState JSON object. Do not overwrite already-filled fields unless the user explicitly stated a new value.
 
-FEW-SHOT EXAMPLE
+FEW-SHOT EXAMPLES
+Example 1:
 User says: "Allow Farm Easy and Blink it to spend up to 3000 rupees a month, 800 per transaction, for medicines"
-Return exactly: {"category":"${categories[1] ?? categories[0] ?? ""}","purpose":"Prescription and medicine purchases","monthlyLimit":3000,"perTransactionCap":800,"approvedMerchants":["PharmEasy","Blinkit"],"unresolvedFields":[]}
+Return exactly: {"agentName":null,"category":"${categories[1] ?? categories[0] ?? "Pharmacy / Healthcare"}","purpose":"Prescription and medicine purchases","monthlyLimit":3000,"perTransactionCap":800,"approvedMerchants":["PharmEasy","Blinkit"],"blockedCategories":[],"blockedItems":[],"expiresAt":null,"unresolvedFields":[],"ambiguities":null}
+
+Example 2:
+User says: "Grocery agent for Blinkit and Zepto, 5000 monthly, 1500 per transaction, block alcohol, expiry date would be 21 September 2028"
+Return exactly: {"agentName":"Grocery agent","category":"${categories[0] ?? "Groceries"}","purpose":"Grocery orders via Blinkit and Zepto","monthlyLimit":5000,"perTransactionCap":1500,"approvedMerchants":["Blinkit","Zepto"],"blockedCategories":["ALCOHOL"],"blockedItems":["alcohol"],"expiresAt":"2028-09-21","unresolvedFields":[],"ambiguities":null}
 `.trim();
 }
 

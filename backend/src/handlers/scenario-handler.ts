@@ -6,7 +6,6 @@ import { intentService } from "../services/intent-service.js";
 import { reservationRepository } from "../store/reservation-repository.js";
 import { auditRepository } from "../store/audit-repository.js";
 
-const DEMO_USER = "u_frontend_demo";
 
 // ─── Scenario helpers ────────────────────────────────────────────────────────
 
@@ -14,7 +13,7 @@ function uid(prefix: string) {
   return `${prefix}_${randomUUID().slice(0, 8)}`;
 }
 
-async function makeRootGrant(opts?: {
+async function makeRootGrant(userId: string, opts?: {
   limit?: number;
   hardMax?: number;
   maxDepth?: number;
@@ -22,7 +21,7 @@ async function makeRootGrant(opts?: {
   expiresAt?: string;
 }) {
   return grantService.createGrant({
-    userId: DEMO_USER,
+    userId,
     label: "Scenario Root",
     limit: opts?.limit ?? 10000,
     hardMax: opts?.hardMax ?? 5000,
@@ -37,11 +36,12 @@ async function makeRootGrant(opts?: {
 }
 
 async function makeChildGrant(
+  userId: string,
   parentGrantId: string,
   opts?: { limit?: number; hardMax?: number; category?: string; expiresAt?: string; delegationEnabled?: boolean }
 ) {
   return grantService.createGrant({
-    userId: DEMO_USER,
+    userId,
     label: "Scenario Child",
     parentGrantId,
     limit: opts?.limit ?? 3000,
@@ -57,9 +57,9 @@ async function makeChildGrant(
   });
 }
 
-async function fireIntent(grantId: string, amount: number, category = "GENERAL") {
+async function fireIntent(userId: string, grantId: string, amount: number, category = "GENERAL") {
   return intentService.createIntent({
-    userId: DEMO_USER,
+    userId,
     grantId,
     amount,
     merchant: {
@@ -76,32 +76,32 @@ async function fireIntent(grantId: string, amount: number, category = "GENERAL")
 
 const SCENARIOS: Record<
   string,
-  (trace: string[]) => Promise<Record<string, unknown>>
+  (userId: string, trace: string[]) => Promise<Record<string, unknown>>
 > = {
   /**
    * happy-path
    * Root → Shopping → Grocery, execute a passing payment.
    */
-  "happy-path": async (trace) => {
+  "happy-path": async (userId, trace) => {
     trace.push("Creating root grant (₹10,000)");
-    const root = await makeRootGrant({ limit: 10000, hardMax: 5000 });
+    const root = await makeRootGrant(userId, { limit: 10000, hardMax: 5000 });
 
     trace.push("Creating shopping child grant (₹5,000)");
-    const shopping = await makeChildGrant(root.grantId, {
+    const shopping = await makeChildGrant(userId, root.grantId, {
       limit: 5000,
       hardMax: 5000,
       delegationEnabled: true,
     });
 
     trace.push("Creating grocery grandchild grant (₹2,000)");
-    const grocery = await makeChildGrant(shopping.grantId, {
+    const grocery = await makeChildGrant(userId, shopping.grantId, {
       limit: 2000,
       hardMax: 2000,
       category: "GROCERY",
     });
 
     trace.push("Firing ₹800 grocery intent → expect ALLOW + RESERVED");
-    const result = await fireIntent(grocery.grantId, 800, "GROCERY");
+    const result = await fireIntent(userId, grocery.grantId, 800, "GROCERY");
 
     return {
       scenario: "happy-path",
@@ -120,15 +120,15 @@ const SCENARIOS: Record<
    * budget-exceeded
    * Consume full budget, then attempt another.
    */
-  "budget-exceeded": async (trace) => {
+  "budget-exceeded": async (userId, trace) => {
     trace.push("Creating root grant (₹1,000 total)");
-    const root = await makeRootGrant({ limit: 1000, hardMax: 1000 });
+    const root = await makeRootGrant(userId, { limit: 1000, hardMax: 1000 });
 
     trace.push("Firing ₹900 intent → expect ALLOW + RESERVED");
-    const first = await fireIntent(root.grantId, 900);
+    const first = await fireIntent(userId, root.grantId, 900);
 
     trace.push("Firing ₹200 intent against same grant → expect DENY (budget exceeded)");
-    const second = await fireIntent(root.grantId, 200);
+    const second = await fireIntent(userId, root.grantId, 200);
 
     return {
       scenario: "budget-exceeded",
@@ -143,16 +143,16 @@ const SCENARIOS: Record<
    * category-deny
    * Grocery grant, attempt with wrong category.
    */
-  "category-deny": async (trace) => {
+  "category-deny": async (userId, trace) => {
     trace.push("Creating root grant");
-    const root = await makeRootGrant();
+    const root = await makeRootGrant(userId);
 
     trace.push("Creating GROCERY-scoped child grant");
-    const grocery = await makeChildGrant(root.grantId, { category: "GROCERY" });
+    const grocery = await makeChildGrant(userId, root.grantId, { category: "GROCERY" });
 
     trace.push("Firing intent with category ELECTRONICS → expect SCOPE_DENIED");
     const result = await intentService.createIntent({
-      userId: DEMO_USER,
+      userId,
       grantId: grocery.grantId,
       amount: 500,
       merchant: { merchantId: uid("m"), name: "Electronics Store", category: "ELECTRONICS" },
@@ -173,14 +173,14 @@ const SCENARIOS: Record<
    * expired-grant
    * Grant with expiresAt in the past, attempt payment.
    */
-  "expired-grant": async (trace) => {
+  "expired-grant": async (userId, trace) => {
     const oneSecondAgo = new Date(Date.now() - 1000).toISOString();
 
     trace.push(`Creating grant expired at ${oneSecondAgo}`);
-    const root = await makeRootGrant({ expiresAt: oneSecondAgo });
+    const root = await makeRootGrant(userId, { expiresAt: oneSecondAgo });
 
     trace.push("Firing intent → expect GRANT_EXPIRED");
-    const result = await fireIntent(root.grantId, 500);
+    const result = await fireIntent(userId, root.grantId, 500);
 
     return {
       scenario: "expired-grant",
@@ -195,18 +195,18 @@ const SCENARIOS: Record<
    * delegation-overflow
    * Try to create a grant at depth exceeding maxDepth.
    */
-  "delegation-overflow": async (trace) => {
+  "delegation-overflow": async (userId, trace) => {
     trace.push("Creating root grant with maxDepth=2");
-    const root = await makeRootGrant({ maxDepth: 2, maxChildren: 10 });
+    const root = await makeRootGrant(userId, { maxDepth: 2, maxChildren: 10 });
 
     trace.push("Creating depth-1 child (allowed)");
-    const child1 = await makeChildGrant(root.grantId, {
+    const child1 = await makeChildGrant(userId, root.grantId, {
       delegationEnabled: true,
       limit: 3000,
     });
 
     trace.push("Creating depth-2 grandchild (allowed, at maxDepth)");
-    const child2 = await makeChildGrant(child1.grantId, {
+    const child2 = await makeChildGrant(userId, child1.grantId, {
       delegationEnabled: true,
       limit: 1000,
     });
@@ -214,7 +214,7 @@ const SCENARIOS: Record<
     trace.push("Attempting depth-3 great-grandchild → expect MAX_DELEGATION_DEPTH_EXCEEDED");
     let depthError: string | null = null;
     try {
-      await makeChildGrant(child2.grantId, { limit: 500 });
+      await makeChildGrant(userId, child2.grantId, { limit: 500 });
     } catch (err: any) {
       depthError = err.code ?? err.message;
     }
@@ -233,28 +233,28 @@ const SCENARIOS: Record<
    * revocation
    * Create a tree, execute payment, then revoke ancestor.
    */
-  "revocation": async (trace) => {
+  "revocation": async (userId, trace) => {
     trace.push("Creating root → shopping → grocery hierarchy");
-    const root = await makeRootGrant({ maxDepth: 3, maxChildren: 5 });
-    const shopping = await makeChildGrant(root.grantId, {
+    const root = await makeRootGrant(userId, { maxDepth: 3, maxChildren: 5 });
+    const shopping = await makeChildGrant(userId, root.grantId, {
       limit: 4000,
       hardMax: 4000,
-      delegationEnabled: true,  // must be true so grocery can be delegated below it
+      delegationEnabled: true,
     });
-    const grocery = await makeChildGrant(shopping.grantId, {
+    const grocery = await makeChildGrant(userId, shopping.grantId, {
       limit: 2000,
       hardMax: 2000,
       category: "GROCERY",
     });
 
     trace.push("Firing successful ₹500 intent on grocery");
-    const firstResult = await fireIntent(grocery.grantId, 500, "GROCERY");
+    const firstResult = await fireIntent(userId, grocery.grantId, 500, "GROCERY");
 
     trace.push("Revoking shopping grant (ancestor)");
-    await grantService.revokeGrant(DEMO_USER, shopping.grantId);
+    await grantService.revokeGrant(userId, shopping.grantId);
 
     trace.push("Firing ₹200 intent on grocery after ancestor revocation → expect GRANT_REVOKED");
-    const secondResult = await fireIntent(grocery.grantId, 200, "GROCERY");
+    const secondResult = await fireIntent(userId, grocery.grantId, 200, "GROCERY");
 
     return {
       scenario: "revocation",
@@ -276,14 +276,14 @@ const SCENARIOS: Record<
    * replay
    * Submit same idempotency key twice — must return original decision.
    */
-  "replay": async (trace) => {
+  "replay": async (userId, trace) => {
     trace.push("Creating root grant");
-    const root = await makeRootGrant();
+    const root = await makeRootGrant(userId);
     const idemKey = uid("idem-replay");
 
     trace.push(`Submitting first intent with idempotencyKey=${idemKey}`);
     const first = await intentService.createIntent({
-      userId: DEMO_USER,
+      userId,
       grantId: root.grantId,
       amount: 500,
       merchant: { merchantId: uid("m"), name: "Test Store", category: "GENERAL" },
@@ -292,7 +292,7 @@ const SCENARIOS: Record<
 
     trace.push(`Submitting identical request with same idempotencyKey → expect replayed=true, same intentId`);
     const second = await intentService.createIntent({
-      userId: DEMO_USER,
+      userId,
       grantId: root.grantId,
       amount: 500,
       merchant: { merchantId: uid("m"), name: "Test Store", category: "GENERAL" },
@@ -314,20 +314,20 @@ const SCENARIOS: Record<
    * max-children
    * Exhaust maxChildren, then attempt one more child.
    */
-  "max-children": async (trace) => {
+  "max-children": async (userId, trace) => {
     trace.push("Creating root grant with maxChildren=2");
-    const root = await makeRootGrant({ maxChildren: 2, maxDepth: 3 });
+    const root = await makeRootGrant(userId, { maxChildren: 2, maxDepth: 3 });
 
     trace.push("Creating child 1 (allowed)");
-    await makeChildGrant(root.grantId, { limit: 1000, hardMax: 1000 });
+    await makeChildGrant(userId, root.grantId, { limit: 1000, hardMax: 1000 });
 
     trace.push("Creating child 2 (allowed, at limit)");
-    await makeChildGrant(root.grantId, { limit: 1000, hardMax: 1000 });
+    await makeChildGrant(userId, root.grantId, { limit: 1000, hardMax: 1000 });
 
     trace.push("Attempting child 3 → expect MAX_DELEGATION_CHILDREN_EXCEEDED");
     let childrenError: string | null = null;
     try {
-      await makeChildGrant(root.grantId, { limit: 500, hardMax: 500 });
+      await makeChildGrant(userId, root.grantId, { limit: 500, hardMax: 500 });
     } catch (err: any) {
       childrenError = err.code ?? err.message;
     }
@@ -361,14 +361,17 @@ export async function runScenarioHandler(
   const trace: string[] = [];
   const startedAt = new Date().toISOString();
 
+  // Use the authenticated user as the scenario owner — isolates seed data per tenant.
+  const userId = req.user!.sub;
+
   try {
-    const result = await fn(trace);
+    const result = await fn(userId, trace);
 
     await auditRepository.logEvent(
-      DEMO_USER,
+      userId,
       "DEMO_SCENARIO_RUN",
       { scenario, result },
-      DEMO_USER
+      userId
     );
 
     res.status(200).json({
@@ -389,10 +392,10 @@ export async function runScenarioHandler(
 
     if (isEnforcementError) {
       await auditRepository.logEvent(
-        DEMO_USER,
+        userId,
         "DEMO_SCENARIO_RUN",
         { scenario, enforcement: err.code, trace },
-        DEMO_USER
+        userId
       ).catch(() => {}); // don't let audit failure mask the result
 
       res.status(200).json({

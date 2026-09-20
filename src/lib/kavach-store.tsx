@@ -198,7 +198,20 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grants"] });
       queryClient.invalidateQueries({ queryKey: ["ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["exposure"] });
+      queryClient.invalidateQueries({ queryKey: ["audit"] });
     },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (grantId: string) => apiClient.restoreGrant(grantId),
+    onSuccess: () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["grants"] }),
+      queryClient.invalidateQueries({ queryKey: ["ledger"] }),
+      queryClient.invalidateQueries({ queryKey: ["exposure"] }),
+      queryClient.invalidateQueries({ queryKey: ["audit"] }),
+      queryClient.invalidateQueries({ queryKey: ["stop-all"] }),
+    ]),
   });
 
   const createGrantMutation = useMutation({
@@ -280,7 +293,7 @@ function KavachStoreInner({ children }: { children: ReactNode }) {
   };
 
   const restoreAgent = async (id: string) => {
-    console.warn("Restore agent not supported by backend yet.");
+    await restoreMutation.mutateAsync(id);
   };
 
   const createAgent = async (input: NewAgentInput) => {

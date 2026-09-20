@@ -33,6 +33,9 @@ function describeAuditEvent(event: AuditEvent, agents: ReturnType<typeof useKava
   switch (event.eventType) {
     case "GRANT_CREATED": return { tag: "MANDATE", title: "Mandate issued", detail: agent?.name ?? grantId };
     case "GRANT_REVOKED": return { tag: "REVOCATION", title: "Mandate revoked", detail: agent?.name ?? grantId };
+    case "GRANT_RESTORED": return { tag: "RESTORED", title: "Mandate restored", detail: agent?.name ?? grantId };
+    case "AUTHORITY_STOPPED": return { tag: "STOP", title: "All agent authority stopped", detail: `${Number(event.metadata?.count ?? 0)} mandates` };
+    case "AUTHORITY_RESTORED": return { tag: "RESTORE", title: "Stopped agent authority restored", detail: `${Number(event.metadata?.restored ?? 0)} mandates` };
     case "GRANT_EXPIRED": return { tag: "EXPIRY", title: "Mandate expired", detail: agent?.name ?? grantId };
     case "DECISION_MADE": return { tag: "DECISION", title: "Policy decision recorded", detail: decision ? `${decision.merchant} · ${formatINR(decision.amount)}` : intentId };
     case "RESERVATION_CREATED": return { tag: "SPEND", title: "Authority reserved", detail: decision ? `${decision.merchant} · ${formatINR(decision.amount)}` : intentId };
@@ -129,7 +132,7 @@ export default function AuthorityPage() {
             </span>
           </div>
 
-          <div className="relative overflow-hidden p-3.5 sm:p-5">
+          <div className="relative p-3.5 sm:p-5">
             <div className="authority-grid absolute inset-0 opacity-35" />
             <div className="relative mx-auto flex max-w-3xl flex-col items-center">
               <div className="rounded-lg border border-primary/35 bg-primary/8 px-3.5 py-1.5 text-center shadow-xs">
@@ -140,7 +143,7 @@ export default function AuthorityPage() {
               </div>
               <div className="h-3.5 w-px bg-border" />
               <div className="relative h-px w-[82%] bg-border before:absolute before:left-0 before:top-0 before:h-3 before:w-px before:bg-border after:absolute after:right-0 after:top-0 after:h-3 after:w-px after:bg-border" />
-              <div className="mt-3 grid w-full gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="data-scroll-region data-scroll-region--lineage mt-3 grid w-full gap-2.5 sm:grid-cols-2 lg:grid-cols-4" role="region" aria-label="Authority lineage mandates" tabIndex={0}>
                 {agents.map((agent) => {
                   const tone = agentTone(agent.status);
                   return (
@@ -196,13 +199,14 @@ export default function AuthorityPage() {
                 <h2 className="text-base font-semibold">Exposure over time</h2>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Step-downs show authority consumed or withdrawn.
+                Recorded changes in reachable authority, measured in rupees.
               </p>
             </div>
             <div className="p-4 sm:p-5">
               <ExposureChart
                 history={history}
                 currentExposure={maxPossibleSpend}
+                ready={agents.length > 0}
               />
             </div>
           </div>
@@ -228,7 +232,7 @@ export default function AuthorityPage() {
               <span className="text-right">Reachable</span>
             </div>
 
-            <div className="divide-y divide-border">
+            <div className="data-scroll-region data-scroll-region--allocation divide-y divide-border" role="region" aria-label="Authority allocation list" tabIndex={0}>
               {agents.map((agent) => {
                 const tone = agentTone(agent.status);
                 const remaining = remainingFor(agent);
@@ -236,7 +240,7 @@ export default function AuthorityPage() {
                   <button
                     type="button"
                     key={agent.id}
-                    className="group grid w-full gap-3 px-5 py-4 text-left transition-colors hover:bg-raised md:grid-cols-[minmax(0,1.2fr)_minmax(170px,.9fr)_90px_90px] md:items-center md:gap-4"
+                    className="group grid w-full gap-2 px-5 py-3 text-left transition-colors hover:bg-raised md:grid-cols-[minmax(0,1.2fr)_minmax(170px,.9fr)_90px_90px] md:items-center md:gap-4"
                     onClick={() => {
                       setSelectedAgentId(agent.id);
                       setSelectedEventId(null);

@@ -112,14 +112,14 @@ export default function Overview() {
                 <p className="mt-2 text-[11px] text-muted-foreground">
                   of <span className="amount text-foreground">{formatINR(totalAuthority)}</span> granted authority
                 </p>
-                <div className="mt-4 space-y-2 border-t border-border pt-3 text-xs">
+                <div className="mt-4 space-y-2 border-t border-border pt-3 text-base sm:text-lg">
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-muted-foreground">Spendable agents</span>
-                    <strong className="font-medium">{activeAgents.length} of {agents.length}</strong>
+                    <strong className="font-semibold tabular-nums">{activeAgents.length} of {agents.length}</strong>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <span className="text-muted-foreground">Policy enforcement</span>
-                    <strong className={cn("font-medium", frozen ? "text-destructive" : "text-success")}>{frozen ? "Stopped" : "Live"}</strong>
+                    <strong className={cn("font-semibold", frozen ? "text-destructive" : "text-success")}>{frozen ? "Stopped" : "Live"}</strong>
                   </div>
                 </div>
               </div>
@@ -137,7 +137,7 @@ export default function Overview() {
               </div>
               <Link href="/authority" className="text-xs font-medium hover:text-destructive">Open graph →</Link>
             </div>
-            <div>
+            <div className="data-scroll-region data-scroll-region--exposure" role="region" aria-label="Exposure by agent list" tabIndex={0}>
               {agents.map((agent) => {
                 const remaining = remainingFor(agent);
                 const pct = totalAuthority ? (remaining / totalAuthority) * 100 : 0;

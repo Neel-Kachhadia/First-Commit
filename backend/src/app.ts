@@ -21,6 +21,10 @@ import {
 import {
   createGrantHandler,
   revokeGrantHandler,
+  restoreGrantHandler,
+  stopAllStatusHandler,
+  stopAllGrantsHandler,
+  restoreAllGrantsHandler,
   listGrantsHandler,
 } from "./handlers/grant-handler.js";
 
@@ -181,17 +185,25 @@ export function createApp() {
 
   /*
    * ── JWT guard — applied to all /v0/* business routes below ────────────────
+   *
+   * cognitoAuthMiddleware validates the Bearer ID token and populates
+   * req.user = { sub, email }. All downstream handlers must read
+   * req.user.sub as the authoritative tenant identity — never trust
+   * a userId supplied by the client in the request body or query string.
    */
 
-  app.use("/v0", (req, res, next) => { (req as any).user = { sub: "u_frontend_demo" }; next(); });
+  app.use("/v0", cognitoAuthMiddleware);
 
   /*
    * ── Razorpay Standard Web Checkout API ─────────────────────────────────────
    */
 
   app.get("/api/config", getCheckoutConfigHandler);
-  app.post("/api/create-order", createOrderHandler);
-  app.post("/api/execute-order", executeOrderHandler);
+  // Checkout mutation routes require a verified Cognito token so that
+  // the backend can derive userId from req.user.sub instead of trusting
+  // a client-supplied body field.
+  app.post("/api/create-order", cognitoAuthMiddleware, createOrderHandler);
+  app.post("/api/execute-order", cognitoAuthMiddleware, executeOrderHandler);
   app.post("/api/verify-payment", verifyPaymentHandler);
 
   /*
@@ -266,6 +278,15 @@ export function createApp() {
     "/v0/grants/:id/revoke",
     revokeGrantHandler
   );
+
+  app.post(
+    "/v0/grants/:id/restore",
+    restoreGrantHandler
+  );
+
+  app.get("/v0/grants/stop-all", stopAllStatusHandler);
+  app.post("/v0/grants/stop-all", stopAllGrantsHandler);
+  app.post("/v0/grants/restore-all", restoreAllGrantsHandler);
 
   /*
    * ── Categories ──────────────────────────────────────────────────────────────

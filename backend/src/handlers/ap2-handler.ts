@@ -39,9 +39,12 @@ export async function createAp2MandateHandler(
       );
 
     const grant =
-      await grantService.createGrant(
-        grantInput
-      );
+      await grantService.createGrant({
+        ...grantInput,
+        // Override mandate.principal_id with the verified JWT identity.
+        // The calling system must authenticate as the correct Cognito user.
+        userId: req.user!.sub,
+      });
 
     res.status(201).json({
       success: true,

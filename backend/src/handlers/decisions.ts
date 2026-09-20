@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { receiptService } from "../services/receipt-service.js";
 import { decisionRepository } from "../store/decision-repository.js";
 import { auditRepository } from "../store/audit-repository.js";
+import { intentRepository } from "../store/intent-repository.js";
 
 /**
  * GET /v0/decisions/:intentId/decisions
@@ -16,6 +17,14 @@ export async function getDecisionsHandler(
 
     if (!intentId) {
       res.status(400).json({ error: "intentId is required" });
+      return;
+    }
+
+    // Ownership check — only the intent owner may view its decisions.
+    const userId = req.user!.sub;
+    const intent = await intentRepository.getIntent(intentId);
+    if (!intent || intent.userId !== userId) {
+      res.status(404).json({ error: "Intent not found." });
       return;
     }
 
@@ -56,6 +65,14 @@ export async function verifyReceiptHandler(
 
     if (!intentId || !decisionId) {
       res.status(400).json({ error: "intentId and decisionId are required" });
+      return;
+    }
+
+    // Ownership check — only the intent owner may verify its receipt.
+    const userId = req.user!.sub;
+    const intent = await intentRepository.getIntent(intentId);
+    if (!intent || intent.userId !== userId) {
+      res.status(404).json({ error: "Intent not found." });
       return;
     }
 

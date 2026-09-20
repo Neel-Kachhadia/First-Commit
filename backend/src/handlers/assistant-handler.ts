@@ -182,6 +182,7 @@ export async function extractMandateVoiceHandler(
       extraction.monthlyLimit != null && "monthlyLimit",
       extraction.perTransactionCap != null && "perTransactionCap",
       extraction.approvedMerchants != null && "approvedMerchants",
+      extraction.expiresAt != null && "expiresAt",
     ].filter(Boolean);
 
     console.log(

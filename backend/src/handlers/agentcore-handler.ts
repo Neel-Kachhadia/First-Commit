@@ -24,12 +24,20 @@ export async function agentcoreCreatePaymentHandler(
   res: Response
 ): Promise<void> {
   try {
-    const { intentId, grantId, amount, merchant, category } = req.body;
+    const { intentId, grantId, amount, merchant, category, userId } = req.body;
 
     if (!intentId || !grantId || !amount || !merchant || !category) {
       res.status(400).json({
         success: false,
         error: "Missing required fields",
+      });
+      return;
+    }
+
+    if (!userId || typeof userId !== "string" || !userId.trim()) {
+      res.status(400).json({
+        success: false,
+        error: "userId is required for AgentCore payment creation",
       });
       return;
     }
@@ -43,7 +51,7 @@ export async function agentcoreCreatePaymentHandler(
       amount,
       currency: "INR",
       grantId,
-      userId: "u_demo", // Assuming a demo user for the hackathon
+      userId: userId.trim(), // IAM-authenticated caller supplies the principal; never use a hardcoded fallback
       merchant: {
         merchantId: merchant.toLowerCase().replace(/\s+/g, "_"),
         name: merchant,

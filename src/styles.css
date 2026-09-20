@@ -386,7 +386,97 @@
 }
 
 .exposure-ledger {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
   background: var(--color-card);
+}
+
+/* Keep growing records inside their instrument while headers and totals stay visible. */
+.data-scroll-region {
+  max-height: min(30rem, 68dvh);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* Row-based caps keep the summary and graph from growing with the dataset. */
+.data-scroll-region--exposure {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  max-height: none;
+}
+
+.exposure-ledger-row {
+  flex: 1 0 20%;
+}
+
+.data-scroll-region--lineage {
+  max-height: min(17.625rem, 56dvh);
+  grid-auto-rows: 8.5rem;
+}
+
+.data-scroll-region--lineage .authority-node {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.data-scroll-region--allocation {
+  max-height: min(21rem, 68dvh);
+}
+
+.data-scroll-region--allocation > button {
+  min-height: 5.25rem;
+}
+
+.data-scroll-region:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: -2px;
+}
+
+@media (max-width: 640px) {
+  .data-scroll-region {
+    max-height: min(30rem, 60dvh);
+  }
+
+  .data-scroll-region--exposure {
+    height: min(21.25rem, 60dvh);
+    flex: none;
+    max-height: min(21.25rem, 60dvh);
+  }
+
+  .data-scroll-region--lineage {
+    max-height: min(17.625rem, 56dvh);
+  }
+
+  .data-scroll-region--allocation {
+    max-height: min(32rem, 68dvh);
+  }
+
+  .data-scroll-region--allocation > button {
+    min-height: 8rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 767px) {
+  .data-scroll-region--allocation {
+    max-height: min(32rem, 68dvh);
+  }
+
+  .data-scroll-region--allocation > button {
+    min-height: 8rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .data-scroll-region--exposure {
+    height: min(21.25rem, 60dvh);
+    flex: none;
+    max-height: min(21.25rem, 60dvh);
+  }
 }
 
 .exposure-ledger-row {
@@ -510,19 +600,6 @@
 
 .authority-map {
   border-radius: 2rem 0.45rem 1.2rem 0.45rem;
-}
-
-.authority-map::after {
-  position: absolute;
-  top: 4.6rem;
-  right: -3rem;
-  width: 9rem;
-  height: 9rem;
-  pointer-events: none;
-  content: "";
-  border: 1px solid
-    color-mix(in srgb, var(--color-destructive) 18%, transparent);
-  border-radius: 50%;
 }
 
 .authority-inspector {
@@ -761,7 +838,7 @@
 }
 
 .authority-ring-segment.is-active {
-  stroke-width: 18;
+  stroke-width: 11;
   filter: drop-shadow(
     0 0 5px color-mix(in srgb, currentColor 18%, transparent)
   );

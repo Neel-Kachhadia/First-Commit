@@ -37,7 +37,7 @@ export function AuthorityRing({
             cy="88"
             r={radius}
             className="authority-ring-track"
-            strokeWidth="13"
+            strokeWidth="8"
             strokeLinecap="round"
             fill="none"
           />
@@ -50,7 +50,7 @@ export function AuthorityRing({
               active === "spent" && "is-active",
               active === "remaining" && "is-muted",
             )}
-            strokeWidth="13"
+            strokeWidth="8"
             strokeLinecap="round"
             fill="none"
             strokeDasharray={`${spentLength} ${circumference - spentLength}`}
@@ -66,7 +66,7 @@ export function AuthorityRing({
               active === "remaining" && "is-active",
               active === "spent" && "is-muted",
             )}
-            strokeWidth="13"
+            strokeWidth="8"
             strokeLinecap="round"
             fill="none"
             strokeDasharray={`${remainingLength} ${circumference - remainingLength}`}
