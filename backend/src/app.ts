@@ -110,6 +110,35 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 export function createApp() {
   const app = express();
 
+  const corsOptions: cors.CorsOptions = {
+    origin: [
+      "https://www.kavachpay.co.in",
+      "https://kavachpay.co.in",
+      "http://localhost:3000",
+      "http://localhost:5173",
+    ],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Idempotency-Key",
+      "X-Razorpay-Signature",
+      "X-Razorpay-Event-Id",
+    ],
+    credentials: true,
+    optionsSuccessStatus: 204,
+  };
+
+  app.use(cors(corsOptions));
+  app.options("{*path}", cors(corsOptions));
+
+  app.use((req, res, next) => {
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+
   /*
    * POST /v0/webhooks/razorpay
    *
@@ -122,7 +151,6 @@ export function createApp() {
     webhookHandler
   );
 
-  app.use(cors());
   app.use(express.json());
 
   // Serve static frontend assets for checkout demo

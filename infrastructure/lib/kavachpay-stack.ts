@@ -308,20 +308,6 @@ export class KavachPayStack extends cdk.Stack {
           loggingLevel:
             apigateway.MethodLoggingLevel.INFO,
         },
-
-        defaultCorsPreflightOptions: {
-          allowOrigins:
-            apigateway.Cors.ALL_ORIGINS,
-
-          allowMethods:
-            apigateway.Cors.ALL_METHODS,
-
-          allowHeaders: [
-            "Content-Type",
-            "Authorization",
-            "X-Requested-With",
-          ],
-        },
       }
     );
 
