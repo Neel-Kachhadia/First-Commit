@@ -76,23 +76,27 @@ export interface CausalReplay {
   reconstructedAt: string;
 }
 
-export function CausalReplayPanel({ replay, loading }: { replay: CausalReplay | null, loading?: boolean }) {
-  // Flatten the chain into a top-to-bottom array
+export function CausalReplayPanel({
+  replay,
+  loading,
+}: {
+  replay: CausalReplay | null;
+  loading?: boolean;
+}) {
   const orderedNodeIds = useMemo(() => {
     if (!replay) return [];
     const ids: string[] = [];
     const c = replay.chain;
-    
+
     if (c.decision) ids.push(c.decision);
     if (c.decisionCause) ids.push(c.decisionCause);
     if (c.authorityState) ids.push(c.authorityState);
     if (c.delegation && c.delegation.length > 0) {
-      // Reverse delegation so it goes from most specific child up to root
-      [...c.delegation].reverse().forEach(d => ids.push(d));
+      [...c.delegation].reverse().forEach((d) => ids.push(d));
     }
     if (c.mandate) ids.push(c.mandate);
     if (c.humanIntent) ids.push(c.humanIntent);
-    
+
     return ids;
   }, [replay]);
 
@@ -101,7 +105,9 @@ export function CausalReplayPanel({ replay, loading }: { replay: CausalReplay | 
       <div className="flex items-center justify-center h-full bg-background">
         <div className="flex flex-col items-center gap-4 text-muted-foreground">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm font-mono tracking-widest uppercase">Reconstructing chain...</p>
+          <p className="text-sm font-mono tracking-widest uppercase">
+            Reconstructing chain...
+          </p>
         </div>
       </div>
     );
@@ -113,59 +119,82 @@ export function CausalReplayPanel({ replay, loading }: { replay: CausalReplay | 
     .map((id) => replay.nodes.find((n) => n.id === id))
     .filter(Boolean) as CausalReplayNode[];
 
-  // Helper to find edge connecting two nodes
   const getEdgeBetween = (nodeIdA: string, nodeIdB: string) => {
     return replay.edges.find(
-      (e) => (e.from === nodeIdA && e.to === nodeIdB) || (e.from === nodeIdB && e.to === nodeIdA)
+      (e) =>
+        (e.from === nodeIdA && e.to === nodeIdB) ||
+        (e.from === nodeIdB && e.to === nodeIdA)
     );
   };
 
-  const humanIntentNode = replay.nodes.find(n => n.type === "HUMAN_INTENT");
+  const humanIntentNode = replay.nodes.find((n) => n.type === "HUMAN_INTENT");
 
   return (
     <div className="flex flex-col h-full bg-background overflow-y-auto font-mono text-sm">
       <div className="p-6">
-        <h2 className="text-xl font-bold tracking-tight mb-6">WHY DID THIS HAPPEN?</h2>
+        <h2 className="text-xl font-bold tracking-tight mb-6">
+          WHY DID THIS HAPPEN?
+        </h2>
 
         <div className="border border-border rounded-lg bg-card p-4 mb-8">
-          <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2">[ OUTCOME ]</div>
-          <div className="text-lg font-bold text-foreground uppercase">{replay.outcome.decision}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2">
+            [ OUTCOME ]
+          </div>
+          <div className="text-lg font-bold text-foreground uppercase">
+            {replay.outcome.decision}
+          </div>
           {humanIntentNode && humanIntentNode.data && (
             <div className="text-muted-foreground mt-1">
-              {formatINR(humanIntentNode.data.amount)} · {humanIntentNode.data.merchant?.name || "Merchant"}
+              {formatINR(humanIntentNode.data.amount)} ·{" "}
+              {humanIntentNode.data.merchant?.name || "Merchant"}
             </div>
           )}
         </div>
 
         <hr className="border-border my-8" />
 
-        <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-6">CAUSAL CHAIN</div>
+        <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-6">
+          CAUSAL CHAIN
+        </div>
 
         <div className="space-y-0 relative">
           {nodes.map((node, i) => {
             const nextNode = nodes[i + 1];
-            const edge = nextNode ? getEdgeBetween(node.id, nextNode.id) : null;
-            
+            const edge = nextNode
+              ? getEdgeBetween(node.id, nextNode.id)
+              : null;
+
             const isDecisionNode = node.id === replay.chain.decision;
-            const executionNode = replay.nodes.find(n => n.id === replay.chain.execution);
-            const providerNode = replay.nodes.find(n => n.id === replay.chain.providerResult);
-            const webhookNode = replay.nodes.find(n => n.id === replay.chain.providerWebhook);
+            const executionNode = replay.nodes.find(
+              (n) => n.id === replay.chain.execution
+            );
+            const providerNode = replay.nodes.find(
+              (n) => n.id === replay.chain.providerResult
+            );
+            const webhookNode = replay.nodes.find(
+              (n) => n.id === replay.chain.providerWebhook
+            );
 
             return (
               <div key={node.id} className="relative">
-                <NodeRenderer node={node} />
-                
+                <NodeRenderer node={node} outcome={replay.outcome} />
+
                 {isDecisionNode && providerNode && (
                   <div className="mt-4 mb-2 ml-6 border-l-2 border-muted pl-4 relative">
                     <div className="absolute -left-[2px] top-4 w-4 border-t-2 border-muted" />
                     <div className="text-[9px] uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded inline-block mb-2 relative -top-3 left-1">
                       ROUTES TO
                     </div>
-                    
+
                     {replay.outcome.providerInvoked ? (
                       <div className="flex flex-col">
-                        {executionNode && <NodeRenderer node={executionNode} />}
-                        
+                        {executionNode && (
+                          <NodeRenderer
+                            node={executionNode}
+                            outcome={replay.outcome}
+                          />
+                        )}
+
                         {executionNode && providerNode && (
                           <div className="flex flex-col items-center justify-center my-4 opacity-50">
                             <ArrowDown className="h-4 w-4 text-muted-foreground mb-1" />
@@ -174,9 +203,12 @@ export function CausalReplayPanel({ replay, loading }: { replay: CausalReplay | 
                             </span>
                           </div>
                         )}
-                        
-                        <NodeRenderer node={providerNode} />
-                        
+
+                        <NodeRenderer
+                          node={providerNode}
+                          outcome={replay.outcome}
+                        />
+
                         {providerNode && webhookNode && (
                           <div className="flex flex-col items-center justify-center my-4 opacity-50">
                             <ArrowDown className="h-4 w-4 text-muted-foreground mb-1" />
@@ -185,11 +217,19 @@ export function CausalReplayPanel({ replay, loading }: { replay: CausalReplay | 
                             </span>
                           </div>
                         )}
-                        
-                        {webhookNode && <NodeRenderer node={webhookNode} />}
+
+                        {webhookNode && (
+                          <NodeRenderer
+                            node={webhookNode}
+                            outcome={replay.outcome}
+                          />
+                        )}
                       </div>
                     ) : (
-                      <NodeRenderer node={providerNode} />
+                      <NodeRenderer
+                        node={providerNode}
+                        outcome={replay.outcome}
+                      />
                     )}
                   </div>
                 )}
@@ -226,40 +266,108 @@ export function CausalReplayPanel({ replay, loading }: { replay: CausalReplay | 
   );
 }
 
-function NodeRenderer({ node }: { node: CausalReplayNode }) {
+interface NodeRendererProps {
+  node: CausalReplayNode;
+  outcome: CausalReplay["outcome"];
+}
+
+function NodeRenderer({ node, outcome }: NodeRendererProps) {
   if (node.type === "PROVIDER_WEBHOOK") {
     return (
       <div className="border-l-2 border-foreground pl-4 py-1">
         <div className="font-bold">PROVIDER WEBHOOK</div>
-        <div className="text-muted-foreground mt-1">{node.data?.eventId || node.label}</div>
+        <div className="text-muted-foreground mt-1">
+          {node.data?.eventId || node.label}
+        </div>
       </div>
     );
   }
 
   if (node.type === "PROVIDER_RESULT") {
-    if (node.status === "NOT_INVOKED") {
+    // Provider was actually invoked → real Razorpay execution
+    if (outcome.providerInvoked) {
       return (
-        <div className="border-l-2 border-muted pl-4 py-1">
-          <div className="font-bold">EXECUTION GATE</div>
-          <div className="mt-1 text-destructive font-semibold">NOT INVOKED</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {node.label} · {node.data?.environment?.replace("_", " ")}<br />
-            No provider order was created.
+        <div className="border-l-2 border-foreground pl-4 py-1">
+          <div className="font-bold uppercase">{node.label}</div>
+          <div className="text-muted-foreground mt-1 uppercase">
+            {node.data?.environment?.replace("_", " ")}
+          </div>
+          <div className="mt-2 space-y-0.5">
+            {node.data?.razorpayOrderId && (
+              <div>
+                <span className="text-muted-foreground text-xs">Order </span>
+                {node.data.razorpayOrderId}
+              </div>
+            )}
+            {node.data?.razorpayPaymentId && (
+              <div>
+                <span className="text-muted-foreground text-xs">Payment </span>
+                {node.data.razorpayPaymentId}
+              </div>
+            )}
+            {node.status && (
+              <div>
+                <span className="text-muted-foreground text-xs">Status </span>
+                {node.status.replace("PROVIDER_", "")}
+              </div>
+            )}
           </div>
         </div>
       );
     }
 
-    return (
-      <div className="border-l-2 border-foreground pl-4 py-1">
-        <div className="font-bold uppercase">{node.label}</div>
-        <div className="text-muted-foreground mt-1 uppercase">
-          {node.data?.environment?.replace("_", " ")}
+    // Provider NOT invoked — semantic rendering by decision outcome
+    const decision = outcome.decision; // "ALLOW" | "DENY" | "STEP_UP"
+
+    if (decision === "ALLOW") {
+      return (
+        <div className="border-l-2 border-muted pl-4 py-1">
+          <div className="font-bold">EXECUTION</div>
+          <div className="mt-1 text-muted-foreground font-semibold">
+            AUTHORIZED · NOT EXECUTED
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            Authorization granted, but no payment execution was requested.
+            <br />
+            {node.label} · {node.data?.environment?.replace("_", " ")}
+            <br />
+            Provider was not invoked.
+          </div>
         </div>
-        <div className="mt-1">
-          {node.data?.razorpayOrderId && <div>Order: {node.data.razorpayOrderId}</div>}
-          {node.data?.razorpayPaymentId && <div>Payment: {node.data.razorpayPaymentId}</div>}
-          {node.status && <div>Status: {node.status.replace("PROVIDER_", "")}</div>}
+      );
+    }
+
+    if (decision === "STEP_UP") {
+      return (
+        <div className="border-l-2 border-muted pl-4 py-1">
+          <div className="font-bold">EXECUTION</div>
+          <div className="mt-1 text-blue-400 font-semibold">
+            WAITING FOR APPROVAL
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            Human approval is required before provider execution.
+            <br />
+            {node.label} · {node.data?.environment?.replace("_", " ")}
+            <br />
+            Razorpay was not invoked.
+          </div>
+        </div>
+      );
+    }
+
+    // DENY or any other rejected state
+    return (
+      <div className="border-l-2 border-muted pl-4 py-1">
+        <div className="font-bold">EXECUTION</div>
+        <div className="mt-1 text-muted-foreground font-semibold">
+          NOT INVOKED
+        </div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          Authorization denied.
+          <br />
+          {node.label} · {node.data?.environment?.replace("_", " ")}
+          <br />
+          Provider was never invoked.
         </div>
       </div>
     );
@@ -297,8 +405,8 @@ function NodeRenderer({ node }: { node: CausalReplayNode }) {
       <div className="border-l-2 border-muted pl-4 py-1">
         <div className="font-bold">AUTHORITY STATE</div>
         <div className="text-muted-foreground mt-1">
-          {node.data?.source === "DECISION_RECEIPT" 
-            ? "Snapshot from receipt" 
+          {node.data?.source === "DECISION_RECEIPT"
+            ? "Snapshot from receipt"
             : "Effective capacity / policy state"}
         </div>
       </div>
