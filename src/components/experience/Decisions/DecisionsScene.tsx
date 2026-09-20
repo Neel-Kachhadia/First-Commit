@@ -163,7 +163,7 @@ export function DecisionsScene({ trackRef }: DecisionsSceneProps) {
         scrollTrigger: {
           trigger: triggerEl,
           start: "top top",
-          end: isPersistent ? "bottom top" : "+=220%",
+          end: isPersistent ? "bottom top" : "+=184%",
           pin: !isPersistent,
           scrub: true,
           invalidateOnRefresh: true,

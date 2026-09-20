@@ -53,7 +53,7 @@ export function OpeningScene({ trackRef }: OpeningSceneProps) {
           scrollTrigger: {
             trigger: triggerEl,
             start: "top top",
-            end: isPersistent ? "bottom top" : "+=120%",
+            end: isPersistent ? "bottom top" : "+=100%",
             pin: !isPersistent,
             scrub: true,
             invalidateOnRefresh: true,
