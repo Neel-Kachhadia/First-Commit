@@ -106,7 +106,7 @@ function MicButton({
 function AiFilledBadge() {
   return (
     <span className="mt-1 inline-flex items-center gap-1 text-[13px] font-medium text-primary/80">
-      <Check className="h-3.5 w-3.5" aria-hidden="true" /> Suggested by voice — verify before confirming
+      <Check className="h-3.5 w-3.5" aria-hidden="true" /> Suggested by voice - verify before confirming
     </span>
   );
 }
