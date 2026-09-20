@@ -108,7 +108,7 @@ export function CausalReplayScene({ trackRef }: CausalReplayProps) {
         scrollTrigger: {
           trigger: triggerEl,
           start: "top top",
-          end: isPersistent ? "bottom top" : "+=420%",
+          end: isPersistent ? "bottom top" : "+=374%",
           pin: false,
           scrub: true,
           invalidateOnRefresh: true,

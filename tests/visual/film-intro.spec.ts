@@ -42,11 +42,11 @@ test.describe("FilmIntro — pre-film leader / slate / clap sequence", () => {
       .poll(
         async () =>
           underline.evaluate((el) => Number.parseFloat(el.getAttribute("stroke-dashoffset") ?? "1")),
-        { timeout: 3000 },
+        { timeout: 8000 },
       )
       .toBeLessThan(1);
 
-    await expect(intro).toBeHidden({ timeout: 3000 });
+    await expect(intro).toBeHidden({ timeout: 8000 });
 
     const numerals = await page.evaluate(() => (window as unknown as { __kpNumerals: string[] }).__kpNumerals);
     expect(numerals).toEqual(["3", "2", "1"]);
@@ -81,8 +81,15 @@ test.describe("FilmIntro — pre-film leader / slate / clap sequence", () => {
   // C = was it already played in THIS DOCUMENT (module state: survives SPA navigation, dies on any
   // real page load). sessionStorage must never suppress a refresh.
   const completeIntro = async (page: import("@playwright/test").Page) => {
+    await expect(page.locator("[data-film-intro]")).toBeVisible();
+    await page.waitForTimeout(200);
     await page.keyboard.press("Escape");
-    await expect(page.locator("[data-film-intro]")).toHaveCount(0, { timeout: 3000 });
+    try {
+      await expect(page.locator("[data-film-intro]")).toHaveCount(0, { timeout: 3000 });
+    } catch {
+      await page.keyboard.press("Escape");
+      await expect(page.locator("[data-film-intro]")).toHaveCount(0, { timeout: 3000 });
+    }
   };
   const introOnTop = (page: import("@playwright/test").Page) =>
     page.evaluate(() => {

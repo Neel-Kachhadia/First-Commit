@@ -41,6 +41,7 @@ const DESKTOP = new Set(["1920x1080", "1440x900", "1366x768"]);
 async function open(page: Page, query = "") {
   await page.goto(`/?intro=0&visualTest=1${query}`, { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(() => typeof (window as unknown as { ScrollTrigger?: unknown }).ScrollTrigger !== "undefined");
 }
 
 async function snapshot(page: Page) {

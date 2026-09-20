@@ -133,11 +133,12 @@ export function intentToLedgerEntry(intent: IntentRecord): LedgerEntry {
           ? (intent.reason || "Denied by authority rules")
           : (intent.reason || "Authorized"),
     at: intent.createdAt,
-    execution,
     reasonCode: intent.reasonCode,
     blockedItem: intent.blockedItem,
     blockedCategory: intent.blockedCategory,
     matchedPolicy: intent.matchedPolicy,
+    providerStatus: (intent.providerStatus as any) ?? "NOT_INVOKED",
+    execution,
   };
 }
 
